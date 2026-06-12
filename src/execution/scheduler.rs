@@ -1,7 +1,7 @@
 use crate::execution::scheduler::scheduled_event::ScheduledEvent;
 use crate::primitive::id::EventId;
 use crate::primitive::time::{Duration, SimTime};
-use crate::world::event::Event;
+use crate::world::event::{Event, Priority};
 use std::collections::BinaryHeap;
 
 mod scheduled_event;
@@ -19,7 +19,13 @@ impl<E> Scheduler<E> {
         }
     }
 
-    pub fn schedule(&mut self, now: SimTime, delay: Duration, priority: u8, event_payload: E) {
+    pub fn schedule(
+        &mut self,
+        now: SimTime,
+        delay: Duration,
+        priority: Priority,
+        event_payload: E,
+    ) {
         let time = now + delay;
         let event_id = EventId(self.next_event_id);
         self.next_event_id += 1;
