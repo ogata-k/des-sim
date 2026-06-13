@@ -8,14 +8,16 @@ use std::collections::BinaryHeap;
 mod scheduled_event;
 
 pub(crate) struct Scheduler<E> {
-    queue: BinaryHeap<Reverse<ScheduledEvent<E>>>,
+    ready_queue: BinaryHeap<Reverse<ScheduledEvent<E>>>,
+    pending_queue: BinaryHeap<Reverse<ScheduledEvent<E>>>,
     next_event_id: u64,
 }
 
 impl<E> Scheduler<E> {
     pub fn new() -> Self {
         Self {
-            queue: BinaryHeap::new(),
+            ready_queue: BinaryHeap::new(),
+            pending_queue: BinaryHeap::new(),
             next_event_id: 0,
         }
     }
@@ -31,8 +33,8 @@ impl<E> Scheduler<E> {
         let event_id = EventId(self.next_event_id);
         self.next_event_id += 1;
 
-        self.queue.push(Reverse(ScheduledEvent {
-            time,
+        self.pending_queue.push(Reverse(ScheduledEvent {
+            scheduled_at: time,
             event: Event {
                 id: event_id,
                 priority,
@@ -44,29 +46,41 @@ impl<E> Scheduler<E> {
     /// now時点で発火しているべきイベントをpopしてVecに詰めて返す。
     ///
     /// 実行時に[Duration::zero()]でイベントをスケジュールした場合に、同一時間内でも再度とれる。
-    /// なので、同一時間内でさらにループして[self::collect()]した結果が空になるまで取得し続けること。
-    /// ※再取得漏れが発生するとエラーになるようになっているので注意。
-    pub fn collect(&mut self, now: SimTime) -> Vec<Event<E>> {
+    /// なので、同一時間内でさらにループして[self::drain_ready()]した結果が空になるまで取得し続けること。
+    /// ※再取得漏れが発生するとpanicするので注意。
+    pub fn drain_ready(&mut self, now: SimTime) -> Vec<Event<E>> {
         let mut events = Vec::new();
-        while let Some(Reverse(event)) = self.queue.peek() {
+        while let Some(Reverse(event)) = self.ready_queue.peek() {
             assert!(
-                event.time >= now,
-                "Scheduler invariant violated: event.time={} < now={}",
-                event.time,
+                event.scheduled_at >= now,
+                "EventScheduler invariant violated: event.scheduled_at={} < now={}",
+                event.scheduled_at,
                 now
             );
-            if event.time != now {
+            if event.scheduled_at != now {
                 break;
             }
 
-            events.push(self.queue.pop().unwrap().0.event);
+            events.push(self.ready_queue.pop().unwrap().0.event);
         }
 
         events
     }
 
+    pub fn peek_next_time(&self) -> Option<SimTime> {
+        self.ready_queue.peek().map(|i| i.0.scheduled_at)
+    }
+
+    #[cfg(test)]
     pub fn peek(&self) -> Option<(SimTime, &Event<E>)> {
-        self.queue.peek().map(|i| (i.0.time, &i.0.event))
+        self.ready_queue
+            .peek()
+            .map(|i| (i.0.scheduled_at, &i.0.event))
+    }
+
+    /// スケジュールされたEventを反映させる
+    pub fn flush_pending(&mut self) {
+        self.ready_queue.append(&mut self.pending_queue)
     }
 }
 
@@ -85,8 +99,9 @@ mod tests {
         scheduler.schedule(now, Duration::ticks(10), priority, "t10");
         scheduler.schedule(now, Duration::ticks(20), priority, "t20");
         scheduler.schedule(now, Duration::ticks(30), priority, "t30");
+        scheduler.flush_pending();
 
-        let events = scheduler.collect(now + Duration::ticks(10));
+        let events = scheduler.drain_ready(now + Duration::ticks(10));
 
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].payload, "t10");
@@ -105,8 +120,32 @@ mod tests {
         scheduler.schedule(now, duration, Priority::new(10), 10);
         scheduler.schedule(now, duration, Priority::new(20), 20);
         scheduler.schedule(now, duration, Priority::new(30), 30);
+        scheduler.flush_pending();
 
-        let events = scheduler.collect(now + duration);
+        let events = scheduler.drain_ready(now + duration);
+
+        let payloads: Vec<_> = events.into_iter().map(|e| e.payload).collect();
+
+        assert_eq!(payloads, vec![30, 20, 10]);
+    }
+
+    #[test]
+    fn collect_before_flush() {
+        let mut scheduler = Scheduler::<u8>::new();
+
+        let now = SimTime::new(0);
+        let duration = Duration::ticks(10);
+        scheduler.schedule(now, duration, Priority::new(10), 10);
+        scheduler.schedule(now, duration, Priority::new(20), 20);
+        scheduler.schedule(now, duration, Priority::new(30), 30);
+
+        // flush前は取得できない
+        let events = scheduler.drain_ready(now + duration);
+        assert!(events.is_empty());
+
+        scheduler.flush_pending();
+
+        let events = scheduler.drain_ready(now + duration);
 
         let payloads: Vec<_> = events.into_iter().map(|e| e.payload).collect();
 
@@ -123,14 +162,15 @@ mod tests {
         scheduler.schedule(now, duration, Priority::new(10), 2);
         scheduler.schedule(now, duration + duration, Priority::new(5), 3);
         scheduler.schedule(now, duration + duration, Priority::new(30), 4);
+        scheduler.flush_pending();
 
-        let events_10 = scheduler.collect(now + duration);
+        let events_10 = scheduler.drain_ready(now + duration);
 
         let payloads_10: Vec<_> = events_10.into_iter().map(|e| e.payload).collect();
 
         assert_eq!(payloads_10, vec![1, 2]);
 
-        let events_20 = scheduler.collect(now + duration + duration);
+        let events_20 = scheduler.drain_ready(now + duration + duration);
 
         let payloads_20: Vec<_> = events_20.into_iter().map(|e| e.payload).collect();
 
@@ -141,9 +181,11 @@ mod tests {
     fn collect_from_empty_scheduler_returns_empty_vec() {
         let mut scheduler = Scheduler::<()>::new();
 
-        let events = scheduler.collect(SimTime::new(0));
+        let events = scheduler.drain_ready(SimTime::new(0));
 
         assert!(events.is_empty());
+
+        assert_eq!(scheduler.peek_next_time(), None);
     }
 
     #[test]
@@ -155,12 +197,13 @@ mod tests {
         scheduler.schedule(now, Duration::ticks(10), priority, 1);
         scheduler.schedule(now, Duration::ticks(30), priority, 2);
         scheduler.schedule(now, Duration::ticks(40), priority, 3);
+        scheduler.flush_pending();
 
-        let events = scheduler.collect(SimTime::new(30));
+        let events = scheduler.drain_ready(SimTime::new(30));
 
         assert!(events.is_empty());
 
-        let (time, _) = scheduler.peek().unwrap();
+        let time = scheduler.peek_next_time().unwrap();
         assert_eq!(time, SimTime::new(40));
     }
 
@@ -174,8 +217,9 @@ mod tests {
         scheduler.schedule(now, duration, priority, 1);
         scheduler.schedule(now, duration, priority, 2);
         scheduler.schedule(now, duration, priority, 3);
+        scheduler.flush_pending();
 
-        let events = scheduler.collect(SimTime::new(10));
+        let events = scheduler.drain_ready(SimTime::new(10));
 
         let payloads: Vec<_> = events.into_iter().map(|e| e.payload).collect();
 
@@ -191,8 +235,9 @@ mod tests {
         scheduler.schedule(now, Duration::ticks(10), priority, 1);
         scheduler.schedule(now, Duration::ticks(10), priority, 1);
         scheduler.schedule(now, Duration::ticks(20), priority, 3);
+        scheduler.flush_pending();
 
-        let events = scheduler.collect(SimTime::new(10));
+        let events = scheduler.drain_ready(SimTime::new(10));
 
         assert_eq!(events.len(), 2);
         assert_eq!(events[0].payload, 1);
@@ -213,8 +258,9 @@ mod tests {
         scheduler.schedule(now, Duration::ticks(10), priority, 2);
         scheduler.schedule(now, Duration::ticks(10), priority, 1);
         scheduler.schedule(now, Duration::ticks(20), priority, 3);
+        scheduler.flush_pending();
 
-        let events = scheduler.collect(SimTime::new(10));
+        let events = scheduler.drain_ready(SimTime::new(10));
 
         assert_eq!(events.len(), 2);
         assert_eq!(events[0].payload, 2);
@@ -235,8 +281,9 @@ mod tests {
         scheduler.schedule(now, Duration::ticks(10), priority, 1);
         scheduler.schedule(now, Duration::ticks(10), priority, 2);
         scheduler.schedule(now, Duration::ticks(20), priority, 3);
+        scheduler.flush_pending();
 
-        let events = scheduler.collect(SimTime::new(10));
+        let events = scheduler.drain_ready(SimTime::new(10));
 
         assert_eq!(events.len(), 2);
 
@@ -247,13 +294,14 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Scheduler invariant violated")]
+    #[should_panic(expected = "EventScheduler invariant violated")]
     fn collect_panics_if_past_event_exists() {
         let mut scheduler = Scheduler::<u8>::new();
 
         scheduler.schedule(SimTime::new(0), Duration::ticks(10), Priority::new(0), 1);
         scheduler.schedule(SimTime::new(0), Duration::ticks(20), Priority::new(0), 2);
+        scheduler.flush_pending();
 
-        scheduler.collect(SimTime::new(20));
+        scheduler.drain_ready(SimTime::new(20));
     }
 }
