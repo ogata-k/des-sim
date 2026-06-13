@@ -1,6 +1,6 @@
-mod interface;
+mod hook;
 
-pub use interface::*;
+pub use hook::*;
 use std::sync::{Arc, LockResult, Mutex, MutexGuard};
 
 pub struct SharedHook<H> {
