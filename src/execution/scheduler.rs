@@ -7,13 +7,13 @@ use std::collections::BinaryHeap;
 
 mod scheduled_event;
 
-pub(crate) struct Scheduler<E> {
+pub(crate) struct EventScheduler<E> {
     ready_queue: BinaryHeap<Reverse<ScheduledEvent<E>>>,
     pending_queue: BinaryHeap<Reverse<ScheduledEvent<E>>>,
     next_event_id: u64,
 }
 
-impl<E> Scheduler<E> {
+impl<E> EventScheduler<E> {
     pub fn new() -> Self {
         Self {
             ready_queue: BinaryHeap::new(),
@@ -92,7 +92,7 @@ mod tests {
 
     #[test]
     fn collect_returns_only_matching_time() {
-        let mut scheduler = Scheduler::<&'static str>::new();
+        let mut scheduler = EventScheduler::<&'static str>::new();
 
         let now = SimTime::new(0);
         let priority = Priority::new(0);
@@ -113,7 +113,7 @@ mod tests {
 
     #[test]
     fn collect_orders_by_priority_when_time_is_same() {
-        let mut scheduler = Scheduler::<u8>::new();
+        let mut scheduler = EventScheduler::<u8>::new();
 
         let now = SimTime::new(0);
         let duration = Duration::ticks(10);
@@ -131,7 +131,7 @@ mod tests {
 
     #[test]
     fn collect_before_flush() {
-        let mut scheduler = Scheduler::<u8>::new();
+        let mut scheduler = EventScheduler::<u8>::new();
 
         let now = SimTime::new(0);
         let duration = Duration::ticks(10);
@@ -154,7 +154,7 @@ mod tests {
 
     #[test]
     fn collect_orders_by_time_then_priority() {
-        let mut scheduler = Scheduler::<u8>::new();
+        let mut scheduler = EventScheduler::<u8>::new();
 
         let now = SimTime::new(0);
         let duration = Duration::ticks(10);
@@ -179,7 +179,7 @@ mod tests {
 
     #[test]
     fn collect_from_empty_scheduler_returns_empty_vec() {
-        let mut scheduler = Scheduler::<()>::new();
+        let mut scheduler = EventScheduler::<()>::new();
 
         let events = scheduler.drain_ready(SimTime::new(0));
 
@@ -190,7 +190,7 @@ mod tests {
 
     #[test]
     fn collect_returns_empty_when_no_event_matches_now() {
-        let mut scheduler = Scheduler::<u8>::new();
+        let mut scheduler = EventScheduler::<u8>::new();
 
         let now = SimTime::new(30);
         let priority = Priority::new(0);
@@ -209,7 +209,7 @@ mod tests {
 
     #[test]
     fn collect_orders_by_event_id_when_time_and_priority_are_same() {
-        let mut scheduler = Scheduler::<u8>::new();
+        let mut scheduler = EventScheduler::<u8>::new();
 
         let now = SimTime::new(0);
         let duration = Duration::ticks(10);
@@ -228,7 +228,7 @@ mod tests {
 
     #[test]
     fn collect_leaves_future_events_in_queue() {
-        let mut scheduler = Scheduler::<u8>::new();
+        let mut scheduler = EventScheduler::<u8>::new();
 
         let now = SimTime::new(0);
         let priority = Priority::new(10);
@@ -251,7 +251,7 @@ mod tests {
 
     #[test]
     fn collect_reversed_payload() {
-        let mut scheduler = Scheduler::<u8>::new();
+        let mut scheduler = EventScheduler::<u8>::new();
 
         let now = SimTime::new(0);
         let priority = Priority::new(10);
@@ -274,7 +274,7 @@ mod tests {
 
     #[test]
     fn collect_same_payload_in_queue() {
-        let mut scheduler = Scheduler::<u8>::new();
+        let mut scheduler = EventScheduler::<u8>::new();
 
         let now = SimTime::new(0);
         let priority = Priority::new(10);
@@ -296,7 +296,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "EventScheduler invariant violated")]
     fn collect_panics_if_past_event_exists() {
-        let mut scheduler = Scheduler::<u8>::new();
+        let mut scheduler = EventScheduler::<u8>::new();
 
         scheduler.schedule(SimTime::new(0), Duration::ticks(10), Priority::new(0), 1);
         scheduler.schedule(SimTime::new(0), Duration::ticks(20), Priority::new(0), 2);
