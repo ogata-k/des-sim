@@ -18,12 +18,6 @@ impl From<TimeTick> for SimTime {
     }
 }
 
-impl Default for SimTime {
-    fn default() -> Self {
-        SimTime::zero()
-    }
-}
-
 impl Add<Duration> for SimTime {
     type Output = SimTime;
 
@@ -110,12 +104,6 @@ impl Display for Duration {
 impl From<TimeTick> for Duration {
     fn from(v: TimeTick) -> Self {
         Duration(v)
-    }
-}
-
-impl Default for Duration {
-    fn default() -> Self {
-        Duration::zero()
     }
 }
 
