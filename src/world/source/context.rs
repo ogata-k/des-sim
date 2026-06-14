@@ -19,14 +19,8 @@ impl<'a, E> SourceContext<'a, E> {
         self.now
     }
 
-    pub fn schedule_event(
-        &mut self,
-        now: SimTime,
-        delay: Duration,
-        priority: Priority,
-        event_payload: E,
-    ) {
+    pub fn schedule_event(&mut self, delay: Duration, priority: Priority, event_payload: E) {
         self.event_scheduler
-            .schedule(now, delay, priority, event_payload);
+            .schedule(self.now, delay, priority, event_payload);
     }
 }
