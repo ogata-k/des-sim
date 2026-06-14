@@ -31,13 +31,13 @@ pub trait Hook<E>: Send {
 
     // Source lifecycle
 
-    fn before_source(&mut self, now: SimTime, microstep: MicroStep, source: &SourceView<E>) {}
+    fn before_source(&mut self, now: SimTime, microstep: MicroStep, source_view: &SourceView) {}
 
     fn after_source(
         &mut self,
         now: SimTime,
         microstep: MicroStep,
-        source: &SourceView<E>,
+        source_view: &SourceView,
         computed_next_fire: Option<SimTime>,
     ) {
     }
