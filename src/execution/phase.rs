@@ -11,10 +11,10 @@ pub use handler::*;
 pub use source::*;
 
 pub enum MicroStepResult<E, M: Model<E>> {
-    /// シミュレーションを継続可能
+    /// 1 micro step分のシミュレーションを継続可能
     /// 第二引数の[MicroStep]は次の状態
     Continue(ActiveExecutorContext<E, M>, MicroStep),
-    /// シミュレーションが完了（停止条件に到達）
+    /// 1 micro step分のシミュレーションが完了（停止条件に到達）
     /// 第二引数の[MicroStepStatus]は最後の状態
     Complete(ActiveExecutorContext<E, M>, MicroStepStatus),
 }
