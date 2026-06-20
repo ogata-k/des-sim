@@ -1,5 +1,5 @@
 use crate::context::{ActiveExecutorContext, EventContext, SourceContext, UserContext};
-use crate::execution::phase::{EventPhase, MicroStepResult, SourcePhase};
+use crate::execution::phase::{EventPhase, MicroStepResult, SourcePhase, UncheckedActiveExecutor};
 use crate::modeling::hook::Hook;
 use crate::modeling::model::Model;
 use crate::primitive::time::MicroStepStatus;
@@ -83,11 +83,8 @@ impl<E, M: Model<E>> MicroStepHandler<EventContext<E, M>> {
                 if self.ref_context().current_tick_status.current() == next_scheduled_at =>
             {
                 // まだ同tick中に発火可能なイベントがあるので次のマイクロステップに進める
-                let next_micro_step = self
-                    .ref_context()
-                    .current_micro_step_status
-                    .current()
-                    .next();
+                let current_micro_step = self.ref_context().current_micro_step_status.current();
+                let next_micro_step = current_micro_step.next();
                 self.context.hook().after_micro_step(
                     self.ref_context().current_tick_status.current(),
                     self.ref_context().current_micro_step_status.current(),
@@ -100,7 +97,10 @@ impl<E, M: Model<E>> MicroStepHandler<EventContext<E, M>> {
                     source_handler: self.context.source_handler,
                     event_scheduler: self.context.event_scheduler,
                 };
-                MicroStepResult::Continue(active_context, next_micro_step)
+                MicroStepResult::Continue(UncheckedActiveExecutor::new(
+                    active_context,
+                    current_micro_step,
+                ))
             }
             _ => {
                 // 処理すべきイベントがある次のtickが未来の時間かそもそもないので、今のマイクロステップで終了
