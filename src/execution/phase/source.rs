@@ -35,7 +35,7 @@ impl<E, M: Model<E>> SourcePhase<E, M> {
         SourceView::new(ready_entry.source_id(), Arc::clone(&ready_entry.name_arc()))
     }
 
-    pub fn finish_source_phase(self) -> MicroStepHandler<SourceContext<E, M>> {
+    pub fn complete_source_phase(self) -> MicroStepHandler<SourceContext<E, M>> {
         // SourcePhaseが持っているsource_handlerをMicroStepHandler内で次のフェーズに行くためにSourceContextに渡す。
         let mut context = self.context;
         context.source_handler = self.source_handler;

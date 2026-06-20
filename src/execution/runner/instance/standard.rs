@@ -50,14 +50,14 @@ impl<E, M: Model<E>, CS: ContinueStrategy<E, M, ()>> Runner<E, M, CS> for Standa
                 while let Some(source_ready) = source_phase.take_one() {
                     source_phase.fire_and_schedule(&model, source_ready);
                 }
-                let micro_step_handler = source_phase.finish_source_phase();
+                let micro_step_handler = source_phase.complete_source_phase();
 
                 // 3. Eventフェーズ
                 let mut event_phase = micro_step_handler.to_event_phase();
                 while let Some(event_ready) = event_phase.take_one() {
                     event_phase.handle_event(&mut model, event_ready);
                 }
-                let micro_step_handler = event_phase.finish_event_phase();
+                let micro_step_handler = event_phase.complete_event_phase();
 
                 // 4. マイクロステップ終了
                 match micro_step_handler.end_micro_step() {

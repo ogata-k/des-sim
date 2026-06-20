@@ -21,7 +21,7 @@ impl<E, M: Model<E>> EventPhase<E, M> {
         &mut self.context
     }
 
-    pub fn finish_event_phase(self) -> MicroStepHandler<EventContext<E, M>> {
+    pub fn complete_event_phase(self) -> MicroStepHandler<EventContext<E, M>> {
         MicroStepHandler::new(self.context)
     }
 
