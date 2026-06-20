@@ -6,8 +6,17 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 pub struct SharedHook<E, H: Hook<E>> {
-    pub(crate) _event: PhantomData<E>,
-    pub(crate) inner: Arc<H>,
+    _event: PhantomData<E>,
+    inner: Arc<H>,
+}
+
+impl<E, H: Hook<E>> Clone for SharedHook<E, H> {
+    fn clone(&self) -> Self {
+        SharedHook {
+            _event: PhantomData,
+            inner: Arc::clone(&self.inner),
+        }
+    }
 }
 
 impl<E, H> Hook<E> for SharedHook<E, H>
@@ -146,5 +155,9 @@ where
             _event: Default::default(),
             inner: Arc::new(hook),
         }
+    }
+
+    pub fn get_ref(&self) -> &H {
+        &self.inner
     }
 }

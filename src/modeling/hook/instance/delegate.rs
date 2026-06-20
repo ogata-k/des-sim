@@ -3,8 +3,6 @@ use crate::modeling::hook::Hook;
 use crate::modeling::hook::instance::SharedHook;
 use crate::primitive::time::{Duration, MicroStep, SimTime};
 use crate::source_handler::{SourceReadyEntry, SourceView};
-use std::marker::PhantomData;
-use std::sync::Arc;
 
 pub(crate) struct HookDelegate<E> {
     hooks: Vec<Box<dyn Hook<E>>>,
@@ -150,10 +148,7 @@ impl<E> HookDelegate<E> {
         E: Sync + Send + 'static,
         H: Hook<E> + Sync + Send + 'static,
     {
-        self.hooks.push(Box::new(SharedHook {
-            _event: PhantomData,
-            inner: Arc::clone(&shared_hook.inner),
-        }));
+        self.hooks.push(Box::new(shared_hook));
     }
 
     fn delegate<F, R>(&self, f: F)
