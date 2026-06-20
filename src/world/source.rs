@@ -1,40 +1,39 @@
-mod context;
 mod fired;
 mod source;
 mod view;
 
 use crate::primitive::id::SourceId;
 use crate::primitive::time::{Duration, SimTime};
-use crate::world::source::fired::FiredSourceReady;
-pub use context::*;
+use crate::world::context::SourceContext;
+use crate::world::model::Model;
+pub(crate) use fired::*;
 pub use source::*;
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
-use std::ops::Deref;
 use std::sync::Arc;
 pub use view::*;
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub(crate) struct ScheduledSource {
-    scheduled_at: SimTime,
-    source_id: SourceId,
+    pub(crate) scheduled_at: SimTime,
+    pub(crate) source_id: SourceId,
 }
 
-pub(crate) struct SourceEntry<E> {
+pub(crate) struct SourceEntry<E, M: Model<E>, SC: SourceContext<E>> {
     pub(crate) name: Arc<str>,
-    pub(crate) source: Box<dyn Source<E>>,
+    pub(crate) source: Box<dyn Source<E, M, SC>>,
 }
 
-pub(crate) struct SourceHandler<E> {
-    source_registry: Vec<SourceEntry<E>>,
+pub(crate) struct SourceHandler<E, M: Model<E>, SC: SourceContext<E>> {
+    source_registry: Vec<SourceEntry<E, M, SC>>,
     next_source_id: usize,
     // Rustは最大ヒープなので、time->source_idの順のソートの小さい順にする
     ready_queue: BinaryHeap<Reverse<ScheduledSource>>,
     pending_queue: BinaryHeap<Reverse<ScheduledSource>>,
 }
 
-impl<E> SourceHandler<E> {
-    pub fn new() -> SourceHandler<E> {
+impl<E, M: Model<E>, SC: SourceContext<E>> SourceHandler<E, M, SC> {
+    pub fn new() -> SourceHandler<E, M, SC> {
         SourceHandler {
             source_registry: vec![],
             next_source_id: 0,
@@ -47,7 +46,7 @@ impl<E> SourceHandler<E> {
     /// 使用用途は、初回登録用途。
     pub fn add_source<S>(&mut self, name: String, first_fire_time: SimTime, source: S)
     where
-        S: Source<E> + 'static,
+        S: Source<E, M, SC> + 'static,
     {
         self.source_registry.push(SourceEntry {
             name: Arc::from(name),
@@ -64,7 +63,7 @@ impl<E> SourceHandler<E> {
     /// 使用用途は、シミュレーション中での使用。
     pub fn add_source_after<S>(&mut self, name: String, now: SimTime, delay: Duration, source: S)
     where
-        S: Source<E> + 'static,
+        S: Source<E, M, SC> + 'static,
     {
         assert!(delay > Duration::zero());
 
@@ -83,7 +82,7 @@ impl<E> SourceHandler<E> {
     /// 使用用途は、シミュレーション中での使用。
     pub fn add_source_at_now<S>(&mut self, name: String, now: SimTime, source: S)
     where
-        S: Source<E> + 'static,
+        S: Source<E, M, SC> + 'static,
     {
         self.source_registry.push(SourceEntry {
             name: Arc::from(name),
@@ -101,8 +100,8 @@ impl<E> SourceHandler<E> {
     /// 実行時に[Duration::zero()]でイベントをスケジュールした場合に、同一時間内でも再度とれる。
     /// なので、同一時間内でさらにループして[self::drain_ready()]した結果が空になるまで取得し続けること。
     /// ※再取得漏れが発生するとpanicするので注意。
-    pub fn drain_ready(&mut self, now: SimTime) -> FiredSourceReady {
-        let mut fired_source_indexes: Vec<(SourceId, Arc<str>)> = Vec::new();
+    pub fn drain_ready(&mut self, now: SimTime) -> Vec<SourceReadyEntry> {
+        let mut fired_source_indexes: Vec<SourceReadyEntry> = Vec::new();
         while let Some(Reverse(scheduled)) = self.ready_queue.peek() {
             assert!(
                 scheduled.scheduled_at >= now,
@@ -116,35 +115,29 @@ impl<E> SourceHandler<E> {
 
             // 各Sourceで処理されてnowの次のマイクロステップに登録されても処理されないように、先に集めておく。
             let scheduled = self.ready_queue.pop().unwrap().0;
-            fired_source_indexes.push((
+            fired_source_indexes.push(SourceReadyEntry::new(
                 scheduled.source_id,
                 Arc::clone(&self.source_registry[scheduled.source_id.value()].name),
             ));
         }
 
-        FiredSourceReady::new(fired_source_indexes)
+        fired_source_indexes
     }
 
-    /// 発火して得られた次のスケジュール時刻でスケジュールしてから、その次のスケジュール時刻を返す。
-    ///
-    /// [Duration::zero()]で次の発火日時を登録すると、次のマイクロステップで処理されるものとして扱う。
-    /// 対して[None]は、これ以降発火することがないソースを表す。
-    pub fn fire_and_schedule(
+    pub(crate) fn get_by_source_id(&mut self, source_id: SourceId) -> &mut SourceEntry<E, M, SC> {
+        &mut self.source_registry[source_id.value()]
+    }
+
+    pub(crate) fn schedule_next(
         &mut self,
         now: SimTime,
-        context: &mut SourceContext<E>,
+        next_fire_delay: Duration,
         source_id: SourceId,
-    ) -> Option<Duration> {
-        let entry: &mut SourceEntry<E> = &mut self.source_registry[source_id.value()];
-        let next_fire_delay_optional = entry.source.fire(now, context);
-        if let Some(next_fire_delay) = next_fire_delay_optional {
-            self.pending_queue.push(Reverse(ScheduledSource {
-                scheduled_at: now + next_fire_delay,
-                source_id,
-            }));
-        }
-
-        next_fire_delay_optional
+    ) {
+        self.pending_queue.push(Reverse(ScheduledSource {
+            scheduled_at: now + next_fire_delay,
+            source_id,
+        }));
     }
 
     pub fn peek_next_time(&self) -> Option<SimTime> {

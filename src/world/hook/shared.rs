@@ -1,64 +1,40 @@
 use crate::primitive::time::{Duration, MicroStep, SimTime};
 use crate::world::event::Event;
 use crate::world::hook::Hook;
-use crate::world::source::SourceView;
-use std::sync::{Arc, LockResult, Mutex, MutexGuard};
+use crate::world::source::{SourceReadyEntry, SourceView};
+use std::marker::PhantomData;
+use std::sync::Arc;
 
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
-pub enum SharedHookFailLockKind {
-    /// Otherはエンドユーザー用。
-    /// それ以外は下記Hookするイベントごとに自動的に割り当てられる。
-    Other,
-    BeforeSimulation,
-    AfterSimulation,
-    BeforeTick,
-    AfterTick,
-    BeforeMicrostep,
-    AfterMicrostep,
-    BeforeSource,
-    AfterSource,
-    BeforeEvent,
-    AfterEvent,
+pub struct SharedHook<E, H: Hook<E>> {
+    _event: PhantomData<E>,
+    inner: Arc<H>,
 }
 
-pub trait AsInnerSharedHook {
-    /// ArcのLockに失敗したPoison状態から[into_inner()]して可変状態をとってくるので、
-    /// 半分自己責任で実装すること。
-    fn on_lock_error(&mut self, kind: SharedHookFailLockKind);
-}
-
-pub struct SharedHook<H: AsInnerSharedHook> {
-    inner: Arc<Mutex<H>>,
-}
-
-impl<H: AsInnerSharedHook> Clone for SharedHook<H> {
+impl<E, H: Hook<E>> Clone for SharedHook<E, H> {
     fn clone(&self) -> Self {
         Self {
+            _event: PhantomData::default(),
             inner: Arc::clone(&self.inner),
         }
     }
 }
 
-impl<E, H> Hook<E> for SharedHook<H>
+impl<E, H> Hook<E> for SharedHook<E, H>
 where
-    H: Hook<E> + AsInnerSharedHook,
+    H: Hook<E>,
 {
     // Simulation lifecycle
 
-    fn before_simulation(&mut self) {
-        let _ = self.with_lock(SharedHookFailLockKind::BeforeSimulation, |g| {
-            g.before_simulation();
-        });
+    fn before_simulation(&self) {
+        self.inner.as_ref().before_simulation()
     }
 
     /// skipped_duration は前回Tickから今回Tickまでに
     /// スキップされた時間。
     ///
     /// スキップ無効Runnerの場合は常に Duration::zero()。
-    fn after_simulation(&mut self, end_sim_time: SimTime, skipped_duration: Duration) {
-        let _ = self.with_lock(SharedHookFailLockKind::AfterSimulation, |g| {
-            g.after_simulation(end_sim_time, skipped_duration);
-        });
+    fn after_simulation(&self, end_sim_time: SimTime) {
+        self.inner.as_ref().after_simulation(end_sim_time)
     }
 
     // Tick lifecycle
@@ -67,89 +43,117 @@ where
     /// スキップされた時間。
     ///
     /// スキップ無効Runnerの場合は常に Duration::zero()。
-    fn before_tick(&mut self, now: SimTime, skipped_duration: Duration) {
-        let _ = self.with_lock(SharedHookFailLockKind::BeforeTick, |g| {
-            g.before_tick(now, skipped_duration);
-        });
+    fn before_tick(&self, now: SimTime, skipped_duration: Duration) {
+        self.inner.as_ref().before_tick(now, skipped_duration)
     }
 
-    /// microstep_count はこのTickで実行された
-    /// microstep数。
-    fn after_tick(&mut self, now: SimTime, microstep_count: MicroStep) {
-        let _ = self.with_lock(SharedHookFailLockKind::AfterTick, |g| {
-            g.after_tick(now, microstep_count);
-        });
+    /// micro_step_count はこのTickで実行された
+    /// micro_step数。
+    fn after_tick(&self, now: SimTime, micro_step_count: MicroStep) {
+        self.inner.as_ref().after_tick(now, micro_step_count)
     }
 
-    fn before_microstep(&mut self, now: SimTime, microstep: MicroStep) {
-        let _ = self.with_lock(SharedHookFailLockKind::BeforeMicrostep, |g| {
-            g.before_microstep(now, microstep);
-        });
+    fn before_micro_step(&self, now: SimTime, micro_step: MicroStep) {
+        self.inner.as_ref().before_micro_step(now, micro_step)
     }
 
-    fn after_microstep(&mut self, now: SimTime, microstep: MicroStep) {
-        let _ = self.with_lock(SharedHookFailLockKind::AfterMicrostep, |g| {
-            g.after_microstep(now, microstep);
-        });
+    fn after_micro_step(&self, now: SimTime, micro_step: MicroStep) {
+        self.inner.as_ref().after_micro_step(now, micro_step)
+    }
+
+    fn on_discard_remain_micro_step(
+        &self,
+        now: SimTime,
+        first_discarded_micro_step: MicroStep,
+        discarded_sources: &[SourceReadyEntry],
+        discarded_events: &[Event<E>],
+    ) {
+        self.inner.as_ref().on_discard_remain_micro_step(
+            now,
+            first_discarded_micro_step,
+            discarded_sources,
+            discarded_events,
+        )
     }
 
     // Source lifecycle
 
-    fn before_source(&mut self, now: SimTime, microstep: MicroStep, source_view: &SourceView) {
-        let _ = self.with_lock(SharedHookFailLockKind::BeforeSource, |g| {
-            g.before_source(now, microstep, source_view);
-        });
+    fn before_source_phase(&self, now: SimTime, micro_step: MicroStep) {
+        self.inner.as_ref().before_source_phase(now, micro_step)
+    }
+
+    fn before_source(&self, now: SimTime, micro_step: MicroStep, source_view: &SourceView) {
+        self.inner
+            .as_ref()
+            .before_source(now, micro_step, source_view)
     }
 
     fn after_source(
-        &mut self,
+        &self,
         now: SimTime,
-        microstep: MicroStep,
+        micro_step: MicroStep,
         source_view: &SourceView,
         computed_next_fire: Option<SimTime>,
     ) {
-        let _ = self.with_lock(SharedHookFailLockKind::AfterSource, |g| {
-            g.after_source(now, microstep, source_view, computed_next_fire);
-        });
+        self.inner
+            .as_ref()
+            .after_source(now, micro_step, source_view, computed_next_fire)
+    }
+
+    fn discard_source(&self, now: SimTime, micro_step: MicroStep, source_view: &SourceView) {
+        self.inner
+            .as_ref()
+            .discard_source(now, micro_step, source_view)
+    }
+
+    fn after_source_phase(&self, now: SimTime, micro_step: MicroStep) {
+        self.inner.as_ref().after_source_phase(now, micro_step)
     }
 
     // Event lifecycle
 
-    fn before_event(&mut self, now: SimTime, microstep: MicroStep, event: &Event<E>) {
-        let _ = self.with_lock(SharedHookFailLockKind::BeforeEvent, |g| {
-            g.before_event(now, microstep, event);
-        });
+    fn before_event_phase(&self, now: SimTime, micro_step: MicroStep) {
+        self.inner.as_ref().before_event_phase(now, micro_step)
     }
 
-    fn after_event(&mut self, now: SimTime, microstep: MicroStep, event: &Event<E>) {
-        let _ = self.with_lock(SharedHookFailLockKind::AfterEvent, |g| {
-            g.after_event(now, microstep, event);
-        });
+    fn before_event(&self, now: SimTime, micro_step: MicroStep, event: &Event<E>) {
+        self.inner.as_ref().before_event(now, micro_step, event)
+    }
+
+    fn after_event(&self, now: SimTime, micro_step: MicroStep, event: &Event<E>) {
+        self.inner.as_ref().after_event(now, micro_step, event)
+    }
+
+    fn cancel_event(
+        &self,
+        now: SimTime,
+        micro_step: MicroStep,
+        scheduled_at: SimTime,
+        event: &Event<E>,
+    ) {
+        self.inner
+            .as_ref()
+            .cancel_event(now, micro_step, scheduled_at, event)
+    }
+
+    fn discard_event(&self, now: SimTime, micro_step: MicroStep, event: &Event<E>) {
+        self.inner.as_ref().discard_event(now, micro_step, event)
+    }
+
+    fn after_event_phase(&self, now: SimTime, micro_step: MicroStep) {
+        self.inner.as_ref().after_event_phase(now, micro_step)
     }
 }
 
-impl<H: AsInnerSharedHook> SharedHook<H> {
-    pub(crate) fn new(hook: H) -> Self {
+impl<E, H> SharedHook<E, H>
+where
+    H: Hook<E>,
+    E: Send + Sync,
+{
+    pub fn new(hook: H) -> Self {
         Self {
-            inner: Arc::new(Mutex::new(hook)),
-        }
-    }
-
-    pub fn lock(&self) -> LockResult<MutexGuard<'_, H>> {
-        self.inner.lock()
-    }
-
-    pub fn with_lock<F, R>(&self, kind: SharedHookFailLockKind, f: F) -> Result<R, ()>
-    where
-        F: FnOnce(&mut MutexGuard<'_, H>) -> R,
-    {
-        match self.inner.lock() {
-            Ok(mut guard) => Ok(f(&mut guard)),
-            Err(poison) => {
-                let mut guard = poison.into_inner();
-                guard.on_lock_error(kind);
-                Err(())
-            }
+            _event: Default::default(),
+            inner: Arc::new(hook),
         }
     }
 }

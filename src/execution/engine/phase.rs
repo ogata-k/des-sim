@@ -1,7 +1,5 @@
 mod event;
-mod executor;
 mod source;
 
 pub use event::*;
-pub use executor::*;
 pub use source::*;

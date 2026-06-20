@@ -67,6 +67,65 @@ impl<E> EventScheduler<E> {
         events
     }
 
+    pub fn drain_pending_to_cancel<F>(&mut self, pred: F) -> Vec<(SimTime, Event<E>)>
+    where
+        F: Fn(SimTime, &Event<E>) -> bool,
+    {
+        let mut cancelled = Vec::new();
+
+        // 対象がある場合だけ対応する
+        if self
+            .pending_queue
+            .iter()
+            .any(|Reverse(ev)| pred(ev.scheduled_at, &ev.event))
+        {
+            // ヒープを分解して Vec として取り出す
+            let items = std::mem::take(&mut self.pending_queue).into_vec();
+            let mut to_keep = Vec::with_capacity(items.len());
+
+            // 振り分け
+            for Reverse(ev) in items {
+                if pred(ev.scheduled_at, &ev.event) {
+                    cancelled.push(ev);
+                } else {
+                    to_keep.push(Reverse(ev));
+                }
+            }
+
+            // 残った要素でヒープを再構築
+            self.pending_queue = BinaryHeap::from(to_keep);
+        }
+
+        if self
+            .ready_queue
+            .iter()
+            .any(|Reverse(ev)| pred(ev.scheduled_at, &ev.event))
+        {
+            // ヒープを分解して Vec として取り出す
+            let items = std::mem::take(&mut self.ready_queue).into_vec();
+            let mut to_keep = Vec::with_capacity(items.len());
+
+            // 振り分け
+            for Reverse(ev) in items {
+                if pred(ev.scheduled_at, &ev.event) {
+                    cancelled.push(ev);
+                } else {
+                    to_keep.push(Reverse(ev));
+                }
+            }
+
+            // 残った要素でヒープを再構築
+            self.ready_queue = BinaryHeap::from(to_keep);
+        }
+
+        // 扱いやすいように発火順にしておく
+        cancelled.sort();
+        cancelled
+            .into_iter()
+            .map(|ev| (ev.scheduled_at, ev.event))
+            .collect()
+    }
+
     pub fn peek_next_time(&self) -> Option<SimTime> {
         self.ready_queue.peek().map(|i| i.0.scheduled_at)
     }

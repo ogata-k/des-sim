@@ -59,7 +59,7 @@ impl SimTime {
         SimTime(0)
     }
 
-    pub const fn as_ticks(self) -> TimeTick {
+    pub const fn as_tick_value(self) -> TimeTick {
         self.0
     }
 

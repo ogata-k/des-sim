@@ -1,22 +1,26 @@
 use crate::primitive::id::SourceId;
 use std::sync::Arc;
 
-pub(crate) struct FiredSourceReady {
-    source_ids: Vec<(SourceId, Arc<str>)>,
+#[derive(Debug)]
+pub struct SourceReadyEntry {
+    source_id: SourceId,
+    name: Arc<str>,
 }
 
-impl FiredSourceReady {
-    pub fn new(fired_ids: Vec<(SourceId, Arc<str>)>) -> Self {
-        Self {
-            source_ids: fired_ids,
-        }
+impl SourceReadyEntry {
+    pub(crate) fn new(source_id: SourceId, name: Arc<str>) -> Self {
+        Self { source_id, name }
     }
 
-    pub fn take_next(&mut self) -> Option<(SourceId, Arc<str>)> {
-        if self.source_ids.is_empty() {
-            None
-        } else {
-            Some(self.source_ids.remove(0))
-        }
+    pub fn source_id(&self) -> SourceId {
+        self.source_id
+    }
+
+    pub fn name(&self) -> &str {
+        self.name.as_ref()
+    }
+
+    pub fn name_arc(&self) -> Arc<str> {
+        Arc::clone(&self.name)
     }
 }

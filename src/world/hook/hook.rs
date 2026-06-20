@@ -1,17 +1,17 @@
 use crate::primitive::time::{Duration, MicroStep, SimTime};
 use crate::world::event::Event;
-use crate::world::source::SourceView;
+use crate::world::source::{SourceReadyEntry, SourceView};
 
-pub trait Hook<E>: Send {
+pub trait Hook<E> {
     // Simulation lifecycle
 
-    fn before_simulation(&mut self) {}
+    fn before_simulation(&self);
 
     /// skipped_duration は前回Tickから今回Tickまでに
     /// スキップされた時間。
     ///
     /// スキップ無効Runnerの場合は常に Duration::zero()。
-    fn after_simulation(&mut self, end_sim_time: SimTime, skipped_duration: Duration) {}
+    fn after_simulation(&self, end_sim_time: SimTime);
 
     // Tick lifecycle
 
@@ -19,32 +19,61 @@ pub trait Hook<E>: Send {
     /// スキップされた時間。
     ///
     /// スキップ無効Runnerの場合は常に Duration::zero()。
-    fn before_tick(&mut self, now: SimTime, skipped_duration: Duration) {}
+    fn before_tick(&self, now: SimTime, skipped_duration: Duration);
 
-    /// microstep_count はこのTickで実行された
-    /// microstep数。
-    fn after_tick(&mut self, now: SimTime, microstep_count: MicroStep) {}
+    /// micro_step_count はこのTickで実行された
+    /// micro_step数。
+    fn after_tick(&self, now: SimTime, micro_step_count: MicroStep);
 
-    fn before_microstep(&mut self, now: SimTime, microstep: MicroStep) {}
+    fn before_micro_step(&self, now: SimTime, micro_step: MicroStep);
 
-    fn after_microstep(&mut self, now: SimTime, microstep: MicroStep) {}
+    fn after_micro_step(&self, now: SimTime, micro_step: MicroStep);
+
+    fn on_discard_remain_micro_step(
+        &self,
+        now: SimTime,
+        first_discarded_micro_step: MicroStep,
+        discarded_sources: &[SourceReadyEntry],
+        discarded_events: &[Event<E>],
+    );
 
     // Source lifecycle
 
-    fn before_source(&mut self, now: SimTime, microstep: MicroStep, source_view: &SourceView) {}
+    fn before_source_phase(&self, now: SimTime, micro_step: MicroStep);
+
+    fn before_source(&self, now: SimTime, micro_step: MicroStep, source_view: &SourceView);
 
     fn after_source(
-        &mut self,
+        &self,
         now: SimTime,
-        microstep: MicroStep,
+        micro_step: MicroStep,
         source_view: &SourceView,
         computed_next_fire: Option<SimTime>,
-    ) {
-    }
+    );
+
+    fn discard_source(&self, now: SimTime, micro_step: MicroStep, source_view: &SourceView);
+
+    fn after_source_phase(&self, now: SimTime, micro_step: MicroStep);
 
     // Event lifecycle
 
-    fn before_event(&mut self, now: SimTime, microstep: MicroStep, event: &Event<E>) {}
+    fn before_event_phase(&self, now: SimTime, micro_step: MicroStep);
 
-    fn after_event(&mut self, now: SimTime, microstep: MicroStep, event: &Event<E>) {}
+    fn before_event(&self, now: SimTime, micro_step: MicroStep, event: &Event<E>);
+
+    fn after_event(&self, now: SimTime, micro_step: MicroStep, event: &Event<E>);
+
+    fn cancel_event(
+        &self,
+        now: SimTime,
+        micro_step: MicroStep,
+        scheduled_at: SimTime,
+        event: &Event<E>,
+    );
+
+    fn discard_event(&self, now: SimTime, micro_step: MicroStep, event: &Event<E>);
+
+    fn after_event_phase(&self, now: SimTime, micro_step: MicroStep);
 }
+
+// @todo デフォルトで用意されているとうれしいトレースHookやStart LogやComplete Logなどを用意する。

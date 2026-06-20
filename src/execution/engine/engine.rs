@@ -1,45 +1,78 @@
+use crate::execution::engine::{ExecutorContext, SourceContext};
 use crate::execution::scheduler::EventScheduler;
-use crate::primitive::time::{MicroStep, SimTime};
-use crate::world::hook::{Hook, HookDelegate};
-use crate::world::source::{SourceContext, SourceHandler, SourceView};
-use std::sync::Arc;
+use crate::execution::utility::TickStatus;
+use crate::primitive::time::{Duration, SimTime};
+use crate::world::event::Priority;
+use crate::world::hook::{Hook, HookDelegate, SharedHook};
+use crate::world::model::Model;
+use crate::world::source::{Source, SourceHandler};
 
-// @todo 後でModelを注入する予定
-// @todo 後でソースを追加したりをEngineContext経由でできるようにするためにEngineにいろいろメソッドを用意するなどする
-pub struct Engine<E> {
-    time: SimTime,
-    hook_delegate: HookDelegate<E>,
-    source_handler: SourceHandler<E>,
-    event_scheduler: EventScheduler<E>,
+pub struct Engine<E, M: Model<E>> {
+    pub(crate) hook_delegate: HookDelegate<E>,
+    pub(crate) source_handler: SourceHandler<E, M, SourceContext<E, M>>,
+    pub(crate) event_scheduler: EventScheduler<E>,
 }
 
-impl<E> Engine<E> {
-    pub fn new() -> Engine<E> {
+impl<E, M: Model<E>> Engine<E, M> {
+    pub fn new() -> Engine<E, M> {
         Engine {
-            time: SimTime::zero(),
             hook_delegate: HookDelegate::new(),
             source_handler: SourceHandler::new(),
             event_scheduler: EventScheduler::new(),
         }
     }
 
-    pub(crate) fn run_ready_sources(&mut self, now: SimTime, micro_step: MicroStep) {
-        let mut ready_sources = self.source_handler.drain_ready(now);
-        while let Some(ready) = ready_sources.take_next() {
-            // 今はSourceViewにはfire_and_schedule前後で変化するようなものは持っていないので同じものを使う。
-            let source_view = SourceView::new(ready.0, Arc::clone(&ready.1));
+    pub fn begin_simulation(mut self) -> ExecutorContext<E, M> {
+        self.hook_delegate.before_simulation();
+        // Engineで登録したソースを反映させておく
+        self.source_handler.flush_pending();
+        // Engineで登録したイベントを反映させておく
+        self.event_scheduler.flush_pending();
 
-            self.hook_delegate
-                .before_source(now, micro_step, &source_view);
-            let mut source_context = SourceContext::new(now, &mut self.event_scheduler);
-
-            let next_scheduled_delay =
-                self.source_handler
-                    .fire_and_schedule(now, &mut source_context, ready.0);
-            let next_scheduled_at = next_scheduled_delay.map(|d| now + d);
-
-            self.hook_delegate
-                .after_source(now, micro_step, &source_view, next_scheduled_at);
+        ExecutorContext {
+            tick_status: TickStatus::initialize(),
+            current_tick: SimTime::zero(),
+            hook_delegate: self.hook_delegate,
+            source_handler: self.source_handler,
+            event_scheduler: self.event_scheduler,
         }
+    }
+
+    pub fn add_hook<H>(&mut self, hook: H) -> &mut Self
+    where
+        H: Hook<E> + 'static,
+    {
+        self.hook_delegate.add_hook(hook);
+        self
+    }
+
+    pub fn add_shared_hook<H>(&mut self, shared_hook: SharedHook<E, H>) -> &mut Self
+    where
+        E: Sync + Send + 'static,
+        H: Hook<E> + Sync + Send + 'static,
+    {
+        self.hook_delegate.add_shared_hook(shared_hook);
+        self
+    }
+
+    pub fn add_source<S>(&mut self, name: String, first_fire_time: SimTime, source: S) -> &mut Self
+    where
+        S: Source<E, M, SourceContext<E, M>> + 'static,
+    {
+        self.source_handler
+            .add_source(name, first_fire_time, source);
+        self
+    }
+
+    pub fn schedule_event_at(
+        &mut self,
+        sim_time: SimTime,
+        priority: Priority,
+        event_payload: E,
+    ) -> &mut Self {
+        self.event_scheduler
+            .schedule(sim_time, Duration::zero(), priority, event_payload);
+
+        self
     }
 }
