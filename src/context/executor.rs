@@ -16,7 +16,7 @@ pub enum ExecutorStatus {
 
 // Runner開発者向けのContextなのでUserContextは実装していない
 pub struct ExecutorContext<E, M: Model<E>> {
-    pub(crate) tick_status: TickStatus,
+    pub(crate) next_tick_status: TickStatus,
     pub(crate) current_tick: SimTime,
     pub(crate) hook_delegate: HookDelegate<E>,
     pub(crate) source_handler: SourceHandler<E, M>,
@@ -36,17 +36,19 @@ impl<E, M: Model<E>> ExecutorContext<E, M> {
             ExecutorStatus::NoMoreEvent
         };
 
-        (executor_status, self.tick_status)
+        (executor_status, self.next_tick_status)
     }
 
     pub fn begin_tick(self) -> ActiveExecutorContext<E, M> {
-        self.hook_delegate
-            .before_tick(self.tick_status.current(), self.tick_status.skipped());
+        self.hook_delegate.before_tick(
+            self.next_tick_status.current(),
+            self.next_tick_status.skipped(),
+        );
 
         ActiveExecutorContext {
             // ここからは現在のTickStatus
-            current_tick_status: self.tick_status,
-            micro_step_status: MicroStepStatus::initialize(),
+            current_tick_status: self.next_tick_status,
+            next_micro_step_status: MicroStepStatus::initialize(),
             hook_delegate: self.hook_delegate,
             source_handler: self.source_handler,
             event_scheduler: self.event_scheduler,
@@ -68,7 +70,7 @@ pub struct ActiveExecutorContext<E, M: Model<E>> {
     pub(crate) current_tick_status: TickStatus,
     // 現在時刻が確定しているタイミングなのでTickStatusは現在の状態を表すものだが、
     // まだMicroStepは始まっていないのでMicroStepStatusは未来の状態。
-    pub(crate) micro_step_status: MicroStepStatus,
+    pub(crate) next_micro_step_status: MicroStepStatus,
     pub(crate) hook_delegate: HookDelegate<E>,
     pub(crate) source_handler: SourceHandler<E, M>,
     pub(crate) event_scheduler: EventScheduler<E>,
@@ -82,7 +84,7 @@ impl<E, M: Model<E>> ActiveExecutorContext<E, M> {
     pub fn begin_micro_step(self) -> MicroStepHandler<ActiveExecutorContext<E, M>> {
         self.hook().before_micro_step(
             self.current_tick_status.current(),
-            self.micro_step_status.current(),
+            self.next_micro_step_status.current(),
         );
 
         MicroStepHandler::new(self)
@@ -91,12 +93,12 @@ impl<E, M: Model<E>> ActiveExecutorContext<E, M> {
     pub fn end_tick_with_increment_tick(self) -> ExecutorContext<E, M> {
         let current_tick = self.current_tick_status.current();
         self.hook()
-            .after_tick(current_tick, self.micro_step_status.current());
+            .after_tick(current_tick, self.next_micro_step_status.current());
         let next_tick = current_tick + Duration::one();
         let next_tick_status = TickStatus::new(next_tick, Duration::zero());
 
         ExecutorContext {
-            tick_status: next_tick_status,
+            next_tick_status,
             current_tick,
             hook_delegate: self.hook_delegate,
             source_handler: self.source_handler,
@@ -107,7 +109,7 @@ impl<E, M: Model<E>> ActiveExecutorContext<E, M> {
     pub fn end_tick_with_jump_to_next_tick(self) -> ExecutorContext<E, M> {
         let current_tick = self.current_tick_status.current();
         self.hook()
-            .after_tick(current_tick, self.micro_step_status.current());
+            .after_tick(current_tick, self.next_micro_step_status.current());
         let (skipped, next_tick) = match (
             self.source_handler.peek_next_time(),
             self.event_scheduler.peek_next_time(),
@@ -124,7 +126,7 @@ impl<E, M: Model<E>> ActiveExecutorContext<E, M> {
         let next_tick_status = TickStatus::new(next_tick, skipped);
 
         ExecutorContext {
-            tick_status: next_tick_status,
+            next_tick_status: next_tick_status,
             current_tick,
             hook_delegate: self.hook_delegate,
             source_handler: self.source_handler,
@@ -139,7 +141,7 @@ impl<E, M: Model<E>> ActiveExecutorContext<E, M> {
 
         self.hook().on_discard_remain_micro_step(
             current_tick,
-            self.micro_step_status.current(),
+            self.next_micro_step_status.current(),
             &ready_sources,
             &ready_events,
         );

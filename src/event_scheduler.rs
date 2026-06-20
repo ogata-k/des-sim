@@ -36,6 +36,7 @@ impl<E> Ord for ScheduledEvent<E> {
     }
 }
 
+#[derive(Clone)]
 pub(crate) struct EventScheduler<E> {
     ready_queue: BinaryHeap<Reverse<ScheduledEvent<E>>>,
     pending_queue: BinaryHeap<Reverse<ScheduledEvent<E>>>,

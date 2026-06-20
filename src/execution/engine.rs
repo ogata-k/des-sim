@@ -38,7 +38,7 @@ impl<E, M: Model<E>> Engine<E, M> {
         self.event_scheduler.flush_pending();
 
         ExecutorContext {
-            tick_status: TickStatus::initialize(),
+            next_tick_status: TickStatus::initialize(),
             current_tick: SimTime::zero(),
             hook_delegate: self.hook_delegate,
             source_handler: self.source_handler,

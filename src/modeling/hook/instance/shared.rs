@@ -10,15 +10,6 @@ pub struct SharedHook<E, H: Hook<E>> {
     inner: Arc<H>,
 }
 
-impl<E, H: Hook<E>> Clone for SharedHook<E, H> {
-    fn clone(&self) -> Self {
-        Self {
-            _event: PhantomData,
-            inner: Arc::clone(&self.inner),
-        }
-    }
-}
-
 impl<E, H> Hook<E> for SharedHook<E, H>
 where
     H: Hook<E>,

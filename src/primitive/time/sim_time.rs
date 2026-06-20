@@ -204,6 +204,10 @@ impl TickStatus {
     }
 
     pub fn previous(&self) -> SimTime {
-        self.current_tick - self.skipped
+        if self.current_tick == SimTime::zero() {
+            self.current_tick
+        } else {
+            self.current_tick - self.skipped - Duration::one()
+        }
     }
 }

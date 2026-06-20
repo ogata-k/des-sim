@@ -28,7 +28,7 @@ impl<E, M: Model<E>> MicroStepHandler<ActiveExecutorContext<E, M>> {
         let mut context = self.context;
         context.hook().before_source_phase(
             context.current_tick_status.current(),
-            context.micro_step_status.current(),
+            context.next_micro_step_status.current(),
         );
 
         let ready_sources = context
@@ -37,7 +37,7 @@ impl<E, M: Model<E>> MicroStepHandler<ActiveExecutorContext<E, M>> {
         SourcePhase::new(
             SourceContext {
                 current_tick_status: context.current_tick_status,
-                current_micro_step_status: context.micro_step_status,
+                current_micro_step_status: context.next_micro_step_status,
                 hook_delegate: context.hook_delegate,
                 source_handler: None,
                 event_scheduler: context.event_scheduler,
@@ -95,7 +95,7 @@ impl<E, M: Model<E>> MicroStepHandler<EventContext<E, M>> {
 
                 let active_context = ActiveExecutorContext {
                     current_tick_status: self.ref_context().current_tick_status,
-                    micro_step_status: MicroStepStatus::new(next_micro_step),
+                    next_micro_step_status: MicroStepStatus::new(next_micro_step),
                     hook_delegate: self.context.hook_delegate,
                     source_handler: self.context.source_handler,
                     event_scheduler: self.context.event_scheduler,
@@ -112,7 +112,7 @@ impl<E, M: Model<E>> MicroStepHandler<EventContext<E, M>> {
 
                 let active_context = ActiveExecutorContext {
                     current_tick_status: self.ref_context().current_tick_status,
-                    micro_step_status: last_micro_step_status,
+                    next_micro_step_status: last_micro_step_status,
                     hook_delegate: self.context.hook_delegate,
                     source_handler: self.context.source_handler,
                     event_scheduler: self.context.event_scheduler,
