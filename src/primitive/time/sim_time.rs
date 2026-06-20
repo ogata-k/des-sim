@@ -174,3 +174,36 @@ impl Duration {
         Duration(self.0.saturating_sub(rhs.0))
     }
 }
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+pub struct TickStatus {
+    current_tick: SimTime,
+    skipped: Duration,
+}
+impl TickStatus {
+    pub(crate) fn new(current_tick: SimTime, skipped: Duration) -> Self {
+        TickStatus {
+            current_tick,
+            skipped,
+        }
+    }
+
+    pub(crate) fn initialize() -> Self {
+        TickStatus {
+            current_tick: SimTime::zero(),
+            skipped: Duration::zero(),
+        }
+    }
+
+    pub fn current(&self) -> SimTime {
+        self.current_tick
+    }
+
+    pub fn skipped(&self) -> Duration {
+        self.skipped
+    }
+
+    pub fn previous(&self) -> SimTime {
+        self.current_tick - self.skipped
+    }
+}

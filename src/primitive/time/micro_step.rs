@@ -16,3 +16,24 @@ impl MicroStep {
         self.0
     }
 }
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+pub struct MicroStepStatus {
+    current_micro_step: MicroStep,
+}
+
+impl MicroStepStatus {
+    pub(crate) fn new(current_micro_step: MicroStep) -> Self {
+        MicroStepStatus { current_micro_step }
+    }
+
+    pub(crate) fn initialize() -> Self {
+        MicroStepStatus {
+            current_micro_step: MicroStep::zero(),
+        }
+    }
+
+    pub fn current(&self) -> MicroStep {
+        self.current_micro_step
+    }
+}
