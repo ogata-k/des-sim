@@ -49,21 +49,25 @@ impl<E, M: Model<E>> MicroStepHandler<ActiveExecutorContext<E, M>> {
 }
 
 impl<E, M: Model<E>> MicroStepHandler<SourceContext<E, M>> {
-    pub fn to_event_phase(mut self) -> EventPhase<E, M> {
-        let ready_events = self
-            .context
+    pub fn to_event_phase(self) -> EventPhase<E, M> {
+        let mut context = self.context;
+        context.hook().before_event_phase(
+            context.current_tick_status.current(),
+            context.current_micro_step_status.current(),
+        );
+
+        let ready_events = context
             .event_scheduler
-            .drain_ready(self.context.current_tick_status.current());
+            .drain_ready(context.current_tick_status.current());
         EventPhase::new(
             EventContext {
-                current_tick_status: self.context.current_tick_status,
-                current_micro_step_status: self.context.current_micro_step_status,
-                hook_delegate: self.context.hook_delegate,
-                source_handler: self
-                    .context
+                current_tick_status: context.current_tick_status,
+                current_micro_step_status: context.current_micro_step_status,
+                hook_delegate: context.hook_delegate,
+                source_handler: context
                     .source_handler
                     .expect("Fail impl take source_handler from SourcePhase."),
-                event_scheduler: self.context.event_scheduler,
+                event_scheduler: context.event_scheduler,
             },
             ready_events,
         )

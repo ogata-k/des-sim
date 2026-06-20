@@ -36,6 +36,11 @@ impl<E, M: Model<E>> SourcePhase<E, M> {
     }
 
     pub fn complete_source_phase(self) -> MicroStepHandler<SourceContext<E, M>> {
+        self.context.hook().after_source_phase(
+            self.context.current_tick(),
+            self.context.current_micro_step(),
+        );
+
         // SourcePhaseが持っているsource_handlerをMicroStepHandler内で次のフェーズに行くためにSourceContextに渡す。
         let mut context = self.context;
         context.source_handler = self.source_handler;

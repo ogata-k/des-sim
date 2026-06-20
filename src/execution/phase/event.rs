@@ -22,6 +22,11 @@ impl<E, M: Model<E>> EventPhase<E, M> {
     }
 
     pub fn complete_event_phase(self) -> MicroStepHandler<EventContext<E, M>> {
+        self.context.hook().after_event_phase(
+            self.context.current_tick(),
+            self.context.current_micro_step(),
+        );
+
         MicroStepHandler::new(self.context)
     }
 

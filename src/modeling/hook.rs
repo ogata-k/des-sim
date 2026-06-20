@@ -77,5 +77,3 @@ pub trait Hook<E> {
 
     fn after_event_phase(&self, now: SimTime, micro_step: MicroStep);
 }
-
-// @todo デフォルトで用意されているとうれしいトレースHookやStart LogやComplete Logなどを用意する。
