@@ -47,7 +47,7 @@ impl<E, M: Model<E>> EventContext<E, M> {
             .add_source_at_now(name, self.current_tick(), source);
     }
 
-    pub fn schedule(&mut self, delay: Duration, priority: EventPriority, event_payload: E) {
+    pub fn schedule_event(&mut self, delay: Duration, priority: EventPriority, event_payload: E) {
         self.event_scheduler
             .schedule(self.current_tick(), delay, priority, event_payload);
     }
