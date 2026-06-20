@@ -3,6 +3,7 @@ pub mod instance;
 use crate::context::ExecutorStatus;
 use crate::execution::SimulationResult;
 use crate::execution::engine::Engine;
+use crate::execution::strategy::ContinueStrategy;
 use crate::modeling::model::Model;
 use crate::primitive::time::{TickStatus, TimeTick};
 
@@ -10,7 +11,7 @@ use crate::primitive::time::{TickStatus, TimeTick};
 ///
 /// このトレイトの核となる `run` メソッドを実装することで、
 /// さまざまな実行モード（デバッグ、再生ウェイト、並列バッチなど）を実現できます。
-pub trait Runner<E, M: Model<E>> {
+pub trait Runner<E, M: Model<E>, CS: ContinueStrategy<E, M, Self::Err>> {
     /// シミュレーション実行中に発生し得る、実装固有のエラー型
     type Err: std::fmt::Debug;
 
@@ -31,7 +32,7 @@ pub trait Runner<E, M: Model<E>> {
         engine: Engine<E, M>,
         model: M,
         should_stop: F,
-    ) -> SimulationResult<M, Self::Err>
+    ) -> SimulationResult<M, CS::Err>
     where
         F: FnMut(
             &M,             /* current model on the tick */
@@ -48,7 +49,7 @@ pub trait Runner<E, M: Model<E>> {
         engine: Engine<E, M>,
         model: M,
         mut should_stop: F,
-    ) -> SimulationResult<M, Self::Err>
+    ) -> SimulationResult<M, CS::Err>
     where
         F: FnMut(&M, ExecutorStatus, TickStatus) -> bool,
     {
@@ -95,7 +96,7 @@ pub trait Runner<E, M: Model<E>> {
         model: M,
         duration: std::time::Duration,
         mut should_stop: F,
-    ) -> SimulationResult<M, Self::Err>
+    ) -> SimulationResult<M, CS::Err>
     where
         F: FnMut(&M, ExecutorStatus, TickStatus) -> bool,
     {
@@ -118,7 +119,7 @@ pub trait Runner<E, M: Model<E>> {
         engine: Engine<E, M>,
         model: M,
         tick_count: TimeTick,
-    ) -> SimulationResult<M, Self::Err> {
+    ) -> SimulationResult<M, CS::Err> {
         self.run(
             engine,
             model,
@@ -142,7 +143,7 @@ pub trait Runner<E, M: Model<E>> {
     }
 
     /// 処理すべきイベント（キュー）が完全に空になったら自動で終了するメソッド。
-    fn run_until_idle(&mut self, engine: Engine<E, M>, model: M) -> SimulationResult<M, Self::Err> {
+    fn run_until_idle(&mut self, engine: Engine<E, M>, model: M) -> SimulationResult<M, CS::Err> {
         self.run(engine, model, |_, executor_status: ExecutorStatus, _| {
             executor_status == ExecutorStatus::NoMoreEvent
         })
@@ -157,7 +158,7 @@ pub trait Runner<E, M: Model<E>> {
         engine: Engine<E, M>,
         model: M,
         mut should_stop_model_condition: F,
-    ) -> SimulationResult<M, Self::Err>
+    ) -> SimulationResult<M, CS::Err>
     where
         F: FnMut(&M) -> bool,
     {
@@ -185,7 +186,7 @@ pub trait Runner<E, M: Model<E>> {
         engine_builder: B,
         model: &M,
         should_stop: F,
-    ) -> Vec<SimulationResult<M, Self::Err>>
+    ) -> Vec<SimulationResult<M, CS::Err>>
     where
         Self: Clone + Sync,
         // 並列スレッドから同時に何回でも安全に呼び出せるよう、FnMut ではなく不変の Fn に制限
@@ -193,6 +194,7 @@ pub trait Runner<E, M: Model<E>> {
         M: Clone + Send + Sync,
         F: FnMut(&M, ExecutorStatus, TickStatus) -> bool + Clone + Send + Sync,
         Self::Err: Send,
+        CS::Err: Send,
     {
         use rayon::prelude::*;
 

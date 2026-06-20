@@ -3,14 +3,16 @@ use crate::execution::SimulationResult;
 use crate::execution::engine::Engine;
 use crate::execution::phase::MicroStepResult;
 use crate::execution::runner::Runner;
+use crate::execution::strategy::{AlwaysContinueStrategy, ContinueStrategy};
 use crate::modeling::model::Model;
 use crate::primitive::time::TickStatus;
 
-pub struct StandardRunner {
+pub struct StandardRunner<CS> {
     skippable: bool,
+    continue_strategy: CS,
 }
 
-impl<E, M: Model<E>> Runner<E, M> for StandardRunner {
+impl<E, M: Model<E>, CS: ContinueStrategy<E, M, ()>> Runner<E, M, CS> for StandardRunner<CS> {
     type Err = ();
 
     fn run<F>(
@@ -18,10 +20,12 @@ impl<E, M: Model<E>> Runner<E, M> for StandardRunner {
         engine: Engine<E, M>,
         mut model: M,
         mut should_stop: F,
-    ) -> SimulationResult<M, Self::Err>
+    ) -> SimulationResult<M, CS::Err>
     where
         F: FnMut(&M, ExecutorStatus, TickStatus) -> bool,
     {
+        let mut runner_error: Option<CS::Err> = None;
+
         // 最初に生成されるのは「待機状態」の executor
         let mut executor = engine.begin_simulation();
 
@@ -57,11 +61,20 @@ impl<E, M: Model<E>> Runner<E, M> for StandardRunner {
 
                 // 4. マイクロステップ終了
                 match micro_step_handler.end_micro_step() {
-                    MicroStepResult::Continue(new_active_executor, _) => {
-                        // 次のループでactive_executorを呼ぶためにしっかり所有権を回収してからcontinueする。
-                        // もしここで次のマイクロステップを見て終了せずに抜ける場合は、マイクロステップ内の残りのソースやイベントを破棄する必要がある。
-                        active_executor = new_active_executor;
-                        continue;
+                    MicroStepResult::Continue(unchecked) => {
+                        match self.continue_strategy.handle_micro_step_continue(unchecked) {
+                            Ok(new_active_executor) => {
+                                // 次のループでactive_executorを呼ぶためにしっかり所有権を回収してからcontinueする。
+                                active_executor = new_active_executor;
+                                continue;
+                            }
+                            Err((new_active_executor, error)) => {
+                                // エラー、つまりこのマイクロステップで終了とする場合は、所有権とエラーを回収してからbreakする。
+                                active_executor = new_active_executor;
+                                runner_error = Some(error);
+                                break;
+                            }
+                        }
                     }
                     MicroStepResult::Complete(new_active_executor, _) => {
                         // 外側のループでend_tick()を呼ぶために、しっかり所有権を回収してからbreakする
@@ -80,13 +93,29 @@ impl<E, M: Model<E>> Runner<E, M> for StandardRunner {
             };
         }
 
-        // 綺麗にすべてのTickが閉じた executorで終了
-        executor.end_simulation_as_ok(model)
+        if let Some(error) = runner_error.take() {
+            executor.end_simulation_as_error(model, error)
+        } else {
+            // 綺麗にすべてのTickが閉じた executorで終了
+            executor.end_simulation_as_ok(model)
+        }
     }
 }
 
-impl StandardRunner {
+impl<E, M: Model<E>> StandardRunner<AlwaysContinueStrategy<E, M>> {
     pub fn new(skippable: bool) -> Self {
-        StandardRunner { skippable }
+        StandardRunner {
+            skippable,
+            continue_strategy: AlwaysContinueStrategy::new(),
+        }
+    }
+}
+
+impl<CS> StandardRunner<CS> {
+    pub fn new_with_continue_strategy(skippable: bool, continue_strategy: CS) -> Self {
+        StandardRunner {
+            skippable,
+            continue_strategy,
+        }
     }
 }
