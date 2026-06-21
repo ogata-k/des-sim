@@ -22,8 +22,9 @@ impl<E, M: Model<E>> EventPhase<E, M> {
         &mut self.context
     }
 
-    pub fn complete_event_phase(self) -> MicroStepHandler<EventContext<E, M>> {
+    pub fn complete_event_phase(self, model: &M) -> MicroStepHandler<EventContext<E, M>> {
         self.context.hook().after_event_phase(
+            model,
             self.context.current_tick(),
             self.context.current_micro_step(),
         );
@@ -37,12 +38,14 @@ impl<E, M: Model<E>> EventPhase<E, M> {
 
     pub fn handle_event(&mut self, model: &mut M, event: Event<E>) {
         self.context.hook().before_event(
+            model,
             self.context.current_tick(),
             self.context.current_micro_step(),
             &event,
         );
         model.handle_event(self.get_context(), &event);
         self.context.hook().after_event(
+            model,
             self.context.current_tick(),
             self.context.current_micro_step(),
             &event,
@@ -51,8 +54,9 @@ impl<E, M: Model<E>> EventPhase<E, M> {
 
     // @todo イベントをまとめて処理できるやつ
 
-    pub fn discard(&mut self, event: Event<E>) {
+    pub fn discard(&mut self, model: &M, event: Event<E>) {
         self.context.hook().discard_event(
+            model,
             self.context.current_tick(),
             self.context.current_micro_step(),
             &event,

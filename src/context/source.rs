@@ -11,14 +11,14 @@ use crate::source_handler::SourceHandler;
 pub struct SourceContext<E, M: Model<E>> {
     pub(crate) current_tick_status: TickStatus,
     pub(crate) current_micro_step_status: MicroStepStatus,
-    pub(crate) hook_delegate: HookDelegate<E>,
+    pub(crate) hook_delegate: HookDelegate<E, M>,
     // SourceContextはSourceを詰めなおすときに発火させてから詰めなおす都合上、SourceContextを持っているとライフタイムの問題が発生する。
     // そのため、MicroStepHandlerに渡す時だけSourceContextをSourcePhaseから奪い取る形で実装されている。
     pub(crate) source_handler: Option<SourceHandler<E, M>>,
     pub(crate) event_scheduler: EventScheduler<E>,
 }
 
-impl<E, M: Model<E>> UserContext<E> for SourceContext<E, M> {
+impl<E, M: Model<E>> UserContext<E, M> for SourceContext<E, M> {
     fn current_tick(&self) -> SimTime {
         self.current_tick_status.current()
     }
@@ -27,7 +27,7 @@ impl<E, M: Model<E>> UserContext<E> for SourceContext<E, M> {
         self.current_micro_step_status.current()
     }
 
-    fn hook(&self) -> &impl Hook<E> {
+    fn hook(&self) -> &impl Hook<E, M> {
         &self.hook_delegate
     }
 }

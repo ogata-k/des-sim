@@ -49,6 +49,7 @@ impl<E, M: Model<E>, RunnerError> ContinueStrategy<E, M, RunnerError> for LimitA
 
     fn handle_micro_step_continue(
         &mut self,
+        model: &M,
         unchecked: UncheckedActiveExecutor<E, M>,
     ) -> Result<ActiveExecutorContext<E, M>, (ActiveExecutorContext<E, M>, Self::Err)> {
         let current_micro_step = unchecked.current_micro_step();
@@ -63,12 +64,12 @@ impl<E, M: Model<E>, RunnerError> ContinueStrategy<E, M, RunnerError> for LimitA
             // 上限達成がまだ許容範囲
             let mut next_active = unchecked.into_active_executor();
             // まだ継続するので現在のtickで残っている処理すべきイベントをすべて破棄
-            next_active.discard_remain_micro_step();
+            next_active.discard_remain_micro_step(model);
             Ok(next_active)
         } else {
             let mut next_active = unchecked.into_active_executor();
             // もう継続しないが、現在のtickをきれいに終わらせるためにも残っている処理する予定だったイベントをすべて破棄
-            next_active.discard_remain_micro_step();
+            next_active.discard_remain_micro_step(model);
             Err((
                 next_active,
                 LimitAbortStrategyError::LimitExceeded {

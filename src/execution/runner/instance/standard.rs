@@ -27,7 +27,7 @@ impl<E, M: Model<E>, CS: ContinueStrategy<E, M, ()>> Runner<E, M, CS> for Standa
         let mut runner_error: Option<CS::Err> = None;
 
         // 最初に生成されるのは「待機状態」の executor
-        let mut executor = engine.begin_simulation();
+        let mut executor = engine.begin_simulation(&model);
 
         loop {
             let (executor_status, tick_status) = executor.peek_next_tick();
@@ -39,30 +39,33 @@ impl<E, M: Model<E>, CS: ContinueStrategy<E, M, ()>> Runner<E, M, CS> for Standa
 
             // これを呼ばないと、次の行の `active_executor` が作れないため、
             // 下のMicroStepループやフェーズ処理（シミュレータの本体）が1文字も書けない。
-            let mut active_executor = executor.begin_tick();
+            let mut active_executor = executor.begin_tick(&model);
 
             loop {
                 // 1. マイクロステップ開始
-                let micro_step_handler = active_executor.begin_micro_step();
+                let micro_step_handler = active_executor.begin_micro_step(&model);
 
                 // 2. Sourceフェーズ
-                let mut source_phase = micro_step_handler.start_source_phase();
+                let mut source_phase = micro_step_handler.start_source_phase(&model);
                 while let Some(source_ready) = source_phase.take_one() {
                     source_phase.fire_and_schedule(&model, source_ready);
                 }
-                let micro_step_handler = source_phase.complete_source_phase();
+                let micro_step_handler = source_phase.complete_source_phase(&model);
 
                 // 3. Eventフェーズ
-                let mut event_phase = micro_step_handler.to_event_phase();
+                let mut event_phase = micro_step_handler.to_event_phase(&model);
                 while let Some(event_ready) = event_phase.take_one() {
                     event_phase.handle_event(&mut model, event_ready);
                 }
-                let micro_step_handler = event_phase.complete_event_phase();
+                let micro_step_handler = event_phase.complete_event_phase(&model);
 
                 // 4. マイクロステップ終了
-                match micro_step_handler.end_micro_step() {
+                match micro_step_handler.end_micro_step(&model) {
                     MicroStepResult::Continue(unchecked) => {
-                        match self.continue_strategy.handle_micro_step_continue(unchecked) {
+                        match self
+                            .continue_strategy
+                            .handle_micro_step_continue(&model, unchecked)
+                        {
                             Ok(new_active_executor) => {
                                 // 次のループでactive_executorを呼ぶためにしっかり所有権を回収してからcontinueする。
                                 active_executor = new_active_executor;
@@ -87,9 +90,9 @@ impl<E, M: Model<E>, CS: ContinueStrategy<E, M, ()>> Runner<E, M, CS> for Standa
             // active_executorをend_tick()して元の「executor」型に戻して再代入しないと、
             // ループの先頭に戻ったときに `executor.peek_next_tick()` が実行できず、コンパイルエラーになる。
             executor = if self.skippable {
-                active_executor.end_tick_with_jump_to_next_tick()
+                active_executor.end_tick_with_jump_to_next_tick(&model)
             } else {
-                active_executor.end_tick_with_increment_tick()
+                active_executor.end_tick_with_increment_tick(&model)
             };
         }
 

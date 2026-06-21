@@ -11,12 +11,12 @@ use crate::source_handler::SourceHandler;
 pub struct EventContext<E, M: Model<E>> {
     pub(crate) current_tick_status: TickStatus,
     pub(crate) current_micro_step_status: MicroStepStatus,
-    pub(crate) hook_delegate: HookDelegate<E>,
+    pub(crate) hook_delegate: HookDelegate<E, M>,
     pub(crate) source_handler: SourceHandler<E, M>,
     pub(crate) event_scheduler: EventScheduler<E>,
 }
 
-impl<E, M: Model<E>> UserContext<E> for EventContext<E, M> {
+impl<E, M: Model<E>> UserContext<E, M> for EventContext<E, M> {
     fn current_tick(&self) -> SimTime {
         self.current_tick_status.current()
     }
@@ -25,7 +25,7 @@ impl<E, M: Model<E>> UserContext<E> for EventContext<E, M> {
         self.current_micro_step_status.current()
     }
 
-    fn hook(&self) -> &impl Hook<E> {
+    fn hook(&self) -> &impl Hook<E, M> {
         &self.hook_delegate
     }
 }
@@ -52,7 +52,7 @@ impl<E, M: Model<E>> EventContext<E, M> {
             .schedule(self.current_tick(), delay, priority, event_payload);
     }
 
-    pub fn cancel_scheduled_events<F>(&mut self, pred: F)
+    pub fn cancel_scheduled_events<F>(&mut self, model: &M, pred: F)
     where
         F: Fn(SimTime, &Event<E>) -> bool,
     {
@@ -61,7 +61,7 @@ impl<E, M: Model<E>> EventContext<E, M> {
         let canceled = self.event_scheduler.drain_pending_to_cancel(pred);
         canceled.into_iter().for_each(|(scheduled_at, event)| {
             self.hook()
-                .cancel_event(now, micro_step, scheduled_at, &event);
+                .cancel_event(model, now, micro_step, scheduled_at, &event);
         });
     }
 }

@@ -13,6 +13,7 @@ impl<E, M: Model<E>, RunnerError> ContinueStrategy<E, M, RunnerError> for LimitD
 
     fn handle_micro_step_continue(
         &mut self,
+        model: &M,
         unchecked: UncheckedActiveExecutor<E, M>,
     ) -> Result<ActiveExecutorContext<E, M>, (ActiveExecutorContext<E, M>, Self::Err)> {
         let current_micro_step = unchecked.current_micro_step();
@@ -24,7 +25,7 @@ impl<E, M: Model<E>, RunnerError> ContinueStrategy<E, M, RunnerError> for LimitD
 
         let mut next_active = unchecked.into_active_executor();
         // まだ継続するので現在のtickで残っている処理すべきイベントをすべて破棄
-        next_active.discard_remain_micro_step();
+        next_active.discard_remain_micro_step(model);
         Ok(next_active)
     }
 }

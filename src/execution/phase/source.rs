@@ -36,8 +36,9 @@ impl<E, M: Model<E>> SourcePhase<E, M> {
         SourceView::new(ready_entry.source_id(), Arc::clone(&ready_entry.name_arc()))
     }
 
-    pub fn complete_source_phase(self) -> MicroStepHandler<SourceContext<E, M>> {
+    pub fn complete_source_phase(self, model: &M) -> MicroStepHandler<SourceContext<E, M>> {
         self.context.hook().after_source_phase(
+            model,
             self.context.current_tick(),
             self.context.current_micro_step(),
         );
@@ -59,7 +60,7 @@ impl<E, M: Model<E>> SourcePhase<E, M> {
 
         self.context
             .hook()
-            .before_source(now, current_microstep, &view);
+            .before_source(model, now, current_microstep, &view);
 
         let source_handler = self
             .source_handler
@@ -75,17 +76,22 @@ impl<E, M: Model<E>> SourcePhase<E, M> {
 
         let computed_next_scheduled_at = next_fire_delay_optional.map(|d| now + d);
 
-        self.context
-            .hook()
-            .after_source(now, current_microstep, &view, computed_next_scheduled_at);
+        self.context.hook().after_source(
+            model,
+            now,
+            current_microstep,
+            &view,
+            computed_next_scheduled_at,
+        );
     }
 
     // @todo ソースをまとめて処理できるやつ
 
-    pub fn discard(&mut self, entry: SourceReadyEntry) {
+    pub fn discard(&mut self, model: &M, entry: SourceReadyEntry) {
         let view = self.get_source_view(&entry);
 
         self.context.hook().discard_source(
+            model,
             self.context.current_tick(),
             self.context.current_micro_step(),
             &view,

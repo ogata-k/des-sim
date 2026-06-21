@@ -10,7 +10,7 @@ use crate::primitive::time::{Duration, SimTime};
 use crate::source_handler::SourceHandler;
 
 pub struct Engine<E, M: Model<E>> {
-    pub(crate) hook_delegate: HookDelegate<E>,
+    pub(crate) hook_delegate: HookDelegate<E, M>,
     pub(crate) source_handler: SourceHandler<E, M>,
     pub(crate) event_scheduler: EventScheduler<E>,
 }
@@ -30,8 +30,8 @@ impl<E, M: Model<E>> Engine<E, M> {
         }
     }
 
-    pub fn begin_simulation(mut self) -> ExecutorContext<E, M> {
-        self.hook_delegate.before_simulation();
+    pub fn begin_simulation(mut self, model: &M) -> ExecutorContext<E, M> {
+        self.hook_delegate.before_simulation(model);
         // Engineで登録したソースを反映させておく
         self.source_handler.flush_pending();
         // Engineで登録したイベントを反映させておく
@@ -48,16 +48,17 @@ impl<E, M: Model<E>> Engine<E, M> {
 
     pub fn add_hook<H>(&mut self, hook: H) -> &mut Self
     where
-        H: Hook<E> + 'static,
+        H: Hook<E, M> + 'static,
     {
         self.hook_delegate.add_hook(hook);
         self
     }
 
-    pub fn add_shared_hook<H>(&mut self, shared_hook: SharedHook<E, H>) -> &mut Self
+    pub fn add_shared_hook<H>(&mut self, shared_hook: SharedHook<E, M, H>) -> &mut Self
     where
-        E: Sync + Send + 'static,
-        H: Hook<E> + Sync + Send + 'static,
+        E: 'static,
+        M: 'static,
+        H: Hook<E, M> + 'static,
     {
         self.hook_delegate.add_shared_hook(shared_hook);
         self

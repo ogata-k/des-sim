@@ -16,6 +16,7 @@ pub trait ContinueStrategy<E, M: Model<E>, RunnerError> {
 
     fn handle_micro_step_continue(
         &mut self,
+        model: &M,
         unchecked_executor: UncheckedActiveExecutor<E, M>,
     ) -> Result<ActiveExecutorContext<E, M>, (ActiveExecutorContext<E, M>, Self::Err)>;
 }

@@ -14,6 +14,7 @@ impl<E, M: Model<E>, RunnerError> ContinueStrategy<E, M, RunnerError>
 
     fn handle_micro_step_continue(
         &mut self,
+        _model: &M,
         unchecked: UncheckedActiveExecutor<E, M>,
     ) -> Result<ActiveExecutorContext<E, M>, (ActiveExecutorContext<E, M>, Self::Err)> {
         Ok(unchecked.into_active_executor())

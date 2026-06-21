@@ -24,9 +24,10 @@ impl<CTX> MicroStepHandler<CTX> {
 }
 
 impl<E, M: Model<E>> MicroStepHandler<ActiveExecutorContext<E, M>> {
-    pub fn start_source_phase(self) -> SourcePhase<E, M> {
+    pub fn start_source_phase(self, model: &M) -> SourcePhase<E, M> {
         let mut context = self.context;
         context.hook().before_source_phase(
+            model,
             context.current_tick_status.current(),
             context.next_micro_step_status.current(),
         );
@@ -49,9 +50,10 @@ impl<E, M: Model<E>> MicroStepHandler<ActiveExecutorContext<E, M>> {
 }
 
 impl<E, M: Model<E>> MicroStepHandler<SourceContext<E, M>> {
-    pub fn to_event_phase(self) -> EventPhase<E, M> {
+    pub fn to_event_phase(self, model: &M) -> EventPhase<E, M> {
         let mut context = self.context;
         context.hook().before_event_phase(
+            model,
             context.current_tick_status.current(),
             context.current_micro_step_status.current(),
         );
@@ -75,7 +77,7 @@ impl<E, M: Model<E>> MicroStepHandler<SourceContext<E, M>> {
 }
 
 impl<E, M: Model<E>> MicroStepHandler<EventContext<E, M>> {
-    pub fn end_micro_step(mut self) -> MicroStepResult<E, M> {
+    pub fn end_micro_step(mut self, model: &M) -> MicroStepResult<E, M> {
         // 次のイベント登録状況を更新するためにペンディングしているものを反映する。
         // これがないとここ以後の処理が事故る。
         self.ref_mut_context().source_handler.flush_pending();
@@ -90,6 +92,7 @@ impl<E, M: Model<E>> MicroStepHandler<EventContext<E, M>> {
                 let current_micro_step = self.ref_context().current_micro_step_status.current();
                 let next_micro_step = current_micro_step.next();
                 self.context.hook().after_micro_step(
+                    model,
                     self.ref_context().current_tick_status.current(),
                     self.ref_context().current_micro_step_status.current(),
                 );
@@ -110,6 +113,7 @@ impl<E, M: Model<E>> MicroStepHandler<EventContext<E, M>> {
                 // 処理すべきイベントがある次のtickが未来の時間かそもそもないので、今のマイクロステップで終了
                 let last_micro_step_status = self.ref_context().current_micro_step_status;
                 self.context.hook().after_micro_step(
+                    model,
                     self.ref_context().current_tick_status.current(),
                     self.ref_context().current_micro_step_status.current(),
                 );
