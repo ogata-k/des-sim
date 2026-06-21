@@ -1,7 +1,7 @@
-use crate::context::ExecutorStatus;
+use crate::context::{EventContext, ExecutorStatus};
 use crate::execution::SimulationResult;
 use crate::execution::engine::Engine;
-use crate::execution::phase::{EventPhase, MicroStepResult};
+use crate::execution::phase::MicroStepResult;
 use crate::execution::runner::Runner;
 use crate::execution::strategy::{AlwaysContinueStrategy, ContinueStrategy};
 use crate::modeling::event::{Event, EventPriority};
@@ -17,7 +17,7 @@ pub trait AsyncModel<E, Command>: Model<E> {
 
     /// メインスレッド側で、非同期スレッド群から集約されたコマンドを順次適用する。
     /// ここでは `&mut self` と `EventContext` が使えるため、安全に状態更新や新規イベントのスケジュールが可能。
-    fn apply_command(&mut self, context: &mut EventPhase<E, Self>, command: Command)
+    fn apply_command(&mut self, context: &mut EventContext<E, Self>, command: Command)
     where
         Self: Sized;
 }
@@ -109,7 +109,7 @@ where
 
                         // 溜まったコマンドをメインスレッドで一括適用
                         while let Ok(command) = rx.try_recv() {
-                            model.apply_command(&mut event_phase, command);
+                            model.apply_command(event_phase.get_context(), command);
                         }
 
                         break;

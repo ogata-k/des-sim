@@ -1,6 +1,5 @@
 use des_sim::context::{EventContext, SourceContext};
 use des_sim::execution::Engine;
-use des_sim::execution::phase::EventPhase;
 use des_sim::execution::runner::Runner;
 use des_sim::execution::runner::instance::{AsyncModel, AsyncRunner};
 use des_sim::modeling::event::{Event, EventPriority};
@@ -73,14 +72,14 @@ impl AsyncModel<MyEvent, ServerCommand> for ServerModel {
     }
 
     /// 【同期実行（メインスレッド）】チャンネルから届いたコマンドを安全に &mut self 適用
-    fn apply_command(&mut self, context: &mut EventPhase<MyEvent, Self>, command: ServerCommand) {
+    fn apply_command(&mut self, context: &mut EventContext<MyEvent, Self>, command: ServerCommand) {
         match command {
             ServerCommand::EnqueueJob { job_id } => {
                 self.queue.push_back(job_id);
             }
             ServerCommand::StartProcessing { job_id } => {
                 self.is_busy = true;
-                context.get_context().schedule_event(
+                context.schedule_event(
                     Duration::ticks(5),
                     EventPriority::minimum(),
                     MyEvent::JobProcessed { job_id },
@@ -88,7 +87,7 @@ impl AsyncModel<MyEvent, ServerCommand> for ServerModel {
             }
             ServerCommand::ProcessNextOrIdle => {
                 if let Some(next_id) = self.queue.pop_front() {
-                    context.get_context().schedule_event(
+                    context.schedule_event(
                         Duration::ticks(5),
                         EventPriority::minimum(),
                         MyEvent::JobProcessed { job_id: next_id },
