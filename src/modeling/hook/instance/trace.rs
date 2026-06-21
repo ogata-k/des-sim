@@ -54,19 +54,19 @@ where
     }
 
     fn before_micro_step(&self, model: &M, current_tick: SimTime, current_micro_step: MicroStep) {
-        trace!(
+        debug!(
             "  [μStep: {} at {:?}] START",
             current_micro_step, current_tick
         );
-        self.trace_log_model(model, "  ");
+        self.debug_log_model(model, "  ");
     }
 
     fn after_micro_step(&self, model: &M, current_tick: SimTime, current_micro_step: MicroStep) {
-        trace!(
+        debug!(
             "  [μStep: {} at {:?}] END",
             current_micro_step, current_tick
         );
-        self.trace_log_model(model, "  ");
+        self.debug_log_model(model, "  ");
     }
 
     fn on_discard_remain_micro_step(
@@ -85,11 +85,11 @@ where
     }
 
     fn before_source_phase(&self, model: &M, current_tick: SimTime, current_micro_step: MicroStep) {
-        trace!(
+        debug!(
             "    > Source Phase at {:?} (μStep: {})",
             current_tick, current_micro_step
         );
-        self.trace_log_model(model, "    ");
+        self.debug_log_model(model, "    ");
     }
 
     fn before_source(
@@ -133,19 +133,19 @@ where
     }
 
     fn after_source_phase(&self, model: &M, current_tick: SimTime, current_micro_step: MicroStep) {
-        trace!(
+        debug!(
             "    < Source Phase finished at {:?} (μStep: {})",
             current_tick, current_micro_step,
         );
-        self.trace_log_model(model, "    ");
+        self.debug_log_model(model, "    ");
     }
 
     fn before_event_phase(&self, model: &M, current_tick: SimTime, current_micro_step: MicroStep) {
-        trace!(
+        debug!(
             "    > Event Phase at {:?} (μStep: {})",
             current_tick, current_micro_step
         );
-        self.trace_log_model(model, "    ");
+        self.debug_log_model(model, "    ");
     }
 
     fn before_event(
@@ -200,11 +200,11 @@ where
     }
 
     fn after_event_phase(&self, model: &M, current_tick: SimTime, current_micro_step: MicroStep) {
-        trace!(
+        debug!(
             "    < Event Phase finished at {:?} (μStep: {})",
             current_tick, current_micro_step,
         );
-        self.trace_log_model(model, "    ");
+        self.debug_log_model(model, "    ");
     }
 }
 
