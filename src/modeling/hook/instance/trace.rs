@@ -37,18 +37,18 @@ where
 
     fn before_tick(&self, model: &M, current_tick: SimTime, skipped_duration: Duration) {
         info!(
-            ">>> Tick at {:?} (skipped: {:?} ticks)",
+            "  >>> Tick at {:?} (skipped: {:?} ticks)",
             current_tick, skipped_duration
         );
-        self.debug_log_model(model, "");
+        self.debug_log_model(model, "  ");
     }
 
     fn after_tick(&self, model: &M, current_tick: SimTime, last_micro_step: MicroStep) {
         info!(
-            "<<< Tick at {:?} finished (last μSteps: {})",
+            "  <<< Tick at {:?} finished (last μSteps: {})",
             current_tick, last_micro_step
         );
-        self.debug_log_model(model, "");
+        self.debug_log_model(model, "  ");
     }
 
     fn before_micro_step(&self, model: &M, current_tick: SimTime, current_micro_step: MicroStep) {
