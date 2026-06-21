@@ -34,10 +34,10 @@ impl Model<MyEvent> for ServerModel {
                     // サーバーが処理中ならキューに積む
                     self.queue.push_back(job_id);
                 } else {
-                    // 空いていれば即座に処理を開始し、2チケット後に完了イベントをセット
+                    // 空いていれば即座に処理を開始し、5 tick後に完了イベントをセット
                     self.is_busy = true;
                     context.schedule_event(
-                        Duration::ticks(2),
+                        Duration::ticks(5),
                         EventPriority::minimum(),
                         MyEvent::JobProcessed { job_id },
                     );
@@ -47,7 +47,7 @@ impl Model<MyEvent> for ServerModel {
                 // キューに次のジョブがあれば処理、なければアイドルへ
                 if let Some(next_id) = self.queue.pop_front() {
                     context.schedule_event(
-                        Duration::ticks(2),
+                        Duration::ticks(5),
                         EventPriority::minimum(),
                         MyEvent::JobProcessed { job_id: next_id },
                     );
@@ -89,7 +89,7 @@ impl Source<MyEvent, ServerModel> for JobGenerator {
 
         // ジョブが到着したというイベントを今すぐ（あるいはディレイで）スケジュール
         ctx.schedule_event(
-            Duration::ticks(1),
+            Duration::ticks(0),
             EventPriority::minimum(),
             MyEvent::JobArrived { job_id },
         );
@@ -117,19 +117,11 @@ fn main() {
     engine
         .add_hook(TraceHook)
         .add_source(
-            "Job Generator x3".to_string(),
+            "Job Generator x4".to_string(),
             SimTime::zero(),
             JobGenerator {
                 next_job_id: 0,
-                interval: Duration::ticks(3),
-            },
-        )
-        .add_source(
-            "Job Generator x5".to_string(),
-            SimTime::zero(),
-            JobGenerator {
-                next_job_id: 0,
-                interval: Duration::ticks(5),
+                interval: Duration::ticks(4),
             },
         )
         .add_source(
@@ -149,5 +141,5 @@ fn main() {
 
     let mut runner = StandardRunner::new(true);
     let result = runner.run_do_ticks(engine, model, 60, false);
-    print!("Simulation result: {:?}", result);
+    print!("\nSimulation Result: {:?}", result);
 }
