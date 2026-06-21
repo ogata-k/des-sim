@@ -1,7 +1,8 @@
 use des_sim::context::{EventContext, SourceContext};
 use des_sim::execution::Engine;
+use des_sim::execution::phase::EventPhase;
 use des_sim::execution::runner::Runner;
-use des_sim::execution::runner::instance::RealtimeRunner;
+use des_sim::execution::runner::instance::{AsyncModel, AsyncRunner};
 use des_sim::modeling::event::{Event, EventPriority};
 use des_sim::modeling::hook::instance::{ModelSummary, TraceHook};
 use des_sim::modeling::model::Model;
@@ -9,6 +10,7 @@ use des_sim::modeling::source::Source;
 use des_sim::primitive::time::{Duration, SimTime};
 use std::collections::VecDeque;
 use std::fmt;
+use std::sync::mpsc::Sender;
 
 // --- [1. イベントの定義] ---
 #[derive(Debug, Clone)]
@@ -17,7 +19,7 @@ pub enum MyEvent {
     JobProcessed { job_id: u32 },
 }
 
-// --- [2. モデルの定義] ---
+// --- [2. モデルと非同期コマンドの定義] ---
 #[derive(Debug)]
 pub struct ServerModel {
     pub name: String,
@@ -25,28 +27,68 @@ pub struct ServerModel {
     pub is_busy: bool,
 }
 
-// 前提となる Model トレイトの実装
+/// 非同期スレッドからメインスレッドに通知する、モデルへの状態変更要求（コマンド）
+#[derive(Debug)]
+pub enum ServerCommand {
+    /// サーバーがビジーなのでキューにジョブを積む要求
+    EnqueueJob { job_id: u32 },
+    /// サーバーが空いているのでビジーにし、次の完了イベントをスケジュールする要求
+    StartProcessing { job_id: u32 },
+    /// 次のジョブを処理開始するか、アイドルに戻す要求
+    ProcessNextOrIdle,
+}
+
+// 同期実行（特定の優先度以上）の際に呼ばれる標準の Model トレイト実装
 impl Model<MyEvent> for ServerModel {
-    fn handle_event(&mut self, context: &mut EventContext<MyEvent, Self>, event: &Event<MyEvent>) {
+    fn handle_event(
+        &mut self,
+        _context: &mut EventContext<MyEvent, Self>,
+        _event: &Event<MyEvent>,
+    ) {
+        // 同期実行された場合も、ロジックを一貫させるために apply_command を再利用可能ですが、
+        // ここでは直接記述、または後述の apply_command にコンテキストを委譲する形を取ります。
+        // 今回は非同期実行をメインにするため、元の実装を維持するか、あるいは非同期側へ処理を一本化します。
+    }
+}
+
+impl AsyncModel<MyEvent, ServerCommand> for ServerModel {
+    /// 【非同期実行】スレッドプール上で &self (不変参照) を使って安全に並列計算
+    fn handle_event_async(&self, event: Event<MyEvent>, tx: Sender<ServerCommand>) {
         match event.payload {
             MyEvent::JobArrived { job_id } => {
                 if self.is_busy {
-                    // サーバーが処理中ならキューに積む
-                    self.queue.push_back(job_id);
+                    std::thread::sleep(std::time::Duration::from_millis(700));
+                    // 現在の状態を安全に読み取り、書き換えコマンドをチャンネルに送る
+                    tx.send(ServerCommand::EnqueueJob { job_id }).unwrap();
                 } else {
-                    // 空いていれば即座に処理を開始し、5 tick後に完了イベントをセット
-                    self.is_busy = true;
-                    context.schedule_event(
-                        Duration::ticks(5),
-                        EventPriority::minimum(),
-                        MyEvent::JobProcessed { job_id },
-                    );
+                    std::thread::sleep(std::time::Duration::from_millis(200));
+                    // 現在の状態を安全に読み取り、書き換えコマンドをチャンネルに送る
+                    tx.send(ServerCommand::StartProcessing { job_id }).unwrap();
                 }
             }
             MyEvent::JobProcessed { job_id: _ } => {
-                // キューに次のジョブがあれば処理、なければアイドルへ
+                tx.send(ServerCommand::ProcessNextOrIdle).unwrap();
+            }
+        }
+    }
+
+    /// 【同期実行（メインスレッド）】チャンネルから届いたコマンドを安全に &mut self 適用
+    fn apply_command(&mut self, context: &mut EventPhase<MyEvent, Self>, command: ServerCommand) {
+        match command {
+            ServerCommand::EnqueueJob { job_id } => {
+                self.queue.push_back(job_id);
+            }
+            ServerCommand::StartProcessing { job_id } => {
+                self.is_busy = true;
+                context.get_context().schedule_event(
+                    Duration::ticks(5),
+                    EventPriority::minimum(),
+                    MyEvent::JobProcessed { job_id },
+                );
+            }
+            ServerCommand::ProcessNextOrIdle => {
                 if let Some(next_id) = self.queue.pop_front() {
-                    context.schedule_event(
+                    context.get_context().schedule_event(
                         Duration::ticks(5),
                         EventPriority::minimum(),
                         MyEvent::JobProcessed { job_id: next_id },
@@ -59,7 +101,7 @@ impl Model<MyEvent> for ServerModel {
     }
 }
 
-// ログ視認性を高めるために作った ModelSummary の実装
+// ログ表示用の ModelSummary の実装
 impl ModelSummary for ServerModel {
     fn summary(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ServerModel")
@@ -78,7 +120,6 @@ pub struct JobGenerator {
 }
 
 impl Source<MyEvent, ServerModel> for JobGenerator {
-    // ソースが発火したときの挙動
     fn fire(
         &mut self,
         ctx: &mut SourceContext<MyEvent, ServerModel>,
@@ -87,18 +128,17 @@ impl Source<MyEvent, ServerModel> for JobGenerator {
         let job_id = self.next_job_id;
         self.next_job_id += 1;
 
-        // ジョブが到着したというイベントを今すぐ（あるいはディレイで）スケジュール
         ctx.schedule_event(
             Duration::ticks(0),
             EventPriority::minimum(),
             MyEvent::JobArrived { job_id },
         );
 
-        // 次の発火タイミングを設定（Periodic Combinatorのような動きを自前で表現）
         Some(self.interval)
     }
 }
 
+// --- [4. シミュレーションの実行 (main)] ---
 fn main() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("trace"))
         .format(|buf, record| {
@@ -139,7 +179,10 @@ fn main() {
         is_busy: false,
     };
 
-    let mut runner = RealtimeRunner::new(std::time::Duration::from_millis(1000));
+    // すべてのイベントを非同期処理の対象にするため、sync_priority_threshold には EventPriority::maximum() などを設定。
+    // (もし特定の重要イベントだけを同期させたい場合は、その優先度を閾値に指定します)
+    let mut runner = AsyncRunner::<ServerCommand, _>::new(true, EventPriority::maximum());
     let result = runner.run_do_ticks(engine, model, 60, false);
+
     print!("\nSimulation Result: {:?}", result);
 }

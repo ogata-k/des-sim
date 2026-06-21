@@ -1,3 +1,5 @@
+mod parallel;
+mod realtime;
 mod standard;
 
 pub use parallel::*;
