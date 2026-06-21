@@ -1,7 +1,7 @@
 use des_sim::context::{EventContext, SourceContext};
 use des_sim::execution::Engine;
 use des_sim::execution::runner::Runner;
-use des_sim::execution::runner::instance::StandardRunner;
+use des_sim::execution::runner::instance::RealtimeRunner;
 use des_sim::modeling::event::{Event, EventPriority};
 use des_sim::modeling::hook::instance::{ModelSummary, TraceHook};
 use des_sim::modeling::model::Model;
@@ -139,7 +139,7 @@ fn main() {
         is_busy: false,
     };
 
-    let mut runner = StandardRunner::new(true);
+    let mut runner = RealtimeRunner::new(std::time::Duration::from_millis(1000));
     let result = runner.run_do_ticks(engine, model, 60, false);
     print!("\nSimulation Result: {:?}", result);
 }
