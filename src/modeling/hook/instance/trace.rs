@@ -30,62 +30,71 @@ where
         self.debug_log_model(model);
     }
 
-    fn after_simulation(&self, model: &M, end_sim_time: SimTime) {
-        info!("--- [SIMULATION END] Time: {:?} ---", end_sim_time);
+    fn after_simulation(&self, model: &M, end_tick: SimTime) {
+        info!("--- [SIMULATION END] Time: {:?} ---", end_tick);
         self.debug_log_model(model);
     }
 
-    fn before_tick(&self, model: &M, now: SimTime, skipped_duration: Duration) {
+    fn before_tick(&self, model: &M, current_tick: SimTime, skipped_duration: Duration) {
         info!(
             ">>> Tick at {:?} (skipped: {:?} ticks)",
-            now, skipped_duration
+            current_tick, skipped_duration
         );
         self.debug_log_model(model);
     }
 
-    fn after_tick(&self, model: &M, now: SimTime, micro_step_count: MicroStep) {
+    fn after_tick(&self, model: &M, current_tick: SimTime, last_micro_step: MicroStep) {
         info!(
             "<<< Tick at {:?} finished (last μSteps: {})",
-            now, micro_step_count
+            current_tick, last_micro_step
         );
         self.debug_log_model(model);
     }
 
-    fn before_micro_step(&self, model: &M, now: SimTime, micro_step: MicroStep) {
-        trace!("  [μStep: {} at {:?}] START", micro_step, now);
+    fn before_micro_step(&self, model: &M, current_tick: SimTime, current_micro_step: MicroStep) {
+        trace!(
+            "  [μStep: {} at {:?}] START",
+            current_micro_step, current_tick
+        );
         self.trace_log_model(model);
     }
 
-    fn after_micro_step(&self, model: &M, now: SimTime, micro_step: MicroStep) {
-        trace!("  [μStep: {} at {:?}] END", micro_step, now);
+    fn after_micro_step(&self, model: &M, current_tick: SimTime, current_micro_step: MicroStep) {
+        trace!(
+            "  [μStep: {} at {:?}] END",
+            current_micro_step, current_tick
+        );
         self.trace_log_model(model);
     }
 
     fn on_discard_remain_micro_step(
         &self,
         model: &M,
-        now: SimTime,
+        current_tick: SimTime,
         first_discarded_micro_step: MicroStep,
         discarded_sources: &[SourceReadyEntry],
         discarded_events: &[Event<E>],
     ) {
         debug!(
             "!!! [DISCARD REMAINS at {:?}] Start μStep: {}, Sources: {:?}, Events: {:?}",
-            now, first_discarded_micro_step, discarded_sources, discarded_events
+            current_tick, first_discarded_micro_step, discarded_sources, discarded_events
         );
         self.debug_log_model(model);
     }
 
-    fn before_source_phase(&self, model: &M, now: SimTime, micro_step: MicroStep) {
-        trace!("    > Source Phase at {:?} (μStep: {})", now, micro_step);
+    fn before_source_phase(&self, model: &M, current_tick: SimTime, current_micro_step: MicroStep) {
+        trace!(
+            "    > Source Phase at {:?} (μStep: {})",
+            current_tick, current_micro_step
+        );
         self.trace_log_model(model);
     }
 
     fn before_source(
         &self,
         model: &M,
-        _now: SimTime,
-        _micro_step: MicroStep,
+        _current_tick: SimTime,
+        _current_micro_step: MicroStep,
         source_view: &SourceView,
     ) {
         trace!("      + Source firing | Source: {:?}", source_view);
@@ -95,8 +104,8 @@ where
     fn after_source(
         &self,
         model: &M,
-        _now: SimTime,
-        _micro_step: MicroStep,
+        _current_tick: SimTime,
+        _current_micro_step: MicroStep,
         source_view: &SourceView,
         computed_next_fire: Option<SimTime>,
     ) {
@@ -110,36 +119,51 @@ where
     fn discard_source(
         &self,
         model: &M,
-        now: SimTime,
-        micro_step: MicroStep,
+        current_tick: SimTime,
+        current_micro_step: MicroStep,
         source_view: &SourceView,
     ) {
         debug!(
             "    ! Source discarded at {:?} (last handle μStep: {}) | Source: {:?}",
-            now, micro_step, source_view
+            current_tick, current_micro_step, source_view
         );
         self.debug_log_model(model);
     }
 
-    fn after_source_phase(&self, model: &M, now: SimTime, micro_step: MicroStep) {
+    fn after_source_phase(&self, model: &M, current_tick: SimTime, current_micro_step: MicroStep) {
         trace!(
             "    < Source Phase finished at {:?} (μStep: {})",
-            now, micro_step,
+            current_tick, current_micro_step,
         );
         self.trace_log_model(model);
     }
 
-    fn before_event_phase(&self, model: &M, now: SimTime, micro_step: MicroStep) {
-        trace!("    > Event Phase at {:?} (μStep: {})", now, micro_step);
+    fn before_event_phase(&self, model: &M, current_tick: SimTime, current_micro_step: MicroStep) {
+        trace!(
+            "    > Event Phase at {:?} (μStep: {})",
+            current_tick, current_micro_step
+        );
         self.trace_log_model(model);
     }
 
-    fn before_event(&self, model: &M, _now: SimTime, _micro_step: MicroStep, event: &Event<E>) {
+    fn before_event(
+        &self,
+        model: &M,
+        _current_tick: SimTime,
+        _micro_step: MicroStep,
+        event: &Event<E>,
+    ) {
         trace!("      + Event firing | Event: {:?}", event);
         self.trace_log_model(model);
     }
 
-    fn after_event(&self, model: &M, _now: SimTime, _micro_step: MicroStep, event: &Event<E>) {
+    fn after_event(
+        &self,
+        model: &M,
+        _current_tick: SimTime,
+        _micro_step: MicroStep,
+        event: &Event<E>,
+    ) {
         trace!("      - Event finished | Event: {:?}", event);
         self.trace_log_model(model);
     }
@@ -147,30 +171,36 @@ where
     fn cancel_event(
         &self,
         model: &M,
-        now: SimTime,
-        micro_step: MicroStep,
+        current_tick: SimTime,
+        current_micro_step: MicroStep,
         scheduled_at: SimTime,
         event: &Event<E>,
     ) {
         debug!(
             "    ! Event canceled at {:?} (current μStep: {}) | Event: {:?} at scheduled: {}",
-            now, micro_step, event, scheduled_at
+            current_tick, current_micro_step, event, scheduled_at
         );
         self.debug_log_model(model);
     }
 
-    fn discard_event(&self, model: &M, now: SimTime, micro_step: MicroStep, event: &Event<E>) {
+    fn discard_event(
+        &self,
+        model: &M,
+        current_tick: SimTime,
+        current_micro_step: MicroStep,
+        event: &Event<E>,
+    ) {
         debug!(
             "    ! Event canceled at {:?} (last handle μStep: {}) | Event: {:?}",
-            now, micro_step, event
+            current_tick, current_micro_step, event
         );
         self.debug_log_model(model);
     }
 
-    fn after_event_phase(&self, model: &M, now: SimTime, micro_step: MicroStep) {
+    fn after_event_phase(&self, model: &M, current_tick: SimTime, current_micro_step: MicroStep) {
         trace!(
             "    < Event Phase finished at {:?} (μStep: {})",
-            now, micro_step,
+            current_tick, current_micro_step,
         );
         self.trace_log_model(model);
     }

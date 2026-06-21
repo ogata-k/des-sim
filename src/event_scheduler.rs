@@ -54,12 +54,12 @@ impl<E> EventScheduler<E> {
 
     pub fn schedule(
         &mut self,
-        now: SimTime,
+        current_tick: SimTime,
         delay: Duration,
         priority: EventPriority,
         event_payload: E,
     ) {
-        let time = now + delay;
+        let time = current_tick + delay;
         let event_id = EventId(self.next_event_id);
         self.next_event_id += 1;
 
@@ -78,16 +78,16 @@ impl<E> EventScheduler<E> {
     /// 実行時に[Duration::zero()]でイベントをスケジュールした場合に、同一時間内でも再度とれる。
     /// なので、同一時間内でさらにループして[self::drain_ready()]した結果が空になるまで取得し続けること。
     /// ※再取得漏れが発生するとpanicするので注意。
-    pub fn drain_ready(&mut self, now: SimTime) -> VecDeque<Event<E>> {
+    pub fn drain_ready(&mut self, current_tick: SimTime) -> VecDeque<Event<E>> {
         let mut events = VecDeque::new();
         while let Some(Reverse(event)) = self.ready_queue.peek() {
             assert!(
-                event.scheduled_at >= now,
+                event.scheduled_at >= current_tick,
                 "EventScheduler invariant violated: event.scheduled_at={} < now={}",
                 event.scheduled_at,
-                now
+                current_tick
             );
-            if event.scheduled_at != now {
+            if event.scheduled_at != current_tick {
                 break;
             }
 

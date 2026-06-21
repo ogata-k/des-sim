@@ -60,8 +60,13 @@ impl<E, M: Model<E>> SourceHandler<E, M> {
 
     /// [Source]を現在時刻から時間がたった後の時間で実行するように登録する。
     /// 使用用途は、シミュレーション中での使用。
-    pub fn add_source_after<S>(&mut self, name: String, now: SimTime, delay: Duration, source: S)
-    where
+    pub fn add_source_after<S>(
+        &mut self,
+        name: String,
+        current_tick: SimTime,
+        delay: Duration,
+        source: S,
+    ) where
         S: Source<E, M> + 'static,
     {
         assert!(delay > Duration::zero());
@@ -71,7 +76,7 @@ impl<E, M: Model<E>> SourceHandler<E, M> {
             source: Box::new(source),
         });
         self.pending_queue.push(Reverse(ScheduledSource {
-            scheduled_at: now + delay,
+            scheduled_at: current_tick + delay,
             source_id: SourceId::new(self.next_source_id),
         }));
         self.next_source_id += 1;
@@ -79,7 +84,7 @@ impl<E, M: Model<E>> SourceHandler<E, M> {
 
     /// [Source]を現在時刻の次のマイクロステップで実行するように登録する。
     /// 使用用途は、シミュレーション中での使用。
-    pub fn add_source_at_now<S>(&mut self, name: String, now: SimTime, source: S)
+    pub fn add_source_at_now<S>(&mut self, name: String, current_tick: SimTime, source: S)
     where
         S: Source<E, M> + 'static,
     {
@@ -88,7 +93,7 @@ impl<E, M: Model<E>> SourceHandler<E, M> {
             source: Box::new(source),
         });
         self.pending_queue.push(Reverse(ScheduledSource {
-            scheduled_at: now,
+            scheduled_at: current_tick,
             source_id: SourceId::new(self.next_source_id),
         }));
         self.next_source_id += 1;
@@ -99,16 +104,16 @@ impl<E, M: Model<E>> SourceHandler<E, M> {
     /// 実行時に[Duration::zero()]でイベントをスケジュールした場合に、同一時間内でも再度とれる。
     /// なので、同一時間内でさらにループして[self::drain_ready()]した結果が空になるまで取得し続けること。
     /// ※再取得漏れが発生するとpanicするので注意。
-    pub fn drain_ready(&mut self, now: SimTime) -> VecDeque<SourceReadyEntry> {
+    pub fn drain_ready(&mut self, current_tick: SimTime) -> VecDeque<SourceReadyEntry> {
         let mut fired_source_indexes: VecDeque<SourceReadyEntry> = VecDeque::new();
         while let Some(Reverse(scheduled)) = self.ready_queue.peek() {
             assert!(
-                scheduled.scheduled_at >= now,
+                scheduled.scheduled_at >= current_tick,
                 "SourceScheduler invariant violated: scheduled_source.scheduled_at={} < now={}",
                 scheduled.scheduled_at,
-                now
+                current_tick
             );
-            if scheduled.scheduled_at != now {
+            if scheduled.scheduled_at != current_tick {
                 break;
             }
 
@@ -129,12 +134,12 @@ impl<E, M: Model<E>> SourceHandler<E, M> {
 
     pub(crate) fn schedule_next(
         &mut self,
-        now: SimTime,
+        current_tick: SimTime,
         next_fire_delay: Duration,
         source_id: SourceId,
     ) {
         self.pending_queue.push(Reverse(ScheduledSource {
-            scheduled_at: now + next_fire_delay,
+            scheduled_at: current_tick + next_fire_delay,
             source_id,
         }));
     }

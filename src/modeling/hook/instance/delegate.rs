@@ -22,12 +22,8 @@ impl<E, M: Model<E>> Hook<E, M> for HookDelegate<E, M> {
         self.delegate(|hook| hook.before_simulation(model))
     }
 
-    /// skipped_duration は前回Tickから今回Tickまでに
-    /// スキップされた時間。
-    ///
-    /// スキップ無効Runnerの場合は常に Duration::zero()。
-    fn after_simulation(&self, model: &M, end_sim_time: SimTime) {
-        self.reverse_delegate(|hook| hook.after_simulation(model, end_sim_time))
+    fn after_simulation(&self, model: &M, end_tick: SimTime) {
+        self.reverse_delegate(|hook| hook.after_simulation(model, end_tick))
     }
 
     // Tick lifecycle
@@ -36,28 +32,26 @@ impl<E, M: Model<E>> Hook<E, M> for HookDelegate<E, M> {
     /// スキップされた時間。
     ///
     /// スキップ無効Runnerの場合は常に Duration::zero()。
-    fn before_tick(&self, model: &M, now: SimTime, skipped_duration: Duration) {
-        self.delegate(|hook| hook.before_tick(model, now, skipped_duration))
+    fn before_tick(&self, model: &M, current_tick: SimTime, skipped_duration: Duration) {
+        self.delegate(|hook| hook.before_tick(model, current_tick, skipped_duration))
     }
 
-    /// micro_step_count はこのTickで実行された
-    /// micro_step数。
-    fn after_tick(&self, model: &M, now: SimTime, micro_step_count: MicroStep) {
-        self.reverse_delegate(|hook| hook.after_tick(model, now, micro_step_count))
+    fn after_tick(&self, model: &M, current_tick: SimTime, last_micro_step: MicroStep) {
+        self.reverse_delegate(|hook| hook.after_tick(model, current_tick, last_micro_step))
     }
 
-    fn before_micro_step(&self, model: &M, now: SimTime, micro_step: MicroStep) {
-        self.delegate(|hook| hook.before_micro_step(model, now, micro_step))
+    fn before_micro_step(&self, model: &M, current_tick: SimTime, current_micro_step: MicroStep) {
+        self.delegate(|hook| hook.before_micro_step(model, current_tick, current_micro_step))
     }
 
-    fn after_micro_step(&self, model: &M, now: SimTime, micro_step: MicroStep) {
-        self.reverse_delegate(|hook| hook.after_micro_step(model, now, micro_step))
+    fn after_micro_step(&self, model: &M, current_tick: SimTime, current_micro_step: MicroStep) {
+        self.reverse_delegate(|hook| hook.after_micro_step(model, current_tick, current_micro_step))
     }
 
     fn on_discard_remain_micro_step(
         &self,
         model: &M,
-        now: SimTime,
+        current_tick: SimTime,
         first_discarded_micro_step: MicroStep,
         discarded_sources: &[SourceReadyEntry],
         discarded_events: &[Event<E>],
@@ -65,7 +59,7 @@ impl<E, M: Model<E>> Hook<E, M> for HookDelegate<E, M> {
         self.reverse_delegate(|hook| {
             hook.on_discard_remain_micro_step(
                 model,
-                now,
+                current_tick,
                 first_discarded_micro_step,
                 discarded_sources,
                 discarded_events,
@@ -75,72 +69,108 @@ impl<E, M: Model<E>> Hook<E, M> for HookDelegate<E, M> {
 
     // Source lifecycle
 
-    fn before_source_phase(&self, model: &M, now: SimTime, micro_step: MicroStep) {
-        self.delegate(|hook| hook.before_source_phase(model, now, micro_step))
+    fn before_source_phase(&self, model: &M, current_tick: SimTime, current_micro_step: MicroStep) {
+        self.delegate(|hook| hook.before_source_phase(model, current_tick, current_micro_step))
     }
 
-    fn before_source(&self, model: &M, now: SimTime, micro_step: MicroStep, source: &SourceView) {
-        self.delegate(|hook| hook.before_source(model, now, micro_step, source))
+    fn before_source(
+        &self,
+        model: &M,
+        current_tick: SimTime,
+        current_micro_step: MicroStep,
+        source: &SourceView,
+    ) {
+        self.delegate(|hook| hook.before_source(model, current_tick, current_micro_step, source))
     }
 
     fn after_source(
         &self,
         model: &M,
-        now: SimTime,
-        micro_step: MicroStep,
+        current_tick: SimTime,
+        current_micro_step: MicroStep,
         source: &SourceView,
         computed_next_fire: Option<SimTime>,
     ) {
         self.reverse_delegate(|hook| {
-            hook.after_source(model, now, micro_step, source, computed_next_fire)
+            hook.after_source(
+                model,
+                current_tick,
+                current_micro_step,
+                source,
+                computed_next_fire,
+            )
         })
     }
 
     fn discard_source(
         &self,
         model: &M,
-        now: SimTime,
-        micro_step: MicroStep,
+        current_tick: SimTime,
+        current_micro_step: MicroStep,
         source_view: &SourceView,
     ) {
-        self.delegate(|hook| hook.discard_source(model, now, micro_step, source_view))
+        self.delegate(|hook| {
+            hook.discard_source(model, current_tick, current_micro_step, source_view)
+        })
     }
 
-    fn after_source_phase(&self, model: &M, now: SimTime, micro_step: MicroStep) {
-        self.delegate(|hook| hook.after_source_phase(model, now, micro_step))
+    fn after_source_phase(&self, model: &M, current_tick: SimTime, current_micro_step: MicroStep) {
+        self.delegate(|hook| hook.after_source_phase(model, current_tick, current_micro_step))
     }
 
     // Event lifecycle
 
-    fn before_event_phase(&self, model: &M, now: SimTime, micro_step: MicroStep) {
-        self.delegate(|hook| hook.before_event_phase(model, now, micro_step))
+    fn before_event_phase(&self, model: &M, current_tick: SimTime, current_micro_step: MicroStep) {
+        self.delegate(|hook| hook.before_event_phase(model, current_tick, current_micro_step))
     }
 
-    fn before_event(&self, model: &M, now: SimTime, micro_step: MicroStep, event: &Event<E>) {
-        self.delegate(|hook| hook.before_event(model, now, micro_step, event))
+    fn before_event(
+        &self,
+        model: &M,
+        current_tick: SimTime,
+        current_micro_step: MicroStep,
+        event: &Event<E>,
+    ) {
+        self.delegate(|hook| hook.before_event(model, current_tick, current_micro_step, event))
     }
 
-    fn after_event(&self, model: &M, now: SimTime, micro_step: MicroStep, event: &Event<E>) {
-        self.reverse_delegate(|hook| hook.after_event(model, now, micro_step, event))
+    fn after_event(
+        &self,
+        model: &M,
+        current_tick: SimTime,
+        current_micro_step: MicroStep,
+        event: &Event<E>,
+    ) {
+        self.reverse_delegate(|hook| {
+            hook.after_event(model, current_tick, current_micro_step, event)
+        })
     }
 
     fn cancel_event(
         &self,
         model: &M,
-        now: SimTime,
-        micro_step: MicroStep,
+        current_tick: SimTime,
+        current_micro_step: MicroStep,
         scheduled_at: SimTime,
         event: &Event<E>,
     ) {
-        self.delegate(|hook| hook.cancel_event(model, now, micro_step, scheduled_at, event))
+        self.delegate(|hook| {
+            hook.cancel_event(model, current_tick, current_micro_step, scheduled_at, event)
+        })
     }
 
-    fn discard_event(&self, model: &M, now: SimTime, micro_step: MicroStep, event: &Event<E>) {
-        self.delegate(|hook| hook.discard_event(model, now, micro_step, event))
+    fn discard_event(
+        &self,
+        model: &M,
+        current_tick: SimTime,
+        current_micro_step: MicroStep,
+        event: &Event<E>,
+    ) {
+        self.delegate(|hook| hook.discard_event(model, current_tick, current_micro_step, event))
     }
 
-    fn after_event_phase(&self, model: &M, now: SimTime, micro_step: MicroStep) {
-        self.delegate(|hook| hook.after_event_phase(model, now, micro_step))
+    fn after_event_phase(&self, model: &M, current_tick: SimTime, current_micro_step: MicroStep) {
+        self.delegate(|hook| hook.after_event_phase(model, current_tick, current_micro_step))
     }
 }
 

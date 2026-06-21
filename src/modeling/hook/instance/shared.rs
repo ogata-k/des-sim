@@ -32,12 +32,8 @@ where
         self.inner.as_ref().before_simulation(model)
     }
 
-    /// skipped_duration は前回Tickから今回Tickまでに
-    /// スキップされた時間。
-    ///
-    /// スキップ無効Runnerの場合は常に Duration::zero()。
-    fn after_simulation(&self, model: &M, end_sim_time: SimTime) {
-        self.inner.as_ref().after_simulation(model, end_sim_time)
+    fn after_simulation(&self, model: &M, end_tick: SimTime) {
+        self.inner.as_ref().after_simulation(model, end_tick)
     }
 
     // Tick lifecycle
@@ -46,39 +42,41 @@ where
     /// スキップされた時間。
     ///
     /// スキップ無効Runnerの場合は常に Duration::zero()。
-    fn before_tick(&self, model: &M, now: SimTime, skipped_duration: Duration) {
+    fn before_tick(&self, model: &M, current_tick: SimTime, skipped_duration: Duration) {
         self.inner
             .as_ref()
-            .before_tick(model, now, skipped_duration)
+            .before_tick(model, current_tick, skipped_duration)
     }
 
-    /// micro_step_count はこのTickで実行された
-    /// micro_step数。
-    fn after_tick(&self, model: &M, now: SimTime, micro_step_count: MicroStep) {
-        self.inner.as_ref().after_tick(model, now, micro_step_count)
-    }
-
-    fn before_micro_step(&self, model: &M, now: SimTime, micro_step: MicroStep) {
+    fn after_tick(&self, model: &M, current_tick: SimTime, last_micro_step: MicroStep) {
         self.inner
             .as_ref()
-            .before_micro_step(model, now, micro_step)
+            .after_tick(model, current_tick, last_micro_step)
     }
 
-    fn after_micro_step(&self, model: &M, now: SimTime, micro_step: MicroStep) {
-        self.inner.as_ref().after_micro_step(model, now, micro_step)
+    fn before_micro_step(&self, model: &M, current_tick: SimTime, current_micro_step: MicroStep) {
+        self.inner
+            .as_ref()
+            .before_micro_step(model, current_tick, current_micro_step)
+    }
+
+    fn after_micro_step(&self, model: &M, current_tick: SimTime, current_micro_step: MicroStep) {
+        self.inner
+            .as_ref()
+            .after_micro_step(model, current_tick, current_micro_step)
     }
 
     fn on_discard_remain_micro_step(
         &self,
         model: &M,
-        now: SimTime,
+        current_tick: SimTime,
         first_discarded_micro_step: MicroStep,
         discarded_sources: &[SourceReadyEntry],
         discarded_events: &[Event<E>],
     ) {
         self.inner.as_ref().on_discard_remain_micro_step(
             model,
-            now,
+            current_tick,
             first_discarded_micro_step,
             discarded_sources,
             discarded_events,
@@ -87,98 +85,124 @@ where
 
     // Source lifecycle
 
-    fn before_source_phase(&self, model: &M, now: SimTime, micro_step: MicroStep) {
+    fn before_source_phase(&self, model: &M, current_tick: SimTime, current_micro_step: MicroStep) {
         self.inner
             .as_ref()
-            .before_source_phase(model, now, micro_step)
+            .before_source_phase(model, current_tick, current_micro_step)
     }
 
     fn before_source(
         &self,
         model: &M,
-        now: SimTime,
-        micro_step: MicroStep,
+        current_tick: SimTime,
+        current_micro_step: MicroStep,
         source_view: &SourceView,
     ) {
         self.inner
             .as_ref()
-            .before_source(model, now, micro_step, source_view)
+            .before_source(model, current_tick, current_micro_step, source_view)
     }
 
     fn after_source(
         &self,
         model: &M,
-        now: SimTime,
-        micro_step: MicroStep,
+        current_tick: SimTime,
+        current_micro_step: MicroStep,
         source_view: &SourceView,
         computed_next_fire: Option<SimTime>,
     ) {
-        self.inner
-            .as_ref()
-            .after_source(model, now, micro_step, source_view, computed_next_fire)
+        self.inner.as_ref().after_source(
+            model,
+            current_tick,
+            current_micro_step,
+            source_view,
+            computed_next_fire,
+        )
     }
 
     fn discard_source(
         &self,
         model: &M,
-        now: SimTime,
-        micro_step: MicroStep,
+        current_tick: SimTime,
+        current_micro_step: MicroStep,
         source_view: &SourceView,
     ) {
         self.inner
             .as_ref()
-            .discard_source(model, now, micro_step, source_view)
+            .discard_source(model, current_tick, current_micro_step, source_view)
     }
 
-    fn after_source_phase(&self, model: &M, now: SimTime, micro_step: MicroStep) {
+    fn after_source_phase(&self, model: &M, current_tick: SimTime, current_micro_step: MicroStep) {
         self.inner
             .as_ref()
-            .after_source_phase(model, now, micro_step)
+            .after_source_phase(model, current_tick, current_micro_step)
     }
 
     // Event lifecycle
 
-    fn before_event_phase(&self, model: &M, now: SimTime, micro_step: MicroStep) {
+    fn before_event_phase(&self, model: &M, current_tick: SimTime, current_micro_step: MicroStep) {
         self.inner
             .as_ref()
-            .before_event_phase(model, now, micro_step)
+            .before_event_phase(model, current_tick, current_micro_step)
     }
 
-    fn before_event(&self, model: &M, now: SimTime, micro_step: MicroStep, event: &Event<E>) {
+    fn before_event(
+        &self,
+        model: &M,
+        current_tick: SimTime,
+        current_micro_step: MicroStep,
+        event: &Event<E>,
+    ) {
         self.inner
             .as_ref()
-            .before_event(model, now, micro_step, event)
+            .before_event(model, current_tick, current_micro_step, event)
     }
 
-    fn after_event(&self, model: &M, now: SimTime, micro_step: MicroStep, event: &Event<E>) {
+    fn after_event(
+        &self,
+        model: &M,
+        current_tick: SimTime,
+        current_micro_step: MicroStep,
+        event: &Event<E>,
+    ) {
         self.inner
             .as_ref()
-            .after_event(model, now, micro_step, event)
+            .after_event(model, current_tick, current_micro_step, event)
     }
 
     fn cancel_event(
         &self,
         model: &M,
-        now: SimTime,
-        micro_step: MicroStep,
+        current_tick: SimTime,
+        current_micro_step: MicroStep,
         scheduled_at: SimTime,
+        event: &Event<E>,
+    ) {
+        self.inner.as_ref().cancel_event(
+            model,
+            current_tick,
+            current_micro_step,
+            scheduled_at,
+            event,
+        )
+    }
+
+    fn discard_event(
+        &self,
+        model: &M,
+        current_tick: SimTime,
+        current_micro_step: MicroStep,
         event: &Event<E>,
     ) {
         self.inner
             .as_ref()
-            .cancel_event(model, now, micro_step, scheduled_at, event)
+            .discard_event(model, current_tick, current_micro_step, event)
     }
 
-    fn discard_event(&self, model: &M, now: SimTime, micro_step: MicroStep, event: &Event<E>) {
+    fn after_event_phase(&self, model: &M, current_tick: SimTime, current_micro_step: MicroStep) {
         self.inner
             .as_ref()
-            .discard_event(model, now, micro_step, event)
-    }
-
-    fn after_event_phase(&self, model: &M, now: SimTime, micro_step: MicroStep) {
-        self.inner
-            .as_ref()
-            .after_event_phase(model, now, micro_step)
+            .after_event_phase(model, current_tick, current_micro_step)
     }
 }
 
