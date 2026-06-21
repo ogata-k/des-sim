@@ -18,6 +18,8 @@ impl<'a, M: ModelSummary> fmt::Display for ModelLogAdapter<'a, M> {
     }
 }
 
+/// シミュレーション実行中の状態をトレースする[Hook]。
+/// verbose_debug featureフラグがたっていれば、[Debug]トレイトを使ってモデルの詳細な状態も出力する。
 pub struct TraceHook;
 
 impl<E, M> Hook<E, M> for TraceHook
