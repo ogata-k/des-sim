@@ -36,6 +36,46 @@ impl<E, M: Model<E>> EventPhase<E, M> {
         self.ready_events.pop_front()
     }
 
+    /// 全体から条件を満たす一件を取得して取り出す。
+    pub fn take_one_if<F>(&mut self, predicate: F) -> Option<Event<E>>
+    where
+        F: FnOnce(&Event<E>) -> bool,
+    {
+        self.ready_events.pop_front_if(|e| predicate(e))
+    }
+
+    /// 先頭が条件を満たす時だけ取り出す。
+    pub fn take_front_if<F>(&mut self, predicate: F) -> Option<Event<E>>
+    where
+        F: FnOnce(&Event<E>) -> bool,
+    {
+        // 先頭要素を覗いて、条件に合致するか判定
+        if self.ready_events.front().map_or(false, predicate) {
+            self.ready_events.pop_front()
+        } else {
+            None
+        }
+    }
+
+    pub fn take_all(&mut self) -> VecDeque<Event<E>> {
+        std::mem::take(&mut self.ready_events)
+    }
+
+    pub fn take_all_if<F>(&mut self, predicate: F) -> VecDeque<Event<E>>
+    where
+        F: FnMut(&Event<E>) -> bool,
+    {
+        // 一時的にすべて取得して抽出して差し替える
+        let all_sources = std::mem::take(&mut self.ready_events);
+
+        let (taken, remaining): (VecDeque<_>, VecDeque<_>) =
+            all_sources.into_iter().partition(predicate);
+
+        self.ready_events = remaining;
+
+        taken
+    }
+
     pub fn handle_event(&mut self, model: &mut M, event: Event<E>) {
         self.context.hook().before_event(
             model,
@@ -51,8 +91,6 @@ impl<E, M: Model<E>> EventPhase<E, M> {
             &event,
         );
     }
-
-    // @todo イベントをまとめて処理できるやつ
 
     pub fn discard(&mut self, model: &M, event: Event<E>) {
         self.context.hook().discard_event(

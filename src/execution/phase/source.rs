@@ -53,6 +53,46 @@ impl<E, M: Model<E>> SourcePhase<E, M> {
         self.ready_sources.pop_front()
     }
 
+    /// 全体から条件を満たす一件を取得して取り出す。
+    pub fn take_one_if<F>(&mut self, predicate: F) -> Option<SourceReadyEntry>
+    where
+        F: FnOnce(&SourceReadyEntry) -> bool,
+    {
+        self.ready_sources.pop_front_if(|e| predicate(e))
+    }
+
+    /// 先頭が条件を満たす時だけ取り出す。
+    pub fn take_front_if<F>(&mut self, predicate: F) -> Option<SourceReadyEntry>
+    where
+        F: FnOnce(&SourceReadyEntry) -> bool,
+    {
+        // 先頭要素を覗いて、条件に合致するか判定
+        if self.ready_sources.front().map_or(false, predicate) {
+            self.ready_sources.pop_front()
+        } else {
+            None
+        }
+    }
+
+    pub fn take_all(&mut self) -> VecDeque<SourceReadyEntry> {
+        std::mem::take(&mut self.ready_sources)
+    }
+
+    pub fn take_all_if<F>(&mut self, predicate: F) -> VecDeque<SourceReadyEntry>
+    where
+        F: FnMut(&SourceReadyEntry) -> bool,
+    {
+        // 一時的にすべて取得して抽出して差し替える
+        let all_sources = std::mem::take(&mut self.ready_sources);
+
+        let (taken, remaining): (VecDeque<_>, VecDeque<_>) =
+            all_sources.into_iter().partition(predicate);
+
+        self.ready_sources = remaining;
+
+        taken
+    }
+
     pub fn fire_and_schedule(&mut self, model: &M, entry: SourceReadyEntry) {
         let now = self.context.current_tick();
         let current_microstep = self.context.current_micro_step();
@@ -84,8 +124,6 @@ impl<E, M: Model<E>> SourcePhase<E, M> {
             computed_next_scheduled_at,
         );
     }
-
-    // @todo ソースをまとめて処理できるやつ
 
     pub fn discard(&mut self, model: &M, entry: SourceReadyEntry) {
         let view = self.get_source_view(&entry);
