@@ -7,6 +7,7 @@ use crate::modeling::model::Model;
 use crate::primitive::time::{Duration, SimTime};
 use crate::primitive::time::{MicroStepStatus, TickStatus};
 use crate::source_handler::SourceHandler;
+use std::cmp::min;
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub enum ExecutorStatus {
@@ -112,14 +113,22 @@ impl<E, M: Model<E>> ActiveExecutorContext<E, M> {
         let current_tick = self.current_tick_status.current();
         self.hook()
             .after_tick(model, current_tick, self.next_micro_step_status.current());
+
         let (skipped, next_tick) = match (
             self.source_handler.peek_next_time(),
             self.event_scheduler.peek_next_time(),
         ) {
-            (Some(next_scheduled_at), _) | (_, Some(next_scheduled_at)) => (
+            (Some(next_scheduled_at), None) | (None, Some(next_scheduled_at)) => (
                 next_scheduled_at - current_tick - Duration::one(),
                 next_scheduled_at,
             ),
+            (Some(source_next_scheduled_at), Some(event_next_scheduled_at)) => {
+                let next_scheduled_at = min(source_next_scheduled_at, event_next_scheduled_at);
+                (
+                    next_scheduled_at - current_tick - Duration::one(),
+                    next_scheduled_at,
+                )
+            }
             (_, _) => {
                 // 次に発火させるべきものがないので次へ順番に進めておく
                 (Duration::zero(), current_tick + Duration::one())
