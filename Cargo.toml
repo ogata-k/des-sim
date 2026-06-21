@@ -5,3 +5,10 @@ edition = "2024"
 
 [dependencies]
 rayon = "1.12.0"
+log = "0.4.33"
+
+[features]
+# デフォルトでは有効にしない (無効化)
+default = []
+# 詳細デバッグを有効にするフラグ
+verbose_debug = []

@@ -1,6 +1,7 @@
 use crate::primitive::id::SourceId;
 use std::sync::Arc;
 
+#[derive(Debug)]
 pub struct SourceView {
     source_id: SourceId,
     name: Arc<str>,
