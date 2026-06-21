@@ -27,12 +27,12 @@ where
 {
     fn before_simulation(&self, model: &M) {
         info!("--- [SIMULATION START] Time: {:?} ---", SimTime::zero());
-        self.debug_log_model(model);
+        self.debug_log_model(model, "");
     }
 
     fn after_simulation(&self, model: &M, end_tick: SimTime) {
         info!("--- [SIMULATION END] Time: {:?} ---", end_tick);
-        self.debug_log_model(model);
+        self.debug_log_model(model, "");
     }
 
     fn before_tick(&self, model: &M, current_tick: SimTime, skipped_duration: Duration) {
@@ -40,7 +40,7 @@ where
             ">>> Tick at {:?} (skipped: {:?} ticks)",
             current_tick, skipped_duration
         );
-        self.debug_log_model(model);
+        self.debug_log_model(model, "");
     }
 
     fn after_tick(&self, model: &M, current_tick: SimTime, last_micro_step: MicroStep) {
@@ -48,7 +48,7 @@ where
             "<<< Tick at {:?} finished (last μSteps: {})",
             current_tick, last_micro_step
         );
-        self.debug_log_model(model);
+        self.debug_log_model(model, "");
     }
 
     fn before_micro_step(&self, model: &M, current_tick: SimTime, current_micro_step: MicroStep) {
@@ -56,7 +56,7 @@ where
             "  [μStep: {} at {:?}] START",
             current_micro_step, current_tick
         );
-        self.trace_log_model(model);
+        self.trace_log_model(model, "  ");
     }
 
     fn after_micro_step(&self, model: &M, current_tick: SimTime, current_micro_step: MicroStep) {
@@ -64,7 +64,7 @@ where
             "  [μStep: {} at {:?}] END",
             current_micro_step, current_tick
         );
-        self.trace_log_model(model);
+        self.trace_log_model(model, "  ");
     }
 
     fn on_discard_remain_micro_step(
@@ -76,10 +76,10 @@ where
         discarded_events: &[Event<E>],
     ) {
         debug!(
-            "!!! [DISCARD REMAINS at {:?}] Start μStep: {}, Sources: {:?}, Events: {:?}",
+            "  !!! [DISCARD REMAINS at {:?}] Start μStep: {}, Sources: {:?}, Events: {:?}",
             current_tick, first_discarded_micro_step, discarded_sources, discarded_events
         );
-        self.debug_log_model(model);
+        self.debug_log_model(model, "  ");
     }
 
     fn before_source_phase(&self, model: &M, current_tick: SimTime, current_micro_step: MicroStep) {
@@ -87,7 +87,7 @@ where
             "    > Source Phase at {:?} (μStep: {})",
             current_tick, current_micro_step
         );
-        self.trace_log_model(model);
+        self.trace_log_model(model, "    ");
     }
 
     fn before_source(
@@ -98,7 +98,7 @@ where
         source_view: &SourceView,
     ) {
         trace!("      + Source firing | Source: {:?}", source_view);
-        self.trace_log_model(model);
+        self.trace_log_model(model, "      ");
     }
 
     fn after_source(
@@ -113,7 +113,7 @@ where
             "      - Source finished (next: after {:?} tick) | Source: {:?}",
             computed_next_fire, source_view
         );
-        self.trace_log_model(model);
+        self.trace_log_model(model, "      ");
     }
 
     fn discard_source(
@@ -127,7 +127,7 @@ where
             "    ! Source discarded at {:?} (last handle μStep: {}) | Source: {:?}",
             current_tick, current_micro_step, source_view
         );
-        self.debug_log_model(model);
+        self.debug_log_model(model, "    ");
     }
 
     fn after_source_phase(&self, model: &M, current_tick: SimTime, current_micro_step: MicroStep) {
@@ -135,7 +135,7 @@ where
             "    < Source Phase finished at {:?} (μStep: {})",
             current_tick, current_micro_step,
         );
-        self.trace_log_model(model);
+        self.trace_log_model(model, "    ");
     }
 
     fn before_event_phase(&self, model: &M, current_tick: SimTime, current_micro_step: MicroStep) {
@@ -143,7 +143,7 @@ where
             "    > Event Phase at {:?} (μStep: {})",
             current_tick, current_micro_step
         );
-        self.trace_log_model(model);
+        self.trace_log_model(model, "    ");
     }
 
     fn before_event(
@@ -154,7 +154,7 @@ where
         event: &Event<E>,
     ) {
         trace!("      + Event firing | Event: {:?}", event);
-        self.trace_log_model(model);
+        self.trace_log_model(model, "      ");
     }
 
     fn after_event(
@@ -165,7 +165,7 @@ where
         event: &Event<E>,
     ) {
         trace!("      - Event finished | Event: {:?}", event);
-        self.trace_log_model(model);
+        self.trace_log_model(model, "      ");
     }
 
     fn cancel_event(
@@ -180,7 +180,7 @@ where
             "    ! Event canceled at {:?} (current μStep: {}) | Event: {:?} at scheduled: {}",
             current_tick, current_micro_step, event, scheduled_at
         );
-        self.debug_log_model(model);
+        self.debug_log_model(model, "    ");
     }
 
     fn discard_event(
@@ -194,7 +194,7 @@ where
             "    ! Event canceled at {:?} (last handle μStep: {}) | Event: {:?}",
             current_tick, current_micro_step, event
         );
-        self.debug_log_model(model);
+        self.debug_log_model(model, "    ");
     }
 
     fn after_event_phase(&self, model: &M, current_tick: SimTime, current_micro_step: MicroStep) {
@@ -202,30 +202,30 @@ where
             "    < Event Phase finished at {:?} (μStep: {})",
             current_tick, current_micro_step,
         );
-        self.trace_log_model(model);
+        self.trace_log_model(model, "    ");
     }
 }
 
 impl TraceHook {
-    fn debug_log_model<M>(&self, model: &M)
+    fn debug_log_model<M>(&self, model: &M, prefix: &'static str)
     where
         M: ModelSummary + fmt::Debug,
     {
-        debug!("model summary: {}", ModelLogAdapter(model));
+        debug!("{}  model summary: {}", prefix, ModelLogAdapter(model));
 
         if cfg!(feature = "verbose_debug") {
-            debug!("model: {:?}", model);
+            debug!("{}  model: {:?}", prefix, model);
         }
     }
 
-    fn trace_log_model<M>(&self, model: &M)
+    fn trace_log_model<M>(&self, model: &M, prefix: &'static str)
     where
         M: ModelSummary + fmt::Debug,
     {
-        trace!("model summary: {}", ModelLogAdapter(model));
+        trace!("{}  model summary: {}", prefix, ModelLogAdapter(model));
 
         if cfg!(feature = "verbose_debug") {
-            trace!("model: {:?}", model);
+            trace!("{}  model: {:?}", prefix, model);
         }
     }
 }

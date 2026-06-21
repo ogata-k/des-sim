@@ -5,7 +5,7 @@ use crate::execution::SimulationResult;
 use crate::execution::engine::Engine;
 use crate::execution::strategy::ContinueStrategy;
 use crate::modeling::model::Model;
-use crate::primitive::time::{TickStatus, TimeTick};
+use crate::primitive::time::TickStatus;
 
 /// シミュレーションの実行制御を司るトレイト。
 ///
@@ -118,7 +118,8 @@ pub trait Runner<E, M: Model<E>, CS: ContinueStrategy<E, M, Self::Err>> {
         &mut self,
         engine: Engine<E, M>,
         model: M,
-        tick_count: TimeTick,
+        tick_count: u64,
+        include_zero_tick: bool,
     ) -> SimulationResult<M, CS::Err> {
         self.run(
             engine,
@@ -137,7 +138,9 @@ pub trait Runner<E, M: Model<E>, CS: ContinueStrategy<E, M, Self::Err>> {
                 //
                 // これにより、スキップが発生しても「最低限、閾値をまたぐ直前の処理（5 tick）」までは
                 // 確実に実行を完了させてから安全にシミュレーションを止めることができます。
-                next_handle_tick_status.previous().as_tick_value() + 1 >= tick_count
+                next_handle_tick_status.previous().as_tick_value()
+                    + if include_zero_tick { 1 } else { 0 }
+                    >= tick_count
             },
         )
     }
