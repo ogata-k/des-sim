@@ -16,6 +16,7 @@ use std::sync::mpsc::Sender;
 pub enum MyEvent {
     JobArrived { job_id: u32 },
     JobProcessed { job_id: u32 },
+    JobProcessNext,
 }
 
 // --- [2. モデルと非同期コマンドの定義] ---
@@ -31,19 +32,13 @@ pub struct ServerModel {
 pub enum ServerCommand {
     /// サーバーがビジーなのでキューにジョブを積む要求
     EnqueueJob { job_id: u32 },
-    /// サーバーが空いているのでビジーにし、次の完了イベントをスケジュールする要求
-    StartProcessing { job_id: u32 },
     /// 次のジョブを処理開始するか、アイドルに戻す要求
     ProcessNextOrIdle,
 }
 
 // 同期実行（特定の優先度以上）の際に呼ばれる標準の Model トレイト実装
 impl Model<MyEvent> for ServerModel {
-    fn handle_event(
-        &mut self,
-        _context: &mut EventContext<MyEvent, Self>,
-        _event: &Event<MyEvent>,
-    ) {
+    fn handle_event(&mut self, _context: &mut EventContext<MyEvent, Self>, event: &Event<MyEvent>) {
         // 同期実行された場合も、ロジックを一貫させるために apply_command を再利用可能ですが、
         // ここでは直接記述、または後述の apply_command にコンテキストを委譲する形を取ります。
         // 今回は非同期実行をメインにするため、元の実装を維持するか、あるいは非同期側へ処理を一本化します。
@@ -53,19 +48,21 @@ impl Model<MyEvent> for ServerModel {
 impl AsyncModel<MyEvent, ServerCommand> for ServerModel {
     /// 【非同期実行】スレッドプール上で &self (不変参照) を使って安全に並列計算
     fn handle_event_async(&self, event: Event<MyEvent>, tx: Sender<ServerCommand>) {
+        // 現在の状態を安全に読み取り、書き換えコマンドをチャンネルに送る
         match event.payload {
             MyEvent::JobArrived { job_id } => {
+                // ビジー状態かどうかで計算コストが変わるさまをシミュレート
                 if self.is_busy {
                     std::thread::sleep(std::time::Duration::from_millis(700));
-                    // 現在の状態を安全に読み取り、書き換えコマンドをチャンネルに送る
-                    tx.send(ServerCommand::EnqueueJob { job_id }).unwrap();
                 } else {
                     std::thread::sleep(std::time::Duration::from_millis(200));
-                    // 現在の状態を安全に読み取り、書き換えコマンドをチャンネルに送る
-                    tx.send(ServerCommand::StartProcessing { job_id }).unwrap();
                 }
+                tx.send(ServerCommand::EnqueueJob { job_id }).unwrap();
             }
             MyEvent::JobProcessed { job_id: _ } => {
+                tx.send(ServerCommand::ProcessNextOrIdle).unwrap();
+            }
+            MyEvent::JobProcessNext => {
                 tx.send(ServerCommand::ProcessNextOrIdle).unwrap();
             }
         }
@@ -75,20 +72,27 @@ impl AsyncModel<MyEvent, ServerCommand> for ServerModel {
     fn apply_command(&mut self, context: &mut EventContext<MyEvent, Self>, command: ServerCommand) {
         match command {
             ServerCommand::EnqueueJob { job_id } => {
+                // 同時処理数を制限
+                const WORKER_COUNT: usize = 3;
+                let can_process_next = self.queue.iter().count() < WORKER_COUNT;
                 self.queue.push_back(job_id);
-            }
-            ServerCommand::StartProcessing { job_id } => {
-                self.is_busy = true;
-                context.schedule_event(
-                    Duration::ticks(5),
-                    EventPriority::minimum(),
-                    MyEvent::JobProcessed { job_id },
-                );
+                if !self.is_busy {
+                    self.is_busy = true;
+                }
+                // キューに詰める前の状態で処理待ちがあるならそちらで処理されるので発火は不要
+                if can_process_next {
+                    context.schedule_event(
+                        Duration::ticks(0),
+                        EventPriority::minimum(),
+                        MyEvent::JobProcessNext,
+                    );
+                }
             }
             ServerCommand::ProcessNextOrIdle => {
                 if let Some(next_id) = self.queue.pop_front() {
+                    self.is_busy = true;
                     context.schedule_event(
-                        Duration::ticks(5),
+                        Duration::ticks(2),
                         EventPriority::minimum(),
                         MyEvent::JobProcessed { job_id: next_id },
                     );
@@ -124,14 +128,17 @@ impl Source<MyEvent, ServerModel> for JobGenerator {
         ctx: &mut SourceContext<MyEvent, ServerModel>,
         _model: &ServerModel,
     ) -> Option<Duration> {
-        let job_id = self.next_job_id;
-        self.next_job_id += 1;
+        // 非同期処理のありがたみを見るために、多めにイベントを一括登録する。
+        for _ in 0..5 {
+            let job_id = self.next_job_id;
+            self.next_job_id += 1;
 
-        ctx.schedule_event(
-            Duration::ticks(0),
-            EventPriority::minimum(),
-            MyEvent::JobArrived { job_id },
-        );
+            ctx.schedule_event(
+                Duration::ticks(0),
+                EventPriority::minimum(),
+                MyEvent::JobArrived { job_id },
+            );
+        }
 
         Some(self.interval)
     }
