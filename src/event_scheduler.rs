@@ -3,7 +3,7 @@ use crate::primitive::id::EventId;
 use crate::primitive::time::{Duration, SimTime};
 use std::cmp::Ordering;
 use std::cmp::Reverse;
-use std::collections::BinaryHeap;
+use std::collections::{BinaryHeap, VecDeque};
 
 #[derive(Clone)]
 pub(crate) struct ScheduledEvent<E> {
@@ -78,8 +78,8 @@ impl<E> EventScheduler<E> {
     /// 実行時に[Duration::zero()]でイベントをスケジュールした場合に、同一時間内でも再度とれる。
     /// なので、同一時間内でさらにループして[self::drain_ready()]した結果が空になるまで取得し続けること。
     /// ※再取得漏れが発生するとpanicするので注意。
-    pub fn drain_ready(&mut self, now: SimTime) -> Vec<Event<E>> {
-        let mut events = Vec::new();
+    pub fn drain_ready(&mut self, now: SimTime) -> VecDeque<Event<E>> {
+        let mut events = VecDeque::new();
         while let Some(Reverse(event)) = self.ready_queue.peek() {
             assert!(
                 event.scheduled_at >= now,
@@ -91,13 +91,13 @@ impl<E> EventScheduler<E> {
                 break;
             }
 
-            events.push(self.ready_queue.pop().unwrap().0.event);
+            events.push_back(self.ready_queue.pop().unwrap().0.event);
         }
 
         events
     }
 
-    pub fn drain_pending_to_cancel<F>(&mut self, pred: F) -> Vec<(SimTime, Event<E>)>
+    pub fn drain_pending_to_cancel<F>(&mut self, pred: F) -> VecDeque<(SimTime, Event<E>)>
     where
         F: Fn(SimTime, &Event<E>) -> bool,
     {

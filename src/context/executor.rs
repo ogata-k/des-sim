@@ -136,14 +136,14 @@ impl<E, M: Model<E>> ActiveExecutorContext<E, M> {
 
     pub fn discard_remain_micro_step(&mut self) {
         let current_tick = self.current_tick_status.current();
-        let ready_sources = self.source_handler.drain_ready(current_tick);
-        let ready_events = self.event_scheduler.drain_ready(current_tick);
+        let mut ready_sources = self.source_handler.drain_ready(current_tick);
+        let mut ready_events = self.event_scheduler.drain_ready(current_tick);
 
         self.hook().on_discard_remain_micro_step(
             current_tick,
             self.next_micro_step_status.current(),
-            &ready_sources,
-            &ready_events,
+            ready_sources.make_contiguous(),
+            ready_events.make_contiguous(),
         );
     }
 }

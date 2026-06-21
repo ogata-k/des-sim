@@ -9,7 +9,7 @@ use crate::modeling::source::Source;
 use crate::primitive::id::SourceId;
 use crate::primitive::time::{Duration, SimTime};
 use std::cmp::Reverse;
-use std::collections::BinaryHeap;
+use std::collections::{BinaryHeap, VecDeque};
 use std::sync::Arc;
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
@@ -99,8 +99,8 @@ impl<E, M: Model<E>> SourceHandler<E, M> {
     /// 実行時に[Duration::zero()]でイベントをスケジュールした場合に、同一時間内でも再度とれる。
     /// なので、同一時間内でさらにループして[self::drain_ready()]した結果が空になるまで取得し続けること。
     /// ※再取得漏れが発生するとpanicするので注意。
-    pub fn drain_ready(&mut self, now: SimTime) -> Vec<SourceReadyEntry> {
-        let mut fired_source_indexes: Vec<SourceReadyEntry> = Vec::new();
+    pub fn drain_ready(&mut self, now: SimTime) -> VecDeque<SourceReadyEntry> {
+        let mut fired_source_indexes: VecDeque<SourceReadyEntry> = VecDeque::new();
         while let Some(Reverse(scheduled)) = self.ready_queue.peek() {
             assert!(
                 scheduled.scheduled_at >= now,
@@ -114,7 +114,7 @@ impl<E, M: Model<E>> SourceHandler<E, M> {
 
             // 各Sourceで処理されてnowの次のマイクロステップに登録されても処理されないように、先に集めておく。
             let scheduled = self.ready_queue.pop().unwrap().0;
-            fired_source_indexes.push(SourceReadyEntry::new(
+            fired_source_indexes.push_back(SourceReadyEntry::new(
                 scheduled.source_id,
                 Arc::clone(&self.source_registry[scheduled.source_id.value()].name),
             ));

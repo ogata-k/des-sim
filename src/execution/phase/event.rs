@@ -3,14 +3,15 @@ use crate::execution::phase::MicroStepHandler;
 use crate::modeling::event::Event;
 use crate::modeling::hook::Hook;
 use crate::modeling::model::Model;
+use std::collections::VecDeque;
 
 pub struct EventPhase<E, M: Model<E>> {
     context: EventContext<E, M>,
-    ready_events: Vec<Event<E>>,
+    ready_events: VecDeque<Event<E>>,
 }
 
 impl<E, M: Model<E>> EventPhase<E, M> {
-    pub(crate) fn new(context: EventContext<E, M>, ready_events: Vec<Event<E>>) -> Self {
+    pub(crate) fn new(context: EventContext<E, M>, ready_events: VecDeque<Event<E>>) -> Self {
         EventPhase {
             context,
             ready_events,
@@ -31,11 +32,7 @@ impl<E, M: Model<E>> EventPhase<E, M> {
     }
 
     pub fn take_one(&mut self) -> Option<Event<E>> {
-        if self.ready_events.is_empty() {
-            None
-        } else {
-            Some(self.ready_events.remove(0))
-        }
+        self.ready_events.pop_front()
     }
 
     pub fn handle_event(&mut self, model: &mut M, event: Event<E>) {

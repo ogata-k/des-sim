@@ -4,6 +4,7 @@ use crate::modeling::hook::Hook;
 use crate::modeling::model::Model;
 use crate::source_handler::SourceHandler;
 use crate::source_handler::{SourceReadyEntry, SourceView};
+use std::collections::VecDeque;
 use std::sync::Arc;
 
 pub struct SourcePhase<E, M: Model<E>> {
@@ -11,14 +12,14 @@ pub struct SourcePhase<E, M: Model<E>> {
     // SourceContextはSourceを詰めなおすときに発火させてから詰めなおす都合上、SourceContextを持っているとライフタイムの問題が発生する。
     // そのため、MicroStepHandlerに渡す時だけSourceContextをSourcePhaseから奪い取る形で実装されている。
     pub(crate) source_handler: Option<SourceHandler<E, M>>,
-    ready_sources: Vec<SourceReadyEntry>,
+    ready_sources: VecDeque<SourceReadyEntry>,
 }
 
 impl<E, M: Model<E>> SourcePhase<E, M> {
     pub(crate) fn new(
         context: SourceContext<E, M>,
         source_handler: SourceHandler<E, M>,
-        ready_sources: Vec<SourceReadyEntry>,
+        ready_sources: VecDeque<SourceReadyEntry>,
     ) -> Self {
         SourcePhase {
             context,
@@ -48,11 +49,7 @@ impl<E, M: Model<E>> SourcePhase<E, M> {
     }
 
     pub fn take_one(&mut self) -> Option<SourceReadyEntry> {
-        if self.ready_sources.is_empty() {
-            None
-        } else {
-            Some(self.ready_sources.remove(0))
-        }
+        self.ready_sources.pop_front()
     }
 
     pub fn fire_and_schedule(&mut self, model: &M, entry: SourceReadyEntry) {
