@@ -73,6 +73,7 @@ impl AsyncModel<MyEvent, ServerCommand> for ServerModel {
         match command {
             ServerCommand::EnqueueJob { job_id } => {
                 // 同時処理数を制限
+                // 想定処理イメージは、フォーク型の待ち行列モデル
                 const WORKER_COUNT: usize = 3;
                 let can_process_next = self.queue.iter().count() < WORKER_COUNT;
                 self.queue.push_back(job_id);
