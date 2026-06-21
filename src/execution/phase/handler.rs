@@ -31,7 +31,6 @@ impl<E, M: Model<E>> MicroStepHandler<ActiveExecutorContext<E, M>> {
             context.current_tick_status.current(),
             context.next_micro_step_status.current(),
         );
-        context.source_handler.flush_pending();
 
         let ready_sources = context
             .source_handler
@@ -58,7 +57,6 @@ impl<E, M: Model<E>> MicroStepHandler<SourceContext<E, M>> {
             context.current_tick_status.current(),
             context.current_micro_step_status.current(),
         );
-        context.event_scheduler.flush_pending();
 
         let ready_events = context
             .event_scheduler
