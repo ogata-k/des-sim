@@ -210,4 +210,21 @@ impl TickStatus {
             self.current_tick - self.skipped - Duration::one()
         }
     }
+
+    /// 時間スキップを考慮し「実際に処理を終えている時間（`previous()`）」をベースに判定。
+    /// 連続してTickが進む場合（例: tick_count=2 のとき）：
+    ///   0 tick開始時: previous=0 (0+1>=2 => false) -> 0 tick処理実行
+    ///   1 tick開始時: previous=0 (0+1>=2 => false) -> 1 tick処理実行
+    ///   2 tick開始時: previous=1 (1+1>=2 => true)  -> ここで処理開始前に停止！
+    ///
+    /// 時間が大きくスキップする場合（例: tick_count=2 で 0 tick → 5 tick へジャンプ）：
+    ///   0 tick開始時: previous=0 (0+1>=2 => false) -> 0 tick処理実行（ここで5へジャンプ）
+    ///   5 tick開始時: previous=0 (0+1>=2 => false) -> 5 tick処理を実行（ジャンプ直後の実処理）
+    ///   6 tick開始時: previous=5 (5+1>=2 => true)  -> ここで停止！
+    ///
+    /// これにより、スキップが発生しても「最低限、閾値をまたぐ直前の処理（5 tick）」までは
+    /// 確実に実行を完了させてから安全にシミュレーションを止めることができます。
+    pub fn is_done_ticks(&self, include_zero_tick: bool, tick_count: TimeTick) -> bool {
+        self.previous().as_tick_value() + if include_zero_tick { 1 } else { 0 } >= tick_count
+    }
 }

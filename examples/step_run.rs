@@ -158,10 +158,7 @@ fn main() {
         engine,
         model,
         |_, _, next_handle_tick_status: TickStatus| {
-            // cf. Runner::run_do_ticks()
-            next_handle_tick_status.previous().as_tick_value()
-                + if include_zero_tick { 1 } else { 0 }
-                >= tick_count
+            next_handle_tick_status.is_done_ticks(include_zero_tick, tick_count)
         },
     );
     print!("\nSimulation Result: {:?}", result);
