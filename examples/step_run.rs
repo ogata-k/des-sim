@@ -78,6 +78,18 @@ pub struct JobGenerator {
 }
 
 impl Source<MyEvent, ServerModel> for JobGenerator {
+    fn initialize(&mut self, ctx: &mut SourceContext<MyEvent, ServerModel>, _model: &ServerModel) {
+        // 最初に一つイベントを登録する
+        let job_id = self.next_job_id;
+        self.next_job_id += 1;
+
+        ctx.schedule_event(
+            Duration::ticks(0),
+            EventPriority::minimum(),
+            MyEvent::JobArrived { job_id },
+        );
+    }
+
     // ソースが発火したときの挙動
     fn fire(
         &mut self,

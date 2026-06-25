@@ -84,6 +84,16 @@ where
         self.debug_log_model(model, "  ");
     }
 
+    fn before_initialize_source(&self, model: &M, name: &str) {
+        debug!("  > Initialize Source: {}", name);
+        self.debug_log_model(model, "  ");
+    }
+
+    fn after_initialize_source(&self, model: &M, name: &str) {
+        debug!("  < Initialize Source: {}", name);
+        self.debug_log_model(model, "  ");
+    }
+
     fn before_source_phase(&self, model: &M, current_tick: SimTime, current_micro_step: MicroStep) {
         debug!(
             "    > Source Phase at {:?} (μStep: {})",

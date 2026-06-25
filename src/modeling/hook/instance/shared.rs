@@ -85,6 +85,14 @@ where
 
     // Source lifecycle
 
+    fn before_initialize_source(&self, model: &M, name: &str) {
+        self.inner.as_ref().before_initialize_source(model, name)
+    }
+
+    fn after_initialize_source(&self, model: &M, name: &str) {
+        self.inner.as_ref().after_initialize_source(model, name)
+    }
+
     fn before_source_phase(&self, model: &M, current_tick: SimTime, current_micro_step: MicroStep) {
         self.inner
             .as_ref()

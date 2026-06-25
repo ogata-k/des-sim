@@ -37,6 +37,10 @@ pub trait Hook<E, M: Model<E>> {
 
     // Source lifecycle
 
+    fn before_initialize_source(&self, model: &M, name: &str);
+
+    fn after_initialize_source(&self, model: &M, name: &str);
+
     fn before_source_phase(&self, model: &M, current_tick: SimTime, current_micro_step: MicroStep);
 
     fn before_source(

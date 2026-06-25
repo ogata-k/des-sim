@@ -38,7 +38,11 @@ pub enum ServerCommand {
 
 // 同期実行（特定の優先度以上）の際に呼ばれる標準の Model トレイト実装
 impl Model<MyEvent> for ServerModel {
-    fn handle_event(&mut self, _context: &mut EventContext<MyEvent, Self>, event: &Event<MyEvent>) {
+    fn handle_event(
+        &mut self,
+        _context: &mut EventContext<MyEvent, Self>,
+        _event: &Event<MyEvent>,
+    ) {
         // 同期実行された場合も、ロジックを一貫させるために apply_command を再利用可能ですが、
         // ここでは直接記述、または後述の apply_command にコンテキストを委譲する形を取ります。
         // 今回は非同期実行をメインにするため、元の実装を維持するか、あるいは非同期側へ処理を一本化します。
@@ -123,6 +127,18 @@ pub struct JobGenerator {
 }
 
 impl Source<MyEvent, ServerModel> for JobGenerator {
+    fn initialize(&mut self, ctx: &mut SourceContext<MyEvent, ServerModel>, _model: &ServerModel) {
+        // 最初に一つイベントを登録する
+        let job_id = self.next_job_id;
+        self.next_job_id += 1;
+
+        ctx.schedule_event(
+            Duration::ticks(0),
+            EventPriority::minimum(),
+            MyEvent::JobArrived { job_id },
+        );
+    }
+
     fn fire(
         &mut self,
         ctx: &mut SourceContext<MyEvent, ServerModel>,

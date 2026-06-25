@@ -41,6 +41,15 @@ impl<E, M: Model<E>> SourceHandler<E, M> {
         }
     }
 
+    pub(crate) fn initialize_sources<F>(&mut self, mut initializer: F)
+    where
+        F: FnMut(&mut SourceEntry<E, M>),
+    {
+        self.source_registry.iter_mut().for_each(|e| {
+            initializer(e);
+        })
+    }
+
     /// [Source]を初回起動日時で実行するように登録する。
     /// 使用用途は、初回登録用途。
     pub fn add_source<S>(&mut self, name: String, first_fire_time: SimTime, source: S)

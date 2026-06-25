@@ -69,6 +69,14 @@ impl<E, M: Model<E>> Hook<E, M> for HookDelegate<E, M> {
 
     // Source lifecycle
 
+    fn before_initialize_source(&self, model: &M, name: &str) {
+        self.delegate(|hook| hook.before_initialize_source(model, name))
+    }
+
+    fn after_initialize_source(&self, model: &M, name: &str) {
+        self.reverse_delegate(|hook| hook.after_initialize_source(model, name))
+    }
+
     fn before_source_phase(&self, model: &M, current_tick: SimTime, current_micro_step: MicroStep) {
         self.delegate(|hook| hook.before_source_phase(model, current_tick, current_micro_step))
     }
@@ -115,7 +123,9 @@ impl<E, M: Model<E>> Hook<E, M> for HookDelegate<E, M> {
     }
 
     fn after_source_phase(&self, model: &M, current_tick: SimTime, current_micro_step: MicroStep) {
-        self.delegate(|hook| hook.after_source_phase(model, current_tick, current_micro_step))
+        self.reverse_delegate(|hook| {
+            hook.after_source_phase(model, current_tick, current_micro_step)
+        })
     }
 
     // Event lifecycle
@@ -170,7 +180,9 @@ impl<E, M: Model<E>> Hook<E, M> for HookDelegate<E, M> {
     }
 
     fn after_event_phase(&self, model: &M, current_tick: SimTime, current_micro_step: MicroStep) {
-        self.delegate(|hook| hook.after_event_phase(model, current_tick, current_micro_step))
+        self.reverse_delegate(|hook| {
+            hook.after_event_phase(model, current_tick, current_micro_step)
+        })
     }
 }
 

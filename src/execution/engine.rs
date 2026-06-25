@@ -1,12 +1,12 @@
-use crate::context::ExecutorContext;
+use crate::context::{ExecutorContext, SourceContext, UserContext};
 use crate::event_scheduler::EventScheduler;
 use crate::modeling::event::EventPriority;
 use crate::modeling::hook::Hook;
 use crate::modeling::hook::instance::{HookDelegate, SharedHook};
 use crate::modeling::model::Model;
 use crate::modeling::source::Source;
-use crate::primitive::time::TickStatus;
 use crate::primitive::time::{Duration, SimTime};
+use crate::primitive::time::{MicroStepStatus, TickStatus};
 use crate::source_handler::SourceHandler;
 
 pub struct Engine<E, M: Model<E>> {
@@ -32,9 +32,37 @@ impl<E, M: Model<E>> Engine<E, M> {
 
     pub fn begin_simulation(mut self, model: &M) -> ExecutorContext<E, M> {
         self.hook_delegate.before_simulation(model);
+
         // Engineで登録したソースを反映させておく
         self.source_handler.flush_pending();
-        // Engineで登録したイベントを反映させておく
+        {
+            // 一時的にSourceContextを作りSourceの初期化をした後にEngineを再構築して元に戻す
+            let mut source_context = SourceContext {
+                current_tick_status: TickStatus::initialize(),
+                current_micro_step_status: MicroStepStatus::initialize(),
+                hook_delegate: self.hook_delegate,
+                // SourceContextはプロパティはあるが、EventPhaseを作るときのHandlerにするときしかSourceHandlerを持たない。
+                // なのでここでもNoneを渡しておく
+                source_handler: None,
+                event_scheduler: self.event_scheduler,
+            };
+            self.source_handler.initialize_sources(|source| {
+                source_context
+                    .hook()
+                    .before_initialize_source(model, source.name.as_ref());
+                source.source.initialize(&mut source_context, model);
+                source_context
+                    .hook()
+                    .after_initialize_source(model, source.name.as_ref());
+            });
+            self = Engine {
+                hook_delegate: source_context.hook_delegate,
+                source_handler: self.source_handler,
+                event_scheduler: source_context.event_scheduler,
+            };
+        }
+
+        // Engineや上のSourceの初期化で登録したイベントを反映させておく
         self.event_scheduler.flush_pending();
 
         ExecutorContext {
