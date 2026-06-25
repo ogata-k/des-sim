@@ -97,9 +97,9 @@ impl<E> EventScheduler<E> {
         events
     }
 
-    pub fn drain_pending_to_cancel<F>(&mut self, pred: F) -> VecDeque<(SimTime, Event<E>)>
+    pub fn drain_pending_to_cancel<F>(&mut self, mut pred: F) -> VecDeque<(SimTime, Event<E>)>
     where
-        F: Fn(SimTime, &Event<E>) -> bool,
+        F: FnMut(SimTime, &Event<E>) -> bool,
     {
         let mut cancelled = Vec::new();
 

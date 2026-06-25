@@ -54,7 +54,7 @@ impl<E, M: Model<E>> EventContext<E, M> {
 
     pub fn cancel_scheduled_events<F>(&mut self, model: &M, pred: F)
     where
-        F: Fn(SimTime, &Event<E>) -> bool,
+        F: FnMut(SimTime, &Event<E>) -> bool,
     {
         let now = self.current_tick();
         let micro_step = self.current_micro_step();
