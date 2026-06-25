@@ -22,6 +22,9 @@ pub trait AsyncModel<E, Command>: Model<E> {
         Self: Sized;
 }
 
+/// イベントを発火した順番に並列で処理する標準的なRunner。
+/// sync_priority_thresholdで指定された以上の[EventPriority]以上のイベントは直列で処理することもできるようになっている。
+/// そして、skippableがtrueであれば、イベントがない時間をスキップすることができる。
 pub struct AsyncRunner<Command, CS> {
     skippable: bool,
     continue_strategy: CS,

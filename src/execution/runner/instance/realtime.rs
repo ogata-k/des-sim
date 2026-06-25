@@ -9,6 +9,10 @@ use crate::primitive::time::TickStatus;
 use std::thread;
 use std::time::{Duration as StdDuration, Instant};
 
+/// イベントを発火した順番に直列で処理する標準的なRunner。
+/// リアルタイムに状況をシミュレートするので、スキップは不可。
+///
+/// ※ [Model]と[Source]と[Hook]が決定論的に動くとき決定論的に処理を行うことができる。
 pub struct RealtimeRunner<CS> {
     continue_strategy: CS,
     /// 1 Tickの処理に必要な実時間（例: `Duration::from_millis(100)` で 1秒間に10Ticks）。
