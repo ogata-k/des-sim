@@ -166,20 +166,22 @@ pub trait Runner<E, M: Model<E>, CS: ContinueStrategy<E, M, Self::Err>> {
     /// * `engine_builder` - 各スレッドで独立した `Engine` を量産するためのファクトリ関数（不変クロージャ）。
     ///   引数として現在の「実行インデックス（0〜count-1）」が渡されるため、インデックスに応じた
     ///   異なる乱数シードや設定を持つ Engine をスレッドセーフに動的生成できます。
-    /// * `model` - 初期のモデル状態（各スレッドへ分配するために `Clone` を要求します）
+    /// * `model_builder` - 初期のモデル状態
     /// * `should_stop` - 毎Tick呼び出される停止条件クロージャ。
-    fn run_batch_parallel<B, F>(
+    fn run_batch_parallel<MF, EF, F>(
         &self,
         count: usize,
-        engine_builder: B,
-        model: &M,
+        engine_builder: EF,
+        model_builder: MF,
         should_stop: F,
     ) -> Vec<SimulationResult<M, CS::Err>>
     where
         Self: Clone + Sync,
         // 並列スレッドから同時に何回でも安全に呼び出せるよう、FnMut ではなく不変の Fn に制限
-        B: Fn(usize) -> Engine<E, M> + Send + Sync,
-        M: Clone + Send + Sync,
+        EF: Fn(usize) -> Engine<E, M> + Send + Sync,
+        M: Send + Sync,
+        // 並列スレッドから同時に何回でも安全に呼び出せるよう、FnMut ではなく不変の Fn に制限
+        MF: Fn(usize) -> M + Send + Sync,
         F: FnMut(&M, ExecutorStatus, TickStatus) -> bool + Clone + Send + Sync,
         Self::Err: Send,
         CS::Err: Send,
@@ -192,8 +194,9 @@ pub trait Runner<E, M: Model<E>, CS: ContinueStrategy<E, M, Self::Err>> {
             .map(|index| {
                 let mut local_runner = self.clone();
                 let local_engine = engine_builder(index);
+                let local_model = model_builder(index);
 
-                local_runner.run(local_engine, model.clone(), should_stop.clone())
+                local_runner.run(local_engine, local_model, should_stop.clone())
             })
             .collect()
     }
