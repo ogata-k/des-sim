@@ -52,16 +52,20 @@ impl<E, M: Model<E>> EventContext<E, M> {
             .schedule(self.current_tick(), delay, priority, event_payload);
     }
 
-    pub fn cancel_scheduled_events<F>(&mut self, model: &M, pred: F)
+    pub fn cancel_scheduled_events<F>(&mut self, model: &M, pred: F) -> Vec<(SimTime, Event<E>)>
     where
         F: FnMut(SimTime, &Event<E>) -> bool,
     {
+        let mut result = Vec::new();
         let now = self.current_tick();
         let micro_step = self.current_micro_step();
         let canceled = self.event_scheduler.drain_pending_to_cancel(pred);
         canceled.into_iter().for_each(|(scheduled_at, event)| {
             self.hook()
                 .cancel_event(model, now, micro_step, scheduled_at, &event);
+            result.push((scheduled_at, event));
         });
+
+        result
     }
 }
