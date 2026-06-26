@@ -29,12 +29,12 @@ where
 {
     fn before_simulation(&self, model: &M) {
         info!("--- [SIMULATION START] Time: {:?} ---", SimTime::zero());
-        self.debug_log_model(model, "");
+        self.info_log_model(model, "");
     }
 
     fn after_simulation(&self, model: &M, end_tick: SimTime) {
         info!("--- [SIMULATION END] Time: {:?} ---", end_tick);
-        self.debug_log_model(model, "");
+        self.info_log_model(model, "");
     }
 
     fn before_tick(&self, model: &M, current_tick: SimTime, skipped_duration: Duration) {
@@ -42,7 +42,7 @@ where
             "  >>> Tick at {:?} (skipped: {:?} ticks)",
             current_tick, skipped_duration
         );
-        self.debug_log_model(model, "  ");
+        self.info_log_model(model, "  ");
     }
 
     fn after_tick(&self, model: &M, current_tick: SimTime, last_micro_step: MicroStep) {
@@ -50,7 +50,7 @@ where
             "  <<< Tick at {:?} finished (last μSteps: {})",
             current_tick, last_micro_step
         );
-        self.debug_log_model(model, "  ");
+        self.info_log_model(model, "  ");
     }
 
     fn before_micro_step(&self, model: &M, current_tick: SimTime, current_micro_step: MicroStep) {
@@ -219,6 +219,17 @@ where
 }
 
 impl TraceHook {
+    fn info_log_model<M>(&self, model: &M, prefix: &'static str)
+    where
+        M: ModelSummary + fmt::Debug,
+    {
+        info!("{}  model summary: {}", prefix, ModelLogAdapter(model));
+
+        if cfg!(feature = "verbose_debug") {
+            info!("{}  model: {:?}", prefix, model);
+        }
+    }
+
     fn debug_log_model<M>(&self, model: &M, prefix: &'static str)
     where
         M: ModelSummary + fmt::Debug,
