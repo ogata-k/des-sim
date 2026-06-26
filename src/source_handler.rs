@@ -52,7 +52,7 @@ impl<E, M: Model<E>> SourceHandler<E, M> {
 
     /// [Source]を初回起動日時で実行するように登録する。
     /// 使用用途は、初回登録用途。
-    pub fn add_source<S>(&mut self, name: String, first_fire_time: SimTime, source: S)
+    pub fn add_source<S>(&mut self, name: &'static str, first_fire_time: SimTime, source: S)
     where
         S: Source<E, M> + 'static,
     {
@@ -71,7 +71,7 @@ impl<E, M: Model<E>> SourceHandler<E, M> {
     /// 使用用途は、シミュレーション中での使用。
     pub fn add_source_after<S>(
         &mut self,
-        name: String,
+        name: &'static str,
         current_tick: SimTime,
         delay: Duration,
         source: S,
@@ -93,7 +93,7 @@ impl<E, M: Model<E>> SourceHandler<E, M> {
 
     /// [Source]を現在時刻の次のマイクロステップで実行するように登録する。
     /// 使用用途は、シミュレーション中での使用。
-    pub fn add_source_at_now<S>(&mut self, name: String, current_tick: SimTime, source: S)
+    pub fn add_source_at_now<S>(&mut self, name: &'static str, current_tick: SimTime, source: S)
     where
         S: Source<E, M> + 'static,
     {

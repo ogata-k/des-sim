@@ -92,7 +92,12 @@ impl<E, M: Model<E>> Engine<E, M> {
         self
     }
 
-    pub fn add_source<S>(&mut self, name: String, first_fire_time: SimTime, source: S) -> &mut Self
+    pub fn add_source<S>(
+        &mut self,
+        name: &'static str,
+        first_fire_time: SimTime,
+        source: S,
+    ) -> &mut Self
     where
         S: Source<E, M> + 'static,
     {

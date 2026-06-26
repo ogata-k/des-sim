@@ -20,7 +20,7 @@ pub enum MyEvent {
 // --- [2. モデルの定義] ---
 #[derive(Debug)]
 pub struct ServerModel {
-    pub name: String,
+    pub name: &'static str,
     pub queue: VecDeque<u32>,
     pub is_busy: bool,
 }
@@ -130,7 +130,7 @@ fn main() {
         .add_hook(InteractiveStepHook)
         .add_hook(TraceHook)
         .add_source(
-            "Job Generator x4".to_string(),
+            "Job Generator x4",
             SimTime::zero(),
             JobGenerator {
                 next_job_id: 0,
@@ -138,7 +138,7 @@ fn main() {
             },
         )
         .add_source(
-            "Job Generator x6".to_string(),
+            "Job Generator x6",
             SimTime::zero(),
             JobGenerator {
                 next_job_id: 0,
@@ -147,7 +147,7 @@ fn main() {
         );
 
     let model = ServerModel {
-        name: "Sample Server".to_string(),
+        name: "Sample Server",
         queue: Default::default(),
         is_busy: false,
     };

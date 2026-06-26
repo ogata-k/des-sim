@@ -31,7 +31,7 @@ impl<E, M: Model<E>> UserContext<E, M> for EventContext<E, M> {
 }
 
 impl<E, M: Model<E>> EventContext<E, M> {
-    pub fn add_source_after<S>(&mut self, name: String, delay: Duration, source: S)
+    pub fn add_source_after<S>(&mut self, name: &'static str, delay: Duration, source: S)
     where
         S: Source<E, M> + 'static,
     {
@@ -39,7 +39,7 @@ impl<E, M: Model<E>> EventContext<E, M> {
             .add_source_after(name, self.current_tick(), delay, source);
     }
 
-    pub fn add_source_at_now<S>(&mut self, name: String, source: S)
+    pub fn add_source_at_now<S>(&mut self, name: &'static str, source: S)
     where
         S: Source<E, M> + 'static,
     {
