@@ -5,7 +5,7 @@ use crate::execution::SimulationResult;
 use crate::execution::engine::Engine;
 use crate::execution::strategy::ContinueStrategy;
 use crate::modeling::model::Model;
-use crate::primitive::time::TickStatus;
+use crate::primitive::time::{TickStatus, TimeTick};
 
 /// シミュレーションの実行制御を司るトレイト。
 ///
@@ -118,7 +118,7 @@ pub trait Runner<E, M: Model<E>, CS: ContinueStrategy<E, M, Self::Err>> {
         &mut self,
         engine: Engine<E, M>,
         model: M,
-        tick_count: u64,
+        tick_count: TimeTick,
         include_zero_tick: bool,
     ) -> SimulationResult<M, CS::Err> {
         self.run(
