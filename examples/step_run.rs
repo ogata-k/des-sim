@@ -3,7 +3,7 @@ use des_sim::execution::Engine;
 use des_sim::execution::runner::Runner;
 use des_sim::execution::runner::instance::StandardRunner;
 use des_sim::modeling::event::{Event, EventPriority};
-use des_sim::modeling::hook::instance::{ModelSummary, TraceHook};
+use des_sim::modeling::hook::instance::{InteractiveStepHook, ModelSummary, TraceHook};
 use des_sim::modeling::model::Model;
 use des_sim::modeling::source::Source;
 use des_sim::primitive::time::{Duration, SimTime, TickStatus};
@@ -127,6 +127,7 @@ fn main() {
 
     let mut engine = Engine::new();
     engine
+        .add_hook(InteractiveStepHook)
         .add_hook(TraceHook)
         .add_source(
             "Job Generator x4".to_string(),
@@ -154,7 +155,7 @@ fn main() {
     let include_zero_tick = true;
     let tick_count = 60;
     let mut runner = StandardRunner::new(true);
-    let result = runner.interactive_debug_run(
+    let result = runner.run(
         engine,
         model,
         |_, _, next_handle_tick_status: TickStatus| {
