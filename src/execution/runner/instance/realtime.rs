@@ -15,7 +15,7 @@ use std::time::{Duration as StdDuration, Instant};
 /// ※ [Model]と[Source]と[Hook]が決定論的に動くとき決定論的に処理を行うことができる。
 pub struct RealtimeRunner<CS> {
     continue_strategy: CS,
-    /// 1 Tickの処理に必要な実時間（例: `Duration::from_millis(100)` で 1秒間に10Ticks）。
+    /// 1 Tickの処理に必要な実時間（例: [std::time::Duration::from_millis(100)] で 1秒間に10Ticks）。
     tick_unit_duration: StdDuration,
 }
 
