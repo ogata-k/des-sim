@@ -1,24 +1,29 @@
 use des_sim::context::{EventContext, SourceContext};
 use des_sim::execution::Engine;
 use des_sim::execution::runner::Runner;
-use des_sim::execution::runner::instance::RealtimeRunner;
+use des_sim::execution::runner::instance::StandardRunner;
 use des_sim::modeling::agent::{AgentActionTicket, AgentContinuation, AgentStep};
 use des_sim::modeling::event::{Event, EventPriority};
-use des_sim::modeling::hook::instance::{ModelSummary, TraceHook};
+use des_sim::modeling::hook::Hook;
+use des_sim::modeling::hook::instance::{ModelSummary, SharedHook, TraceHook};
 use des_sim::modeling::model::Model;
 use des_sim::modeling::source::Source;
-use des_sim::primitive::time::{Duration, SimTime};
+use des_sim::primitive::time::{Duration, MicroStep, SimTime, TimeTick};
+use des_sim::source::{SourceReadyEntry, SourceView};
 use std::collections::{HashMap, VecDeque};
 use std::fmt;
+use std::rc::Rc;
+use std::sync::Mutex;
+
 // =========================================================================
 //  定数と環境・ドメイン状態の定義
 // =========================================================================
 
-pub const CAR_COUNT: u64 = 5; // 車の数
+pub const CAR_COUNT: usize = 5; // 車の数
 pub const SAFE_DISTANCE: f64 = 15.0; // 安全車間距離 (メートル)
 pub const CAR_SPEED: f64 = 10.0; // 車の速度 (メートル / tick)
 pub const INTERSECTION_LIMIT: f64 = -10.0; // 交差点手前の停止限界線 (座標値)
-pub const TICK_INTERVAL: u64 = 1; // 通常の物理更新・周辺監視の間隔 (1 tick)
+pub const TICK_INTERVAL: TimeTick = 1; // 通常の物理更新・周辺監視の間隔 (1 tick)
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum SignalColor {
@@ -415,6 +420,203 @@ fn execute_passing_step(
 }
 
 // =========================================================================
+// 集計
+// =========================================================================
+
+/// その時刻の車の状態を集めるコレクター
+pub struct LaneStateCollector {
+    // TimeTickから集計数を逆引きできる形で持っておく
+    pub collector: Rc<Mutex<Vec<Vec<String>>>>,
+}
+
+impl Hook<MyEvent, TrafficModel> for LaneStateCollector {
+    fn before_simulation(&self, _model: &TrafficModel) {}
+
+    fn after_simulation(&self, _model: &TrafficModel, _end_tick: SimTime) {}
+
+    fn before_tick(
+        &self,
+        _model: &TrafficModel,
+        _current_tick: SimTime,
+        skipped_duration: Duration,
+    ) {
+        let mut collector = self.collector.lock().unwrap();
+
+        let skip_count = skipped_duration.as_ticks() as usize;
+
+        if skip_count == 0 {
+            return;
+        }
+
+        // スキップされた分を補填
+        let fill = collector.last().cloned().unwrap_or_default();
+
+        for _ in 0..skip_count {
+            collector.push(fill.clone());
+        }
+    }
+
+    fn after_tick(
+        &self,
+        model: &TrafficModel,
+        _current_tick: SimTime,
+        _last_micro_step: MicroStep,
+    ) {
+        let car_strs: Vec<String> = model
+            .lane
+            .iter()
+            .filter_map(|id| {
+                model.cars.get(id).map(|c| {
+                    format!(
+                        "#{} ({:.1}m, {})",
+                        c.id,
+                        c.current_position,
+                        if c.is_stopped { "Stop" } else { "Run" }
+                    )
+                })
+            })
+            .collect();
+        // ロックに失敗した場合はおとなしくパニックしてもらう
+        self.collector.lock().unwrap().push(car_strs);
+    }
+
+    fn before_micro_step(
+        &self,
+        _model: &TrafficModel,
+        _current_tick: SimTime,
+        _current_micro_step: MicroStep,
+    ) {
+    }
+
+    fn after_micro_step(
+        &self,
+        _model: &TrafficModel,
+        _current_tick: SimTime,
+        _current_micro_step: MicroStep,
+    ) {
+    }
+
+    fn on_discard_remain_micro_step(
+        &self,
+        _model: &TrafficModel,
+        _current_tick: SimTime,
+        _first_discarded_micro_step: MicroStep,
+        _discarded_sources: &[SourceReadyEntry],
+        _discarded_events: &[Event<MyEvent>],
+    ) {
+    }
+
+    fn before_initialize_source(&self, _model: &TrafficModel, _name: &str) {}
+
+    fn after_initialize_source(&self, _model: &TrafficModel, _name: &str) {}
+
+    fn before_source_phase(
+        &self,
+        _model: &TrafficModel,
+        _current_tick: SimTime,
+        _current_micro_step: MicroStep,
+    ) {
+    }
+
+    fn before_source(
+        &self,
+        _model: &TrafficModel,
+        _current_tick: SimTime,
+        _current_micro_step: MicroStep,
+        _source_view: &SourceView,
+    ) {
+    }
+
+    fn after_source(
+        &self,
+        _model: &TrafficModel,
+        _current_tick: SimTime,
+        _current_micro_step: MicroStep,
+        _source_view: &SourceView,
+        _computed_next_fire: Option<SimTime>,
+    ) {
+    }
+
+    fn discard_source(
+        &self,
+        _model: &TrafficModel,
+        _current_tick: SimTime,
+        _current_micro_step: MicroStep,
+        _source_view: &SourceView,
+    ) {
+    }
+
+    fn after_source_phase(
+        &self,
+        _model: &TrafficModel,
+        _current_tick: SimTime,
+        _current_micro_step: MicroStep,
+    ) {
+    }
+
+    fn before_event_phase(
+        &self,
+        _model: &TrafficModel,
+        _current_tick: SimTime,
+        _current_micro_step: MicroStep,
+    ) {
+    }
+
+    fn before_event(
+        &self,
+        _model: &TrafficModel,
+        _current_tick: SimTime,
+        _current_micro_step: MicroStep,
+        _event: &Event<MyEvent>,
+    ) {
+    }
+
+    fn after_event(
+        &self,
+        _model: &TrafficModel,
+        _current_tick: SimTime,
+        _current_micro_step: MicroStep,
+        _event: &Event<MyEvent>,
+    ) {
+    }
+
+    fn cancel_event(
+        &self,
+        _model: &TrafficModel,
+        _current_tick: SimTime,
+        _current_micro_step: MicroStep,
+        _scheduled_at: SimTime,
+        _event: &Event<MyEvent>,
+    ) {
+    }
+
+    fn discard_event(
+        &self,
+        _model: &TrafficModel,
+        _current_tick: SimTime,
+        _current_micro_step: MicroStep,
+        _event: &Event<MyEvent>,
+    ) {
+    }
+
+    fn after_event_phase(
+        &self,
+        _model: &TrafficModel,
+        _current_tick: SimTime,
+        _current_micro_step: MicroStep,
+    ) {
+    }
+}
+
+impl LaneStateCollector {
+    pub fn new() -> LaneStateCollector {
+        LaneStateCollector {
+            collector: Rc::new(Mutex::new(Vec::new())),
+        }
+    }
+}
+
+// =========================================================================
 // シミュレーション
 // =========================================================================
 
@@ -437,18 +639,22 @@ fn main() {
     let mut engine = Engine::new();
 
     // 車が順に到着してくる
-    for i in 0_u64..CAR_COUNT {
+    for i in 0..CAR_COUNT {
         // １秒遅れで到着するとする
         engine.schedule_event_at(
             SimTime::new(i),
             EventPriority::minimum(),
             // 車のIDは1-origin
-            MyEvent::SpawnCar { car_id: i + 1 },
+            MyEvent::SpawnCar {
+                car_id: i as u64 + 1,
+            },
         );
     }
 
+    let lane_state_collector = SharedHook::new(LaneStateCollector::new());
     engine
         .add_hook(TraceHook)
+        .add_shared_hook(lane_state_collector.clone())
         // 0 tick 時点：信号はGreen。15 tick 目にRedになるようセット
         .add_source("toggle signal", SimTime::new(15), ToggleSignalSource)
         .schedule_event_at(
@@ -457,7 +663,7 @@ fn main() {
             MyEvent::ToggleSignal,
         );
 
-    let mut runner = RealtimeRunner::new(std::time::Duration::from_millis(100));
+    let mut runner = StandardRunner::new(true);
 
     println!("=== 複数台 渋滞シミュレーション開始 ===");
     let result = runner.run(engine, model, |model, _, tick_status| {
@@ -466,4 +672,17 @@ fn main() {
     });
     println!("=== シミュレーション終了 ===");
     println!("結果：{:?}", result);
+    println!(
+        "各時間終了時の長さ：\n{}",
+        lane_state_collector
+            .get_ref()
+            .collector
+            .lock()
+            .unwrap()
+            .iter()
+            .enumerate()
+            .map(|(t, c)| format!("time: {:<5}: {}", t, c.join(" ")))
+            .collect::<Vec<String>>()
+            .join("\n")
+    );
 }

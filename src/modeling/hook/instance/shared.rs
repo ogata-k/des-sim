@@ -4,10 +4,10 @@ use crate::modeling::model::Model;
 use crate::primitive::time::{Duration, MicroStep, SimTime};
 use crate::source_handler::{SourceReadyEntry, SourceView};
 use std::marker::PhantomData;
-use std::sync::Arc;
+use std::rc::Rc;
 
 pub struct SharedHook<E, M: Model<E>, H: Hook<E, M>> {
-    inner: Arc<H>,
+    inner: Rc<H>,
     _event: PhantomData<E>,
     _model: PhantomData<M>,
 }
@@ -15,7 +15,7 @@ pub struct SharedHook<E, M: Model<E>, H: Hook<E, M>> {
 impl<E, M: Model<E>, H: Hook<E, M>> Clone for SharedHook<E, M, H> {
     fn clone(&self) -> Self {
         SharedHook {
-            inner: Arc::clone(&self.inner),
+            inner: Rc::clone(&self.inner),
             _event: PhantomData,
             _model: PhantomData,
         }
@@ -214,14 +214,10 @@ where
     }
 }
 
-impl<E, M: Model<E>, H> SharedHook<E, M, H>
-where
-    H: Hook<E, M>,
-    E: Send + Sync,
-{
+impl<E, M: Model<E>, H: Hook<E, M>> SharedHook<E, M, H> {
     pub fn new(hook: H) -> Self {
         Self {
-            inner: Arc::new(hook),
+            inner: Rc::new(hook),
             _event: PhantomData,
             _model: PhantomData,
         }
