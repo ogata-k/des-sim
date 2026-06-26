@@ -39,7 +39,7 @@ where
 
     fn before_tick(&self, model: &M, current_tick: SimTime, skipped_duration: Duration) {
         info!(
-            "  >>> Tick at {:?} (skipped: {:?} ticks)",
+            "  >>> Tick at {:?} (skipped: {} ticks)",
             current_tick, skipped_duration
         );
         self.info_log_model(model, "  ");
