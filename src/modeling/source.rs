@@ -1,6 +1,13 @@
+pub mod combinator;
+pub mod instance;
+
 use crate::context::SourceContext;
 use crate::modeling::model::Model;
 use crate::primitive::time::Duration;
+
+// source_handlerのまま公開するのは名前が悪い上に漏らしたくない情報だらけなので、
+// modeling用のSourceと一緒に公開させる。
+pub use crate::source_handler::{SourceReadyEntry, SourceView};
 
 pub trait Source<E, M: Model<E>>: Send {
     /// シミュレーションを開始する前に行う初期化処理。
