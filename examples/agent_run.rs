@@ -673,7 +673,7 @@ fn main() {
     println!("=== シミュレーション終了 ===");
     println!("結果：{:?}", result);
     println!(
-        "各時間終了時の長さ：\n{}",
+        "各時間終了時のレーン状態：\n{}",
         lane_state_collector
             .get_ref()
             .collector
