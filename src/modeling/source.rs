@@ -1,6 +1,3 @@
-pub mod combinator;
-pub mod instance;
-
 use crate::context::SourceContext;
 use crate::modeling::model::Model;
 use crate::primitive::time::Duration;
