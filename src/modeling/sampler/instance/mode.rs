@@ -1,5 +1,5 @@
 use crate::modeling::sampler::{DurationSampler, PendingDuration};
-use crate::primitive::time::{Duration, SimTime};
+use crate::primitive::time::SimTime;
 use rand::Rng;
 
 /// [ModeSampler]がどれを使ってサンプリングすべきかを特定するためのヘルパートレイト

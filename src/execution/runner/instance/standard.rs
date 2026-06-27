@@ -10,7 +10,7 @@ use crate::primitive::time::TickStatus;
 /// イベントを発火した順番に直列で処理する標準的なRunner。
 /// skippableがtrueであれば、イベントがない時間をスキップすることができる。
 ///
-/// ※ [Model]と[Source]と[Hook]が決定論的に動くとき決定論的に処理を行うことができる。
+/// ※ [`Model`](Model)と[`Source`](crate::modeling::source::Source)と[`Hook`](crate::modeling::hook::Hook)が決定論的に動くとき決定論的に処理を行うことができる。
 pub struct StandardRunner<CS> {
     skippable: bool,
     continue_strategy: CS,

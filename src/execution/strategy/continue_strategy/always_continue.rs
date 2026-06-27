@@ -4,7 +4,7 @@ use crate::execution::strategy::ContinueStrategy;
 use crate::modeling::model::Model;
 use std::marker::PhantomData;
 
-/// [Runner]のデフォルトの挙動のままの継続戦略
+/// [Runner](crate::execution::runner::Runner)のデフォルトの挙動のままの継続戦略
 pub struct AlwaysContinueStrategy<E, M>(PhantomData<(E, M)>);
 
 impl<E, M: Model<E>, RunnerError> ContinueStrategy<E, M, RunnerError>

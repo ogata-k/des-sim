@@ -4,7 +4,7 @@ use rand::Rng;
 
 /// ベースとなったサンプラーで得られた値に対して、揺らぎ用のサンプラーで得られた値だけ増加させて遅らせる。
 /// ただし、揺らぎ用のサンプラーが負の値を返しても加算される。
-/// 加算してほしくないときは[WithDelaySampler]を使うこと。
+/// 加算してほしくないときは[WithDelaySampler](crate::modeling::sampler::WithDelaySampler)を使うこと。
 pub struct WithJitterSampler<S, J>
 where
     S: DurationSampler,

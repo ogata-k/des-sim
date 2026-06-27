@@ -10,7 +10,7 @@ use crate::context::ActiveExecutorContext;
 use crate::execution::phase::UncheckedActiveExecutor;
 use crate::modeling::model::Model;
 
-/// [Runner]の継続戦略
+/// [Runner](crate::execution::runner::Runner)の継続戦略
 pub trait ContinueStrategy<E, M: Model<E>, RunnerError> {
     type Err;
 
