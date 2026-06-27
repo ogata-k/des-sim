@@ -1,27 +1,19 @@
-use crate::modeling::sampler::DurationSampler;
+use crate::modeling::sampler::{DurationSampler, PendingDuration};
 use crate::primitive::time::{Duration, SimTime};
 use rand::Rng;
 use rand::distr::uniform::{SampleBorrow, UniformUsize};
 use rand::distr::{Distribution, Uniform, uniform};
 
 /// 指定された最大値と最小値をもとに一様分布からサンプリングを行う。
+#[derive(Debug, Clone)]
 pub struct UniformSampler {
     dist: Uniform<usize>,
 }
 
 impl DurationSampler for UniformSampler {
-    fn try_sample(
-        &mut self,
-        rng: &mut dyn Rng,
-        current_tick: SimTime,
-        _try_count: u8,
-    ) -> Option<Duration> {
-        Some(self.sample(rng, current_tick))
-    }
-
-    fn sample(&mut self, rng: &mut dyn Rng, _current_tick: SimTime) -> Duration {
+    fn sample(&mut self, rng: &mut dyn Rng, _current_tick: SimTime) -> PendingDuration {
         let v = self.dist.sample(rng);
-        Duration::ticks(v)
+        Duration::ticks(v).into()
     }
 }
 

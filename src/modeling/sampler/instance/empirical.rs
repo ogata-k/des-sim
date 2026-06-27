@@ -1,7 +1,8 @@
-use crate::modeling::sampler::DurationSampler;
+use crate::modeling::sampler::{DurationSampler, PendingDuration};
 use crate::primitive::time::{Duration, SimTime};
 use rand::{Rng, RngExt};
 
+#[derive(Debug, Clone)]
 pub struct EmpiricalSampler {
     cdf: Vec<u64>,         // 累積重みの境界値
     values: Vec<Duration>, // 対応する値
@@ -9,16 +10,7 @@ pub struct EmpiricalSampler {
 }
 
 impl DurationSampler for EmpiricalSampler {
-    fn try_sample(
-        &mut self,
-        rng: &mut dyn Rng,
-        current_tick: SimTime,
-        _try_count: u8,
-    ) -> Option<Duration> {
-        Some(self.sample(rng, current_tick))
-    }
-
-    fn sample(&mut self, rng: &mut dyn Rng, _current_tick: SimTime) -> Duration {
+    fn sample(&mut self, rng: &mut dyn Rng, _current_tick: SimTime) -> PendingDuration {
         // [0, total_weight) の範囲で乱数を生成
         let r = rng.random_range(0..self.total_weight);
 
@@ -26,7 +18,7 @@ impl DurationSampler for EmpiricalSampler {
         // partition_point は x <= r となる最後のインデックスを返すので調整が必要
         let idx = self.cdf.partition_point(|&x| x <= r) - 1;
 
-        self.values[idx]
+        self.values[idx].into()
     }
 }
 

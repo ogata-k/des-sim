@@ -1,5 +1,5 @@
-use crate::modeling::sampler::DurationSampler;
-use crate::primitive::time::{Duration, SimTime};
+use crate::modeling::sampler::{DurationSampler, PendingDuration};
+use crate::primitive::time::SimTime;
 use rand::{Rng, RngExt};
 
 pub struct ChoiceSampler {
@@ -9,23 +9,7 @@ pub struct ChoiceSampler {
 }
 
 impl DurationSampler for ChoiceSampler {
-    fn try_sample(
-        &mut self,
-        rng: &mut dyn Rng,
-        current_tick: SimTime,
-        try_count: u8,
-    ) -> Option<Duration> {
-        // [0, total_weight) の範囲で乱数を生成
-        let r = rng.random_range(0..self.total_weight);
-
-        // 二分探索でrが属する区間のインデックスを探す
-        // partition_point は x <= r となる最後のインデックスを返すので調整が必要
-        let idx = self.cdf.partition_point(|&x| x <= r) - 1;
-
-        self.values[idx].try_sample(rng, current_tick, try_count)
-    }
-
-    fn sample(&mut self, rng: &mut dyn Rng, current_tick: SimTime) -> Duration {
+    fn sample(&mut self, rng: &mut dyn Rng, current_tick: SimTime) -> PendingDuration {
         // [0, total_weight) の範囲で乱数を生成
         let r = rng.random_range(0..self.total_weight);
 
@@ -38,7 +22,7 @@ impl DurationSampler for ChoiceSampler {
 }
 
 impl ChoiceSampler {
-    /// ヒストグラムの形式 [(Duration, Weight)] からサンプラーを構築
+    /// ヒストグラムの形式 [(DurationSampler, Weight)] からサンプラーを構築
     pub fn new(histogram: Vec<(Box<dyn DurationSampler>, u64)>) -> Self {
         assert!(!histogram.is_empty());
 

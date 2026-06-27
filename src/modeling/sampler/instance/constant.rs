@@ -1,26 +1,18 @@
-use crate::modeling::sampler::DurationSampler;
+use crate::modeling::sampler::{DurationSampler, PendingDuration};
 use crate::primitive::time::{Duration, SimTime, TimeTick};
 use rand::Rng;
 
 /// 定数値をサンプリングするサンプラー。
-/// 直接[Duration]を
+/// 直接[Duration]を取得したいときは[ConstantSampler::sample_constant]を使う。
+#[derive(Debug, Clone)]
 pub struct ConstantSampler {
     value: TimeTick,
 }
 
 impl DurationSampler for ConstantSampler {
-    fn try_sample(
-        &mut self,
-        rng: &mut dyn Rng,
-        current_tick: SimTime,
-        _try_count: u8,
-    ) -> Option<Duration> {
-        Some(self.sample(rng, current_tick))
-    }
-
-    fn sample(&mut self, _rng: &mut dyn Rng, _current_tick: SimTime) -> Duration {
+    fn sample(&mut self, _rng: &mut dyn Rng, _current_tick: SimTime) -> PendingDuration {
         // 乱数生成器を使わずに常に固定値を返す
-        Duration::ticks(self.value)
+        Duration::ticks(self.value).into()
     }
 }
 

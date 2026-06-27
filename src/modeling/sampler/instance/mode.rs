@@ -1,4 +1,4 @@
-use crate::modeling::sampler::DurationSampler;
+use crate::modeling::sampler::{DurationSampler, PendingDuration};
 use crate::primitive::time::{Duration, SimTime};
 use rand::Rng;
 
@@ -17,27 +17,7 @@ pub struct ModeSampler<T: TimeTrigger> {
 }
 
 impl<T: TimeTrigger> DurationSampler for ModeSampler<T> {
-    fn try_sample(
-        &mut self,
-        rng: &mut dyn Rng,
-        current_tick: SimTime,
-        try_count: u8,
-    ) -> Option<Duration> {
-        let index = self.trigger.get_active_index(current_tick);
-
-        // 境界チェック：範囲外なら先頭のサンプラーを使う。
-        if let Some(sampler) = self.samplers.get_mut(index) {
-            sampler.try_sample(rng, current_tick, try_count)
-        } else {
-            log::warn!(
-                "ModeSampler index {} out of bounds, falling back to 0",
-                index
-            );
-            self.samplers[0].try_sample(rng, current_tick, try_count)
-        }
-    }
-
-    fn sample(&mut self, rng: &mut dyn Rng, current_tick: SimTime) -> Duration {
+    fn sample(&mut self, rng: &mut dyn Rng, current_tick: SimTime) -> PendingDuration {
         let index = self.trigger.get_active_index(current_tick);
 
         // 境界チェック：範囲外なら先頭のサンプラーを使う。

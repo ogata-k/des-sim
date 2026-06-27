@@ -1,9 +1,10 @@
-use crate::modeling::sampler::DurationSampler;
+use crate::modeling::sampler::{DurationSampler, PendingDuration};
 use crate::primitive::time::{Duration, SimTime};
 use rand::Rng;
 
 ///
 /// ※ 内部状態を持つので、毎回作り直していると常に最初から二なってしまうので注意
+#[derive(Debug, Clone)]
 pub struct RotateSampler {
     pub next_index: usize,
     list: Vec<Duration>,
@@ -11,19 +12,10 @@ pub struct RotateSampler {
 }
 
 impl DurationSampler for RotateSampler {
-    fn try_sample(
-        &mut self,
-        rng: &mut dyn Rng,
-        current_tick: SimTime,
-        _try_count: u8,
-    ) -> Option<Duration> {
-        Some(self.sample(rng, current_tick))
-    }
-
-    fn sample(&mut self, _rng: &mut dyn Rng, _current_tick: SimTime) -> Duration {
+    fn sample(&mut self, _rng: &mut dyn Rng, _current_tick: SimTime) -> PendingDuration {
         let result = self.list[self.next_index];
         self.next_index = (self.next_index + 1) % self.item_count;
-        result
+        result.into()
     }
 }
 
