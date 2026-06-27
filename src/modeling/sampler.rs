@@ -75,7 +75,7 @@ impl PendingDuration {
 
     pub fn to_duration_with_clamp(&self, max: TimeTick) -> Duration {
         let raw_value = self.raw_value();
-        if (raw_value >= max as f64) {
+        if raw_value >= max as f64 {
             Duration::ticks(max)
         } else {
             Duration::ticks(
