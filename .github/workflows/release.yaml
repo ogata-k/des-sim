@@ -1,0 +1,77 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      # masterブランチからのタグであることを保証
+      - name: Ensure tag is from master
+        run: |
+          git fetch origin master
+          git merge-base --is-ancestor ${{ github.sha }} origin/master || {
+            echo "❌ Tag must point to a commit contained in master"
+            exit 1
+          }
+
+      # Cargo.toml と tag の一致チェック
+      - name: Verify tag matches Cargo.toml
+        run: |
+          VERSION=$(grep '^version =' Cargo.toml \
+            | head -1 \
+            | sed 's/version = "\(.*\)"/\1/')
+
+          TAG="${GITHUB_REF_NAME#v}"
+
+          if [ "$VERSION" != "$TAG" ]; then
+            echo "❌ Version mismatch: Cargo.toml=$VERSION tag=$TAG"
+            exit 1
+          fi
+
+      # dry-run（公開可能チェック）
+      - name: Verify version (dry-run)
+        run: cargo publish --dry-run
+
+      # CHANGELOGファイルチェック
+      - name: Get and CHECK changelog path
+        id: meta
+        run: |
+          VERSION=$(grep '^version =' Cargo.toml \
+            | head -1 \
+            | sed 's/version = "\(.*\)"/\1/')
+
+          FILE="changelog/v${VERSION}.md"
+
+          if [ ! -f "$FILE" ]; then
+            echo "❌ Missing changelog: $FILE"
+            exit 1
+          fi
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "file=$FILE" >> $GITHUB_OUTPUT
+
+      # publish
+      - name: Publish to crates.io
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish
+
+      # GitHub Release作成
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: ${{ steps.meta.outputs.file }}
