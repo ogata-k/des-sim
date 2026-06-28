@@ -18,3 +18,5 @@ chrono = "0.4.45"
 default = []
 # 詳細デバッグを有効にするフラグ
 verbose_debug = []
+# テストするとき用のフラグ。これがないとステップ実行のEnter入力待機で止まる
+des_sim_test_mode = []

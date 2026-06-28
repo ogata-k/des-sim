@@ -4,6 +4,15 @@ use des_sim::primitive::time::{Duration, SimTime};
 use std::cell::Cell;
 use std::rc::Rc;
 
+#[cfg(test)]
+mod tests {
+    // 最後までサンプルが走りきることをテスト
+    #[test]
+    fn example_runs() {
+        super::main();
+    }
+}
+
 fn main() {
     // 1. 個別のサンプラーコンポーネントを定義
     let jitter1 = UniformSampler::new(-5.0, 2.0).unwrap();

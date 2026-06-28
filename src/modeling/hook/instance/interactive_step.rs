@@ -32,6 +32,12 @@ impl<E, M: Model<E>> Hook<E, M> for InteractiveStepHook {
         print!(
             "[Interactive Step Hook] Enterを押すとこのTickの処理（ソース/イベントフェーズ）を開始します... "
         );
+
+        if !cfg!(test) || cfg!(feature = "des_sim_test_mode") {
+            // テスト中は待機すると止まるので待機処理をスキップする
+            return;
+        }
+
         let _ = io::stdout().flush(); // プロンプトを確実に表示させる
 
         // 2. ユーザーがEnterを押すまでスレッドを完全にブロック（待機）

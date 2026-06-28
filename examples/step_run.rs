@@ -10,6 +10,15 @@ use des_sim::primitive::time::{Duration, SimTime, TickStatus};
 use std::collections::VecDeque;
 use std::fmt;
 
+#[cfg(test)]
+mod tests {
+    // 最後までサンプルが走りきることをテスト
+    #[test]
+    fn example_runs() {
+        super::main();
+    }
+}
+
 // --- [1. イベントの定義] ---
 #[derive(Debug, Clone)]
 pub enum MyEvent {
