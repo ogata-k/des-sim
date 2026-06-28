@@ -6,6 +6,9 @@ on:
       - master
       - develop
 
+permissions:
+  contents: read
+
 jobs:
   fmt:
     runs-on: ubuntu-latest
