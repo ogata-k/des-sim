@@ -120,6 +120,7 @@ impl MyEvent {
 // インフラ・イベントループの実装（環境の変化のみを担当）
 // =========================================================================
 
+const TOGGLE_TICK_INTERVAL: TimeTick = 15;
 pub struct ToggleSignalSource;
 impl Source<MyEvent, TrafficModel> for ToggleSignalSource {
     fn initialize(
@@ -128,7 +129,7 @@ impl Source<MyEvent, TrafficModel> for ToggleSignalSource {
         _model: &TrafficModel,
     ) {
         context.schedule_event(
-            Duration::ticks(15),
+            Duration::ticks(TOGGLE_TICK_INTERVAL),
             EventPriority::minimum(),
             MyEvent::ToggleSignal,
         );
@@ -140,11 +141,11 @@ impl Source<MyEvent, TrafficModel> for ToggleSignalSource {
         _model: &TrafficModel,
     ) -> Option<Duration> {
         context.schedule_event(
-            Duration::ticks(15),
+            Duration::ticks(TOGGLE_TICK_INTERVAL),
             EventPriority::minimum(),
             MyEvent::ToggleSignal,
         );
-        Some(Duration::ticks(15))
+        Some(Duration::ticks(TOGGLE_TICK_INTERVAL))
     }
 }
 
@@ -157,11 +158,6 @@ impl Model<MyEvent> for TrafficModel {
                     SignalColor::Green => SignalColor::Red,
                     SignalColor::Red => SignalColor::Green,
                 };
-                context.schedule_event(
-                    Duration::ticks(15),
-                    EventPriority::minimum(),
-                    MyEvent::ToggleSignal,
-                );
             }
 
             // 車がレーンに到着
@@ -654,12 +650,11 @@ fn main() {
     engine
         .add_hook(TraceHook)
         .add_shared_hook(lane_state_collector.clone())
-        // 0 tick 時点：信号はGreen。15 tick 目にRedになるようセット
-        .add_source("toggle signal", SimTime::new(15), ToggleSignalSource)
-        .schedule_event_at(
-            SimTime::new(15),
-            EventPriority::minimum(),
-            MyEvent::ToggleSignal,
+        // 0 tick 時点：信号はGreen。TOGGLE_TICK_INTERVAL tick 目にRedになるようにセット
+        .add_source(
+            "toggle signal",
+            SimTime::new(TOGGLE_TICK_INTERVAL),
+            ToggleSignalSource,
         );
 
     let mut runner = StandardRunner::new(true);
