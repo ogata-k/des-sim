@@ -38,7 +38,6 @@ impl Sub<Duration> for PendingDuration {
     type Output = PendingDuration;
 
     fn sub(self, rhs: Duration) -> Self::Output {
-        debug_assert!(self.0 >= rhs.as_ticks() as f64);
         PendingDuration::new(self.0 - rhs.as_ticks() as f64)
     }
 }
@@ -47,7 +46,6 @@ impl Sub<PendingDuration> for PendingDuration {
     type Output = PendingDuration;
 
     fn sub(self, rhs: PendingDuration) -> Self::Output {
-        debug_assert!(self.0 >= rhs.0);
         PendingDuration::new(self.0 - rhs.0)
     }
 }
