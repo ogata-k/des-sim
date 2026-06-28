@@ -4,21 +4,18 @@ use rand::Rng;
 
 /// ベースとなったサンプラーで得られた値に対して、揺らぎ用のサンプラーで得られた値だけ増加させて遅らせる。
 /// ただし、揺らぎ用のサンプラーが負の値を返しても加算される。
-/// 加算してほしくないときは[WithDelaySampler](crate::modeling::sampler::WithDelaySampler)を使うこと。
-#[derive(Debug, Clone)]
-pub struct WithJitterSampler<S, J>
+/// 加算してほしくないときは[WithDelaySampler](crate::modeling::sampler::DelaySampler)を使うこと。
+pub struct JitterSampler<S>
 where
     S: DurationSampler,
-    J: DurationSampler,
 {
     sampler: S,
-    jitter_sampler: J,
+    jitter_sampler: Box<dyn DurationSampler>,
 }
 
-impl<S, J> DurationSampler for WithJitterSampler<S, J>
+impl<S> DurationSampler for JitterSampler<S>
 where
     S: DurationSampler,
-    J: DurationSampler,
 {
     fn sample(&mut self, rng: &mut dyn Rng, current_tick: SimTime) -> PendingDuration {
         let sampled = self.sampler.sample(rng, current_tick);
@@ -28,12 +25,11 @@ where
     }
 }
 
-impl<S, J> WithJitterSampler<S, J>
+impl<S> JitterSampler<S>
 where
     S: DurationSampler,
-    J: DurationSampler,
 {
-    pub fn new(sampler: S, jitter_sampler: J) -> Self {
+    pub fn new(sampler: S, jitter_sampler: Box<dyn DurationSampler>) -> Self {
         Self {
             sampler,
             jitter_sampler,

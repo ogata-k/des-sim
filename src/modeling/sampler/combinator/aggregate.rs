@@ -13,8 +13,8 @@ impl AggregateBuilder {
         }
     }
 
-    pub fn add_sampler(mut self, sampler: impl DurationSampler + 'static) -> Self {
-        self.samplers.push(Box::new(sampler));
+    pub fn add_sampler(mut self, sampler: Box<dyn DurationSampler>) -> Self {
+        self.samplers.push(sampler);
         self
     }
 

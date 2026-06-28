@@ -126,29 +126,22 @@ pub trait CombinatorExt: DurationSampler + Sized + 'static {
         MapSampler::new(self, f)
     }
 
-    fn with_delay<D>(self, delay: D) -> WithDelaySampler<Self, D>
-    where
-        D: DurationSampler,
-    {
-        WithDelaySampler::new(self, delay)
+    fn delay(self, delay: Box<dyn DurationSampler>) -> DelaySampler<Self> {
+        DelaySampler::new(self, delay)
     }
 
-    fn with_jitter<J>(self, jitter: J) -> WithJitterSampler<Self, J>
-    where
-        J: DurationSampler,
-    {
-        WithJitterSampler::new(self, jitter)
+    fn jitter(self, jitter: Box<dyn DurationSampler>) -> JitterSampler<Self> {
+        JitterSampler::new(self, jitter)
     }
 
-    fn chain<S, F>(self, sampler: S, f: F) -> ChainSampler<Self, S, F>
+    fn chain<F>(self, sampler: Box<dyn DurationSampler>, f: F) -> ChainSampler<Self, F>
     where
-        S: DurationSampler,
         F: FnMut(&mut dyn Rng, SimTime, f64, f64) -> f64,
     {
         ChainSampler::new(self, sampler, f)
     }
 
-    fn aggregate_with<F>(
+    fn aggregate<F>(
         self,
         others: impl IntoIterator<Item = Box<dyn DurationSampler>>,
         f: F,
@@ -170,11 +163,15 @@ pub trait CombinatorExt: DurationSampler + Sized + 'static {
         ClampSampler::new(self, min, max)
     }
 
-    fn non_negative<F>(self, limit_try_count: u8, fallback: F) -> NonNegativeSampler<Self, F>
+    fn ensure_non_negative<F>(
+        self,
+        limit_try_count: u8,
+        fallback: F,
+    ) -> EnsureNonNegativeSampler<Self, F>
     where
         F: FnMut(&mut dyn Rng, SimTime) -> Duration,
     {
-        NonNegativeSampler::new(self, limit_try_count, fallback)
+        EnsureNonNegativeSampler::new(self, limit_try_count, fallback)
     }
 }
 impl<T: DurationSampler + Sized + 'static> CombinatorExt for T {}

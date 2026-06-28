@@ -3,7 +3,7 @@ use crate::primitive::time::{Duration, SimTime};
 use rand::Rng;
 
 #[derive(Debug, Clone)]
-pub struct NonNegativeSampler<S, F>
+pub struct EnsureNonNegativeSampler<S, F>
 where
     S: DurationSampler,
     F: FnMut(&mut dyn Rng, SimTime) -> Duration,
@@ -13,7 +13,7 @@ where
     fallback: F,
 }
 
-impl<S, F> DurationSampler for NonNegativeSampler<S, F>
+impl<S, F> DurationSampler for EnsureNonNegativeSampler<S, F>
 where
     S: DurationSampler,
     F: FnMut(&mut dyn Rng, SimTime) -> Duration,
@@ -34,7 +34,7 @@ where
     }
 }
 
-impl<S, F> NonNegativeSampler<S, F>
+impl<S, F> EnsureNonNegativeSampler<S, F>
 where
     S: DurationSampler,
     F: FnMut(&mut dyn Rng, SimTime) -> Duration,
