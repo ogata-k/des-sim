@@ -103,7 +103,7 @@ impl PendingDuration {
 
     pub fn apply<F>(&mut self, f: F) -> PendingDuration
     where
-        F: FnOnce(f64) -> f64,
+        F: Fn(f64) -> f64,
     {
         PendingDuration::new(f(self.0))
     }
