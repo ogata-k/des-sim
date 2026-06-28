@@ -5,7 +5,6 @@ use crate::modeling::model::Model;
 use crate::source_handler::SourceHandler;
 use crate::source_handler::{SourceReadyEntry, SourceView};
 use std::collections::VecDeque;
-use std::sync::Arc;
 
 pub struct SourcePhase<E, M: Model<E>> {
     context: SourceContext<E, M>,
@@ -33,7 +32,7 @@ impl<E, M: Model<E>> SourcePhase<E, M> {
     }
 
     pub fn get_source_view(&self, ready_entry: &SourceReadyEntry) -> SourceView {
-        SourceView::new(ready_entry.source_id(), Arc::clone(&ready_entry.name_arc()))
+        SourceView::new(ready_entry.source_id(), ready_entry.clone_name_arc())
     }
 
     pub fn complete_source_phase(self, model: &M) -> MicroStepHandler<SourceContext<E, M>> {

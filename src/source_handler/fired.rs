@@ -20,7 +20,7 @@ impl SourceReadyEntry {
         self.name.as_ref()
     }
 
-    pub fn name_arc(&self) -> Arc<str> {
+    pub(crate) fn clone_name_arc(&self) -> Arc<str> {
         Arc::clone(&self.name)
     }
 }
