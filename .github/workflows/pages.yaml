@@ -31,17 +31,12 @@ jobs:
         # --document-private-items: privateな関数などもドキュメント化する（勉強用なら便利です）。
         run: cargo doc
 
-      - name: Get crate name
-        id: crate
-        run: |
-          echo "name=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].name')" >> $GITHUB_OUTPUT
-
       - name: Create Redirect Index
         # GitHub Pagesはルートのindex.htmlを探しますが、cargo docは target/doc/クレート名/index.html に生成します。
         # そのため、ルートにリダイレクト用のHTMLを作成します。
-        # 注意: index.htmlの親フォルダの部分は Cargo.toml の [package] name と一致させてください。
+        # 注意: index.htmlの親フォルダの部分はimportするときのクレート名と一致させてください。
         run: |
-          echo '<meta http-equiv="refresh" content="0;url=${{ steps.crate.outputs.name }}/index.html">' > target/doc/index.html
+          echo '<meta http-equiv="refresh" content="0;url=des_sim/index.html">' > target/doc/index.html
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
