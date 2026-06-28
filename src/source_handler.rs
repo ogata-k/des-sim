@@ -158,6 +158,7 @@ impl<E, M: Model<E>> SourceHandler<E, M> {
     }
 
     #[cfg(test)]
+    #[allow(dead_code)]
     pub fn peek(&self) -> Option<(SimTime, &ScheduledSource)> {
         self.ready_queue.peek().map(|i| (i.0.scheduled_at, &i.0))
     }

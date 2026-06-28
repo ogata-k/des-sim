@@ -53,6 +53,12 @@ pub struct TrafficModel {
     pub lane: VecDeque<u64>, // 道路上の車列（先頭[0]から順にIDを格納）
 }
 
+impl Default for TrafficModel {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TrafficModel {
     pub fn new() -> Self {
         Self {
@@ -354,15 +360,15 @@ fn evaluate_approach_step(car_id: u64, model: &mut TrafficModel) -> SchedulingDi
             }
 
             // 【渋滞停止】限界ラインが「前の車」かつ前の車が止まっているなら、数珠繋ぎ停止
-            if let Some((front_id, front_pos, true)) = front_car_info {
-                if (front_pos - car.current_position).abs() <= SAFE_DISTANCE + 1.5 {
-                    car.is_stopped = true;
-                    println!(
-                        "  🍁 [渋滞認知] 車 {} が前方の車 {} の後ろに到達。数珠繋ぎ停止します (Pos: {:.1})",
-                        car_id, front_id, car.current_position
-                    );
-                    return SchedulingDirective::ScheduleNextTick;
-                }
+            if let Some((front_id, front_pos, true)) = front_car_info
+                && (front_pos - car.current_position).abs() <= SAFE_DISTANCE + 1.5
+            {
+                car.is_stopped = true;
+                println!(
+                    "  🍁 [渋滞認知] 車 {} が前方の車 {} の後ろに到達。数珠繋ぎ停止します (Pos: {:.1})",
+                    car_id, front_id, car.current_position
+                );
+                return SchedulingDirective::ScheduleNextTick;
             }
 
             // 限界ラインに達したが、青信号であるか前の車が動いているなら、停止線をクリア！
@@ -446,7 +452,7 @@ impl Hook<MyEvent, TrafficModel> for LaneStateCollector {
     ) {
         let mut collector = self.collector.lock().unwrap();
 
-        let skip_count = skipped_duration.as_ticks() as usize;
+        let skip_count = skipped_duration.as_ticks();
 
         if skip_count == 0 {
             return;
@@ -609,6 +615,12 @@ impl Hook<MyEvent, TrafficModel> for LaneStateCollector {
         _current_tick: SimTime,
         _current_micro_step: MicroStep,
     ) {
+    }
+}
+
+impl Default for LaneStateCollector {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
