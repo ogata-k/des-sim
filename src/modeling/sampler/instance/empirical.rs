@@ -24,22 +24,25 @@ impl DurationSampler for EmpiricalSampler {
 
 impl EmpiricalSampler {
     /// ヒストグラムの形式 [(Duration, Weight)] からサンプラーを構築
-    pub fn new(histogram: Vec<(Duration, u64)>) -> Self {
-        assert!(!histogram.is_empty());
-
+    pub fn new(histogram: impl IntoIterator<Item = (Duration, u64)>) -> Self {
         // 経験分布からの逆変換サンプリング（Inverse Transform Sampling）でサンプリングできるようにあらかじめ変換
-        let mut cdf = Vec::with_capacity(histogram.len() + 1);
-        let mut values = Vec::with_capacity(histogram.len());
-
+        let mut cdf = Vec::new();
+        let mut values = Vec::new();
         let mut current_sum = 0;
+
         // 最初の境界は 0
         cdf.push(0);
-
-        for (duration, weight) in histogram {
+        for (duration, weight) in histogram.into_iter() {
             current_sum += weight;
             cdf.push(current_sum);
             values.push(duration);
         }
+
+        assert!(
+            !values.is_empty(),
+            "EmpiricalSampler must have at least one sampler"
+        );
+        assert!(current_sum > 0, "Total weight must be greater than 0");
 
         Self {
             cdf,

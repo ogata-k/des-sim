@@ -34,7 +34,9 @@ impl<T: TimeTrigger> DurationSampler for ModeSampler<T> {
 }
 
 impl<T: TimeTrigger> ModeSampler<T> {
-    pub fn new(trigger: T, samplers: Vec<Box<dyn DurationSampler>>) -> Self {
+    pub fn new(trigger: T, samplers: impl IntoIterator<Item = Box<dyn DurationSampler>>) -> Self {
+        let samplers: Vec<_> = samplers.into_iter().collect();
+
         // フォールバック先に必要なのでどんな場合でも必須
         assert!(!samplers.is_empty());
         // 想定最大値をもとに範囲外にあふれる可能性があるかどうかを判定

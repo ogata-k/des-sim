@@ -42,7 +42,7 @@ where
     F: FnMut(&mut dyn Rng, SimTime, Vec<f64>) -> f64,
 {
     fn sample(&mut self, rng: &mut dyn Rng, current_tick: SimTime) -> PendingDuration {
-        let mut sampled_list = vec![];
+        let mut sampled_list = Vec::new();
         for sampler in &mut self.samplers {
             let sampled = sampler.sample(rng, current_tick);
             sampled_list.push(sampled.raw_value());
@@ -56,7 +56,9 @@ impl<F> AggregateSampler<F>
 where
     F: FnMut(&mut dyn Rng, SimTime, Vec<f64>) -> f64,
 {
-    pub fn new(samplers: Vec<Box<dyn DurationSampler>>, f: F) -> Self {
+    pub fn new(samplers: impl IntoIterator<Item = Box<dyn DurationSampler>>, f: F) -> Self {
+        let samplers: Vec<_> = samplers.into_iter().collect();
+
         assert!(!samplers.is_empty());
 
         AggregateSampler { samplers, f }

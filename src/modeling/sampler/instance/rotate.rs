@@ -20,7 +20,9 @@ impl DurationSampler for RotateSampler {
 }
 
 impl RotateSampler {
-    pub fn new(duration_list: Vec<Duration>) -> RotateSampler {
+    pub fn new(duration_list: impl IntoIterator<Item = Duration>) -> RotateSampler {
+        let duration_list: Vec<_> = duration_list.into_iter().collect();
+
         assert!(!duration_list.is_empty());
 
         let item_count = duration_list.len();
@@ -31,7 +33,12 @@ impl RotateSampler {
         }
     }
 
-    pub fn new_with_index(duration_list: Vec<Duration>, next_index: usize) -> RotateSampler {
+    pub fn new_with_index(
+        duration_list: impl IntoIterator<Item = Duration>,
+        next_index: usize,
+    ) -> RotateSampler {
+        let duration_list: Vec<_> = duration_list.into_iter().collect();
+
         assert!(!duration_list.is_empty());
         assert!(next_index < duration_list.len());
 
