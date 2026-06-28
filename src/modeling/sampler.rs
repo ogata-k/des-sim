@@ -123,7 +123,7 @@ pub trait CombinatorExt: DurationSampler + Sized + 'static {
 
     fn map<F>(self, f: F) -> MapSampler<Self, F>
     where
-        F: FnMut(f64) -> f64,
+        F: FnMut(&mut dyn Rng, SimTime, f64) -> f64,
     {
         MapSampler::new(self, f)
     }
@@ -145,7 +145,7 @@ pub trait CombinatorExt: DurationSampler + Sized + 'static {
     fn chain<S, F>(self, sampler: S, f: F) -> ChainSampler<Self, S, F>
     where
         S: DurationSampler,
-        F: FnMut(f64, f64) -> f64,
+        F: FnMut(&mut dyn Rng, SimTime, f64, f64) -> f64,
     {
         ChainSampler::new(self, sampler, f)
     }
@@ -156,7 +156,7 @@ pub trait CombinatorExt: DurationSampler + Sized + 'static {
         f: F,
     ) -> AggregateSampler<F>
     where
-        F: FnMut(Vec<f64>) -> f64,
+        F: FnMut(&mut dyn Rng, SimTime, Vec<f64>) -> f64,
     {
         let mut samplers = vec![self.boxed()];
         samplers.extend(others);

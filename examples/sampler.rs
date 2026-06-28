@@ -17,7 +17,7 @@ fn main() {
     // 各サーバーの違いは受付開始までの揺らぎだけ
     let base_server_logic = base_task
         .with_delay(network_delay) // 遅延を足す
-        .map(|d| d * 1.05); // 内部オーバーヘッドを5%加算
+        .map(|_, _, d| d * 1.05); // 内部オーバーヘッドを5%加算
     let server_logic1 = base_server_logic.clone().with_jitter(jitter1); // ゆらぎを加える
     let server_logic2 = base_server_logic.clone().with_jitter(jitter2); // ゆらぎを加える
     let server_logic3 = base_server_logic.clone().with_jitter(jitter3); // ゆらぎを加える
@@ -32,7 +32,7 @@ fn main() {
         .aggregate_builder()
         .add_sampler(server_logic2) // サーバー2
         .add_sampler(server_logic3) // サーバー3
-        .build(move |durations| {
+        .build(move |_, _, durations| {
             // インデックス付きで最小値を探索
             let (idx, &val) = durations
                 .iter()

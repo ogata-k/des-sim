@@ -6,7 +6,7 @@ use rand::Rng;
 pub struct MapSampler<S, F>
 where
     S: DurationSampler,
-    F: FnMut(f64) -> f64,
+    F: FnMut(&mut dyn Rng, SimTime, f64) -> f64,
 {
     sampler: S,
     f: F,
@@ -15,19 +15,19 @@ where
 impl<S, F> DurationSampler for MapSampler<S, F>
 where
     S: DurationSampler,
-    F: FnMut(f64) -> f64,
+    F: FnMut(&mut dyn Rng, SimTime, f64) -> f64,
 {
     fn sample(&mut self, rng: &mut dyn Rng, current_tick: SimTime) -> PendingDuration {
         let sampled = self.sampler.sample(rng, current_tick);
 
-        PendingDuration::new((self.f)(sampled.0))
+        PendingDuration::new((self.f)(rng, current_tick, sampled.raw_value()))
     }
 }
 
 impl<S, F> MapSampler<S, F>
 where
     S: DurationSampler,
-    F: FnMut(f64) -> f64,
+    F: FnMut(&mut dyn Rng, SimTime, f64) -> f64,
 {
     pub fn new(sampler: S, f: F) -> Self {
         MapSampler { sampler, f }
