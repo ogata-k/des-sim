@@ -50,4 +50,32 @@ impl EmpiricalSampler {
             total_weight: current_sum,
         }
     }
+
+    /// ヒストグラムの形式 [Duration] からサンプラーを構築
+    pub fn new_as_uniform(histogram: impl IntoIterator<Item = Duration>) -> Self {
+        // 経験分布からの逆変換サンプリング（Inverse Transform Sampling）でサンプリングできるようにあらかじめ変換
+        let mut cdf = Vec::new();
+        let mut values = Vec::new();
+        let mut current_sum = 0;
+
+        // 最初の境界は 0
+        cdf.push(0);
+        for duration in histogram.into_iter() {
+            current_sum += 1;
+            cdf.push(current_sum);
+            values.push(duration);
+        }
+
+        assert!(
+            !values.is_empty(),
+            "EmpiricalSampler must have at least one sampler"
+        );
+        assert!(current_sum > 0, "Total weight must be greater than 0");
+
+        Self {
+            cdf,
+            values,
+            total_weight: current_sum,
+        }
+    }
 }
