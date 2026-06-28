@@ -65,10 +65,8 @@ impl PendingDuration {
     }
 
     pub fn to_duration(&self) -> Duration {
-        self.try_duration().expect(&format!(
-            "Duration Not Support negative value: {}",
-            self.raw_value()
-        ))
+        self.try_duration()
+            .unwrap_or_else(|| panic!("Duration Not Support negative value: {}", self.raw_value()))
     }
 
     pub fn to_duration_with_clamp(&self, max: TimeTick) -> Duration {
@@ -82,7 +80,7 @@ impl PendingDuration {
                     // これで制限しているからto_usize()は常に成功するはず
                     .clamp(0.0, max as f64)
                     .to_usize()
-                    .expect(&format!("Unexpected clamp handling value: {}", raw_value)),
+                    .unwrap_or_else(|| panic!("Unexpected clamp handling value: {}", raw_value)),
             )
         }
     }

@@ -12,6 +12,7 @@ pub struct AgentStep<E, M: Model<E>> {
     pub tag: &'static str,
     pub delay: Duration,
     pub priority: EventPriority,
+    #[allow(clippy::type_complexity)]
     pub logic: Box<dyn FnOnce(&mut EventContext<E, M>, &mut M, &mut VecDeque<AgentStep<E, M>>)>,
 }
 

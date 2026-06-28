@@ -1,6 +1,5 @@
-use crate::context::ActiveExecutorContext;
 use crate::execution::phase::UncheckedActiveExecutor;
-use crate::execution::strategy::ContinueStrategy;
+use crate::execution::strategy::{ContinueStrategy, ContinuousStrategyResult};
 use crate::modeling::model::Model;
 
 /// 指定されたマイクロステップ上限に達したらそのtick内で処理すべきイベントなどがまだ残っている場合は破棄して継続する継続戦略
@@ -15,7 +14,7 @@ impl<E, M: Model<E>, RunnerError> ContinueStrategy<E, M, RunnerError> for LimitD
         &mut self,
         model: &M,
         unchecked: UncheckedActiveExecutor<E, M>,
-    ) -> Result<ActiveExecutorContext<E, M>, (ActiveExecutorContext<E, M>, Self::Err)> {
+    ) -> ContinuousStrategyResult<E, M, Self::Err> {
         let current_micro_step = unchecked.current_micro_step();
 
         // 上限未達

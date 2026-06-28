@@ -66,7 +66,7 @@ impl<E, M: Model<E>> SourcePhase<E, M> {
         F: FnOnce(&SourceReadyEntry) -> bool,
     {
         // 先頭要素を覗いて、条件に合致するか判定
-        if self.ready_sources.front().map_or(false, predicate) {
+        if self.ready_sources.front().is_some_and(predicate) {
             self.ready_sources.pop_front()
         } else {
             None

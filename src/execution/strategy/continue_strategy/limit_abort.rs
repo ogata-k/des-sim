@@ -1,6 +1,5 @@
-use crate::context::ActiveExecutorContext;
 use crate::execution::phase::UncheckedActiveExecutor;
-use crate::execution::strategy::ContinueStrategy;
+use crate::execution::strategy::{ContinueStrategy, ContinuousStrategyResult};
 use crate::modeling::model::Model;
 use std::fmt::{Display, Formatter};
 
@@ -51,7 +50,7 @@ impl<E, M: Model<E>, RunnerError> ContinueStrategy<E, M, RunnerError> for LimitA
         &mut self,
         model: &M,
         unchecked: UncheckedActiveExecutor<E, M>,
-    ) -> Result<ActiveExecutorContext<E, M>, (ActiveExecutorContext<E, M>, Self::Err)> {
+    ) -> ContinuousStrategyResult<E, M, Self::Err> {
         let current_micro_step = unchecked.current_micro_step();
 
         // 上限未達

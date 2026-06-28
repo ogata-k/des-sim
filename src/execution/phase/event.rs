@@ -50,7 +50,7 @@ impl<E, M: Model<E>> EventPhase<E, M> {
         F: FnOnce(&Event<E>) -> bool,
     {
         // 先頭要素を覗いて、条件に合致するか判定
-        if self.ready_events.front().map_or(false, predicate) {
+        if self.ready_events.front().is_some_and(predicate) {
             self.ready_events.pop_front()
         } else {
             None
