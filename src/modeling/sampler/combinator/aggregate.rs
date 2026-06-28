@@ -20,7 +20,7 @@ impl AggregateBuilder {
 
     pub fn build<F>(self, f: F) -> AggregateSampler<F>
     where
-        F: Fn(Vec<f64>) -> f64,
+        F: FnMut(Vec<f64>) -> f64,
     {
         AggregateSampler {
             samplers: self.samplers,
@@ -31,7 +31,7 @@ impl AggregateBuilder {
 
 pub struct AggregateSampler<F>
 where
-    F: Fn(Vec<f64>) -> f64,
+    F: FnMut(Vec<f64>) -> f64,
 {
     samplers: Vec<Box<dyn DurationSampler>>,
     f: F,
@@ -39,7 +39,7 @@ where
 
 impl<F> DurationSampler for AggregateSampler<F>
 where
-    F: Fn(Vec<f64>) -> f64,
+    F: FnMut(Vec<f64>) -> f64,
 {
     fn sample(&mut self, rng: &mut dyn Rng, current_tick: SimTime) -> PendingDuration {
         let mut sampled_list = vec![];
@@ -54,7 +54,7 @@ where
 
 impl<F> AggregateSampler<F>
 where
-    F: Fn(Vec<f64>) -> f64,
+    F: FnMut(Vec<f64>) -> f64,
 {
     pub fn new(samplers: Vec<Box<dyn DurationSampler>>, f: F) -> Self {
         assert!(!samplers.is_empty());

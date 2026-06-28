@@ -103,7 +103,7 @@ impl PendingDuration {
 
     pub fn apply<F>(&mut self, f: F) -> PendingDuration
     where
-        F: Fn(f64) -> f64,
+        F: FnOnce(f64) -> f64,
     {
         PendingDuration::new(f(self.0))
     }
@@ -123,7 +123,7 @@ pub trait CombinatorExt: DurationSampler + Sized + 'static {
 
     fn map<F>(self, f: F) -> MapSampler<Self, F>
     where
-        F: Fn(f64) -> f64,
+        F: FnMut(f64) -> f64,
     {
         MapSampler::new(self, f)
     }
@@ -145,7 +145,7 @@ pub trait CombinatorExt: DurationSampler + Sized + 'static {
     fn chain<S, F>(self, sampler: S, f: F) -> ChainSampler<Self, S, F>
     where
         S: DurationSampler,
-        F: Fn(f64, f64) -> f64,
+        F: FnMut(f64, f64) -> f64,
     {
         ChainSampler::new(self, sampler, f)
     }
@@ -156,7 +156,7 @@ pub trait CombinatorExt: DurationSampler + Sized + 'static {
         f: F,
     ) -> AggregateSampler<F>
     where
-        F: Fn(Vec<f64>) -> f64,
+        F: FnMut(Vec<f64>) -> f64,
     {
         let mut samplers = vec![self.boxed()];
         samplers.extend(others);
@@ -174,7 +174,7 @@ pub trait CombinatorExt: DurationSampler + Sized + 'static {
 
     fn non_negative<F>(self, limit_try_count: u8, fallback: F) -> NonNegativeSampler<Self, F>
     where
-        F: Fn(&mut dyn Rng, SimTime) -> Duration,
+        F: FnMut(&mut dyn Rng, SimTime) -> Duration,
     {
         NonNegativeSampler::new(self, limit_try_count, fallback)
     }

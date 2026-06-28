@@ -2,10 +2,11 @@ use crate::modeling::sampler::{DurationSampler, PendingDuration};
 use crate::primitive::time::{Duration, SimTime};
 use rand::Rng;
 
+#[derive(Debug, Clone)]
 pub struct NonNegativeSampler<S, F>
 where
     S: DurationSampler,
-    F: Fn(&mut dyn Rng, SimTime) -> Duration,
+    F: FnMut(&mut dyn Rng, SimTime) -> Duration,
 {
     sampler: S,
     limit_try_count: u8,
@@ -15,7 +16,7 @@ where
 impl<S, F> DurationSampler for NonNegativeSampler<S, F>
 where
     S: DurationSampler,
-    F: Fn(&mut dyn Rng, SimTime) -> Duration,
+    F: FnMut(&mut dyn Rng, SimTime) -> Duration,
 {
     fn sample(&mut self, rng: &mut dyn Rng, current_tick: SimTime) -> PendingDuration {
         for _ in 0..self.limit_try_count {
@@ -36,7 +37,7 @@ where
 impl<S, F> NonNegativeSampler<S, F>
 where
     S: DurationSampler,
-    F: Fn(&mut dyn Rng, SimTime) -> Duration,
+    F: FnMut(&mut dyn Rng, SimTime) -> Duration,
 {
     pub fn new(sampler: S, limit_try_count: u8, fallback: F) -> Self {
         Self {

@@ -5,7 +5,7 @@ use rand::Rng;
 /// ベースとなったサンプラーで得られた値に対して、遅延用のサンプラーで得られた値だけ増加させて遅らせる。
 /// ただし、遅延用のサンプラーが負の値を返したときは加算されない。
 /// 加算してほしいときは[WithJitterSampler](crate::modeling::sampler::WithJitterSampler)を使うこと。
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct WithDelaySampler<S, D>
 where
     S: DurationSampler,

@@ -6,7 +6,7 @@ use rand::Rng;
 /// ※ 内部状態を持つので、毎回作り直していると常に最初から二なってしまうので注意
 #[derive(Debug, Clone)]
 pub struct RotateSampler {
-    pub next_index: usize,
+    next_index: usize,
     list: Vec<Duration>,
     item_count: usize,
 }
