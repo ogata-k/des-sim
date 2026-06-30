@@ -1,4 +1,4 @@
-use crate::context::{ExecutorContext, SourceContext, UserContext};
+use crate::context::{ExecutorContext, SourceContext};
 use crate::event_scheduler::EventScheduler;
 use crate::modeling::event::EventPriority;
 use crate::modeling::hook::Hook;

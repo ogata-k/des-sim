@@ -1,4 +1,4 @@
-use crate::context::{ActiveExecutorContext, EventContext, SourceContext, UserContext};
+use crate::context::{ActiveExecutorContext, EventContext, SourceContext};
 use crate::execution::phase::{EventPhase, MicroStepResult, SourcePhase, UncheckedActiveExecutor};
 use crate::modeling::hook::Hook;
 use crate::modeling::model::Model;
