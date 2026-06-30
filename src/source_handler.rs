@@ -78,31 +78,12 @@ impl<E, M: Model<E>> SourceHandler<E, M> {
     ) where
         S: Source<E, M> + 'static,
     {
-        assert!(delay > Duration::zero());
-
         self.source_registry.push(SourceEntry {
             name: Arc::from(name),
             source: Box::new(source),
         });
         self.pending_queue.push(Reverse(ScheduledSource {
             scheduled_at: current_tick + delay,
-            source_id: SourceId::new(self.next_source_id),
-        }));
-        self.next_source_id += 1;
-    }
-
-    /// [Source]を現在時刻の次のマイクロステップで実行するように登録する。
-    /// 使用用途は、シミュレーション中での使用。
-    pub fn add_source_at_now<S>(&mut self, name: &'static str, current_tick: SimTime, source: S)
-    where
-        S: Source<E, M> + 'static,
-    {
-        self.source_registry.push(SourceEntry {
-            name: Arc::from(name),
-            source: Box::new(source),
-        });
-        self.pending_queue.push(Reverse(ScheduledSource {
-            scheduled_at: current_tick,
             source_id: SourceId::new(self.next_source_id),
         }));
         self.next_source_id += 1;

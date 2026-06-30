@@ -672,7 +672,7 @@ fn main() {
         .add_hook(TraceHook)
         .add_shared_hook(lane_state_collector.clone())
         // 0 tick 時点：信号はGreen。TOGGLE_TICK_INTERVAL tick 目にRedになるようにセット
-        .add_source(
+        .add_source_at(
             "toggle signal",
             SimTime::new(TOGGLE_TICK_INTERVAL),
             ToggleSignalSource,

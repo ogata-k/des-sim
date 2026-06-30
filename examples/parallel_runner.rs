@@ -188,7 +188,7 @@ fn main() {
     let mut engine = Engine::new();
     engine
         .add_hook(TraceHook)
-        .add_source(
+        .add_source_at(
             "Job Generator x4",
             SimTime::zero(),
             JobGenerator {
@@ -196,7 +196,7 @@ fn main() {
                 interval: Duration::ticks(4),
             },
         )
-        .add_source(
+        .add_source_at(
             "Job Generator x6",
             SimTime::zero(),
             JobGenerator {

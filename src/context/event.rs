@@ -29,8 +29,22 @@ impl<E, M: Model<E>> UserContext<E, M> for EventContext<E, M> {
         self.event_scheduler
             .schedule(self.current_tick(), delay, priority, event_payload);
     }
+}
 
-    fn cancel_scheduled_events<F>(&mut self, model: &M, pred: F) -> Vec<(SimTime, Event<E>)>
+impl<E, M: Model<E>> EventContext<E, M> {
+    pub fn hook(&self) -> &impl Hook<E, M> {
+        &self.hook_delegate
+    }
+
+    pub fn add_source<S>(&mut self, name: &'static str, delay: Duration, source: S)
+    where
+        S: Source<E, M> + 'static,
+    {
+        self.source_handler
+            .add_source_after(name, self.current_tick(), delay, source);
+    }
+
+    pub fn cancel_scheduled_events<F>(&mut self, model: &M, pred: F) -> Vec<(SimTime, Event<E>)>
     where
         F: FnMut(SimTime, &Event<E>) -> bool,
     {
@@ -45,27 +59,5 @@ impl<E, M: Model<E>> UserContext<E, M> for EventContext<E, M> {
         });
 
         result
-    }
-}
-
-impl<E, M: Model<E>> EventContext<E, M> {
-    pub fn hook(&self) -> &impl Hook<E, M> {
-        &self.hook_delegate
-    }
-
-    pub fn add_source_after<S>(&mut self, name: &'static str, delay: Duration, source: S)
-    where
-        S: Source<E, M> + 'static,
-    {
-        self.source_handler
-            .add_source_after(name, self.current_tick(), delay, source);
-    }
-
-    pub fn add_source_at_now<S>(&mut self, name: &'static str, source: S)
-    where
-        S: Source<E, M> + 'static,
-    {
-        self.source_handler
-            .add_source_at_now(name, self.current_tick(), source);
     }
 }
