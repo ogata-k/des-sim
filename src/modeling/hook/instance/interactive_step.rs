@@ -117,6 +117,17 @@ impl<E, M: Model<E>> Hook<E, M> for InteractiveStepHook {
         // none
     }
 
+    fn cancel_source(
+        &self,
+        _model: &M,
+        _current_tick: SimTime,
+        _current_micro_step: MicroStep,
+        _scheduled_at: SimTime,
+        _source_view: &SourceView,
+    ) {
+        // none
+    }
+
     fn discard_source(
         &self,
         _model: &M,

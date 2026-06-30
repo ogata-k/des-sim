@@ -10,10 +10,10 @@ use crate::primitive::time::TickStatus;
 use std::marker::PhantomData;
 use std::sync::mpsc::Sender;
 
-pub trait AsyncModel<E, Command>: Model<E> {
+pub trait ParallelModel<E, Command>: Model<E> {
     /// 非同期（並列）スレッド側から呼ばれる、イミュータブルなイベントハンドラー。
     /// 計算結果や状態変更の要求を `tx` を通じてメインスレッドに送信する。
-    fn handle_event_async(&self, event: Event<E>, tx: Sender<Command>);
+    fn handle_event_parallel(&self, event: Event<E>, tx: Sender<Command>);
 
     /// メインスレッド側で、非同期スレッド群から集約されたコマンドを順次適用する。
     /// ここでは `&mut self` と `EventContext` が使えるため、安全に状態更新や新規イベントのスケジュールが可能。
@@ -25,7 +25,7 @@ pub trait AsyncModel<E, Command>: Model<E> {
 /// イベントを発火した順番に並列で処理する標準的なRunner。
 /// sync_priority_thresholdで指定された以上の[EventPriority]以上のイベントは直列で処理することもできるようになっている。
 /// そして、skippableがtrueであれば、イベントがない時間をスキップすることができる。
-pub struct AsyncRunner<Command, CS> {
+pub struct ParallelRunner<Command, CS> {
     skippable: bool,
     continue_strategy: CS,
     /// この閾値以上のプライオリティを持つイベントは同期処理する
@@ -33,8 +33,8 @@ pub struct AsyncRunner<Command, CS> {
     _command: PhantomData<Command>,
 }
 
-impl<E, Command, M: AsyncModel<E, Command>, CS: ContinueStrategy<E, M, ()>> Runner<E, M, CS>
-    for AsyncRunner<Command, CS>
+impl<E, Command, M: ParallelModel<E, Command>, CS: ContinueStrategy<E, M, ()>> Runner<E, M, CS>
+    for ParallelRunner<Command, CS>
 where
     E: Send + 'static,
     M: Send + Sync + 'static,
@@ -86,12 +86,12 @@ where
                         event_phase.handle_event(&mut model, event_ready);
                     } else {
                         // 残りをすべて引っこ抜いて非同期に処理させる
-                        let async_events = event_phase.take_all();
+                        let parallel_events = event_phase.take_all();
 
                         // コマンド受信用のチャンネルを用意
                         let (tx, rx) = std::sync::mpsc::channel();
 
-                        // 💡 技ありポイント: std::thread::scope を被せることで、
+                        // ポイント: std::thread::scope を被せることで、
                         // Rayonのスレッドプールに対しても &model (イミュータブル参照) を安全に貸し出せます。
                         std::thread::scope(|_scope| {
                             use rayon::prelude::*;
@@ -99,13 +99,13 @@ where
                             // tx の所有権を scope 内に移動させ、自動ドロップを狙う
                             let tx = tx;
                             // スレッドプールで一斉に並列処理
-                            async_events.into_par_iter().for_each_with(
+                            parallel_events.into_par_iter().for_each_with(
                                 tx,
                                 |tx_worker, event_ready| {
                                     let model_ref = &model; // &model はすべてのスレッドで安全に共有される
 
                                     // スレッドは新しく作られず、常駐しているスレッドが超高速にこの関数を実行する
-                                    model_ref.handle_event_async(event_ready, tx_worker.clone());
+                                    model_ref.handle_event_parallel(event_ready, tx_worker.clone());
                                 },
                             ); // ここで scope 内の tx が自動ドロップされる ＆ 全並列処理の完了が保証される
                         });
@@ -161,9 +161,11 @@ where
     }
 }
 
-impl<E, Command, M: AsyncModel<E, Command>> AsyncRunner<Command, AlwaysContinueStrategy<E, M>> {
+impl<E, Command, M: ParallelModel<E, Command>>
+    ParallelRunner<Command, AlwaysContinueStrategy<E, M>>
+{
     pub fn new(skippable: bool, sync_priority_threshold: EventPriority) -> Self {
-        AsyncRunner {
+        ParallelRunner {
             skippable,
             continue_strategy: AlwaysContinueStrategy::new(),
             sync_priority_threshold,
@@ -172,13 +174,13 @@ impl<E, Command, M: AsyncModel<E, Command>> AsyncRunner<Command, AlwaysContinueS
     }
 }
 
-impl<Command, CS> AsyncRunner<Command, CS> {
+impl<Command, CS> ParallelRunner<Command, CS> {
     pub fn new_with_continue_strategy(
         skippable: bool,
         sync_priority_threshold: EventPriority,
         continue_strategy: CS,
     ) -> Self {
-        AsyncRunner {
+        ParallelRunner {
             skippable,
             continue_strategy,
             sync_priority_threshold,

@@ -1,4 +1,4 @@
-use crate::context::{ExecutorContext, SourceContext, UserContext};
+use crate::context::{ExecutorContext, SourceContext};
 use crate::event_scheduler::EventScheduler;
 use crate::modeling::event::EventPriority;
 use crate::modeling::hook::Hook;
@@ -92,7 +92,7 @@ impl<E, M: Model<E>> Engine<E, M> {
         self
     }
 
-    pub fn add_source<S>(
+    pub fn add_source_at<S>(
         &mut self,
         name: &'static str,
         first_fire_time: SimTime,

@@ -1,4 +1,4 @@
-use crate::context::EventContext;
+use crate::context::{EventContext, UserContext};
 use crate::modeling::event::EventPriority;
 use crate::modeling::model::Model;
 use crate::primitive::time::Duration;

@@ -60,6 +60,15 @@ pub trait Hook<E, M: Model<E>> {
         computed_next_fire: Option<SimTime>,
     );
 
+    fn cancel_source(
+        &self,
+        model: &M,
+        current_tick: SimTime,
+        current_micro_step: MicroStep,
+        scheduled_at: SimTime,
+        source_view: &SourceView,
+    );
+
     fn discard_source(
         &self,
         model: &M,
