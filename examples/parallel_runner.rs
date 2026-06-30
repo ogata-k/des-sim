@@ -1,7 +1,7 @@
 use des_sim::context::{EventContext, SourceContext};
 use des_sim::execution::Engine;
 use des_sim::execution::runner::Runner;
-use des_sim::execution::runner::instance::{AsyncModel, AsyncRunner};
+use des_sim::execution::runner::instance::{ParallelModel, ParallelRunner};
 use des_sim::modeling::event::{Event, EventPriority};
 use des_sim::modeling::hook::instance::{ModelSummary, TraceHook};
 use des_sim::modeling::model::Model;
@@ -58,9 +58,9 @@ impl Model<MyEvent> for ServerModel {
     }
 }
 
-impl AsyncModel<MyEvent, ServerCommand> for ServerModel {
+impl ParallelModel<MyEvent, ServerCommand> for ServerModel {
     /// 【非同期実行】スレッドプール上で &self (不変参照) を使って安全に並列計算
-    fn handle_event_async(&self, event: Event<MyEvent>, tx: Sender<ServerCommand>) {
+    fn handle_event_parallel(&self, event: Event<MyEvent>, tx: Sender<ServerCommand>) {
         // 現在の状態を安全に読み取り、書き換えコマンドをチャンネルに送る
         match event.payload {
             MyEvent::JobArrived { job_id } => {
@@ -213,7 +213,7 @@ fn main() {
 
     // すべてのイベントを非同期処理の対象にするため、sync_priority_threshold には EventPriority::maximum() などを設定。
     // (もし特定の重要イベントだけを同期させたい場合は、その優先度を閾値に指定します)
-    let mut runner = AsyncRunner::<ServerCommand, _>::new(true, EventPriority::maximum());
+    let mut runner = ParallelRunner::<ServerCommand, _>::new(true, EventPriority::maximum());
     let result = runner.run_do_ticks(engine, model, 60, false);
 
     print!("\nSimulation Result: {:?}", result);
