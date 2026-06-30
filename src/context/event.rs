@@ -6,7 +6,7 @@ use crate::modeling::hook::instance::HookDelegate;
 use crate::modeling::model::Model;
 use crate::modeling::source::Source;
 use crate::primitive::time::{Duration, MicroStep, MicroStepStatus, SimTime, TickStatus};
-use crate::source_handler::SourceHandler;
+use crate::source_handler::{SourceHandler, SourceReadyEntry, SourceView};
 
 pub struct EventContext<E, M: Model<E>> {
     pub(crate) current_tick_status: TickStatus,
@@ -44,6 +44,33 @@ impl<E, M: Model<E>> EventContext<E, M> {
             .add_source_after(name, self.current_tick(), delay, source);
     }
 
+    pub fn cancel_scheduled_sources<S, F>(
+        &mut self,
+        model: &M,
+        pred: F,
+    ) -> Vec<(SimTime, SourceReadyEntry)>
+    where
+        S: Source<E, M> + 'static,
+        F: FnMut(SimTime, &SourceReadyEntry) -> bool,
+    {
+        let mut result = Vec::new();
+        let now = self.current_tick();
+        let micro_step = self.current_micro_step();
+        let canceled = self.source_handler.drain_cancel_scheduled(pred);
+        canceled.into_iter().for_each(|(scheduled_at, entry)| {
+            self.hook().cancel_source(
+                model,
+                now,
+                micro_step,
+                scheduled_at,
+                &SourceView::new(entry.source_id(), entry.clone_name_arc()),
+            );
+            result.push((scheduled_at, entry));
+        });
+
+        result
+    }
+
     pub fn cancel_scheduled_events<F>(&mut self, model: &M, pred: F) -> Vec<(SimTime, Event<E>)>
     where
         F: FnMut(SimTime, &Event<E>) -> bool,
@@ -51,7 +78,7 @@ impl<E, M: Model<E>> EventContext<E, M> {
         let mut result = Vec::new();
         let now = self.current_tick();
         let micro_step = self.current_micro_step();
-        let canceled = self.event_scheduler.drain_cancel_events(pred);
+        let canceled = self.event_scheduler.drain_cancel_scheduled(pred);
         canceled.into_iter().for_each(|(scheduled_at, event)| {
             self.hook()
                 .cancel_event(model, now, micro_step, scheduled_at, &event);

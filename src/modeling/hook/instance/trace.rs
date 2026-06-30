@@ -128,6 +128,21 @@ where
         self.trace_log_model(model, "      ");
     }
 
+    fn cancel_source(
+        &self,
+        model: &M,
+        current_tick: SimTime,
+        current_micro_step: MicroStep,
+        scheduled_at: SimTime,
+        source_view: &SourceView,
+    ) {
+        debug!(
+            "    ! Source canceled at {:?} (current μStep: {}) | Source: {:?} at scheduled: {}",
+            current_tick, current_micro_step, source_view, scheduled_at
+        );
+        self.debug_log_model(model, "    ");
+    }
+
     fn discard_source(
         &self,
         model: &M,

@@ -547,6 +547,16 @@ impl Hook<MyEvent, TrafficModel> for LaneStateCollector {
     ) {
     }
 
+    fn cancel_source(
+        &self,
+        _model: &TrafficModel,
+        _current_tick: SimTime,
+        _current_micro_step: MicroStep,
+        _scheduled_at: SimTime,
+        _source_view: &SourceView,
+    ) {
+    }
+
     fn discard_source(
         &self,
         _model: &TrafficModel,
