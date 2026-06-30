@@ -1,4 +1,4 @@
-use des_sim::context::{EventContext, SourceContext};
+use des_sim::context::{EventContext, SourceContext, UserContext};
 use des_sim::execution::Engine;
 use des_sim::execution::runner::Runner;
 use des_sim::execution::runner::instance::RealtimeRunner;
