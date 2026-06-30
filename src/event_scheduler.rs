@@ -97,7 +97,7 @@ impl<E> EventScheduler<E> {
         events
     }
 
-    pub fn drain_pending_to_cancel<F>(&mut self, mut pred: F) -> VecDeque<(SimTime, Event<E>)>
+    pub fn drain_cancel_scheduled<F>(&mut self, mut pred: F) -> VecDeque<(SimTime, Event<E>)>
     where
         F: FnMut(SimTime, &Event<E>) -> bool,
     {
@@ -107,18 +107,18 @@ impl<E> EventScheduler<E> {
         if self
             .pending_queue
             .iter()
-            .any(|Reverse(ev)| pred(ev.scheduled_at, &ev.event))
+            .any(|Reverse(scheduled)| pred(scheduled.scheduled_at, &scheduled.event))
         {
             // ヒープを分解して Vec として取り出す
             let items = std::mem::take(&mut self.pending_queue).into_vec();
             let mut to_keep = Vec::with_capacity(items.len());
 
             // 振り分け
-            for Reverse(ev) in items {
-                if pred(ev.scheduled_at, &ev.event) {
-                    cancelled.push(ev);
+            for Reverse(scheduled) in items {
+                if pred(scheduled.scheduled_at, &scheduled.event) {
+                    cancelled.push(scheduled);
                 } else {
-                    to_keep.push(Reverse(ev));
+                    to_keep.push(Reverse(scheduled));
                 }
             }
 
@@ -129,18 +129,18 @@ impl<E> EventScheduler<E> {
         if self
             .ready_queue
             .iter()
-            .any(|Reverse(ev)| pred(ev.scheduled_at, &ev.event))
+            .any(|Reverse(scheduled)| pred(scheduled.scheduled_at, &scheduled.event))
         {
             // ヒープを分解して Vec として取り出す
             let items = std::mem::take(&mut self.ready_queue).into_vec();
             let mut to_keep = Vec::with_capacity(items.len());
 
             // 振り分け
-            for Reverse(ev) in items {
-                if pred(ev.scheduled_at, &ev.event) {
-                    cancelled.push(ev);
+            for Reverse(scheduled) in items {
+                if pred(scheduled.scheduled_at, &scheduled.event) {
+                    cancelled.push(scheduled);
                 } else {
-                    to_keep.push(Reverse(ev));
+                    to_keep.push(Reverse(scheduled));
                 }
             }
 
@@ -152,7 +152,7 @@ impl<E> EventScheduler<E> {
         cancelled.sort();
         cancelled
             .into_iter()
-            .map(|ev| (ev.scheduled_at, ev.event))
+            .map(|scheduled| (scheduled.scheduled_at, scheduled.event))
             .collect()
     }
 

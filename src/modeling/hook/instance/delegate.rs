@@ -86,9 +86,11 @@ impl<E, M: Model<E>> Hook<E, M> for HookDelegate<E, M> {
         model: &M,
         current_tick: SimTime,
         current_micro_step: MicroStep,
-        source: &SourceView,
+        source_view: &SourceView,
     ) {
-        self.delegate(|hook| hook.before_source(model, current_tick, current_micro_step, source))
+        self.delegate(|hook| {
+            hook.before_source(model, current_tick, current_micro_step, source_view)
+        })
     }
 
     fn after_source(
@@ -96,7 +98,7 @@ impl<E, M: Model<E>> Hook<E, M> for HookDelegate<E, M> {
         model: &M,
         current_tick: SimTime,
         current_micro_step: MicroStep,
-        source: &SourceView,
+        source_view: &SourceView,
         computed_next_fire: Option<SimTime>,
     ) {
         self.reverse_delegate(|hook| {
@@ -104,8 +106,27 @@ impl<E, M: Model<E>> Hook<E, M> for HookDelegate<E, M> {
                 model,
                 current_tick,
                 current_micro_step,
-                source,
+                source_view,
                 computed_next_fire,
+            )
+        })
+    }
+
+    fn cancel_source(
+        &self,
+        model: &M,
+        current_tick: SimTime,
+        current_micro_step: MicroStep,
+        scheduled_at: SimTime,
+        source_view: &SourceView,
+    ) {
+        self.delegate(|hook| {
+            hook.cancel_source(
+                model,
+                current_tick,
+                current_micro_step,
+                scheduled_at,
+                source_view,
             )
         })
     }

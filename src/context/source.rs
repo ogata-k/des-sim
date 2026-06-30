@@ -27,14 +27,14 @@ impl<E, M: Model<E>> UserContext<E, M> for SourceContext<E, M> {
         self.current_micro_step_status.current()
     }
 
-    fn hook(&self) -> &impl Hook<E, M> {
-        &self.hook_delegate
+    fn schedule_event(&mut self, delay: Duration, priority: EventPriority, event_payload: E) {
+        self.event_scheduler
+            .schedule(self.current_tick(), delay, priority, event_payload);
     }
 }
 
 impl<E, M: Model<E>> SourceContext<E, M> {
-    pub fn schedule_event(&mut self, delay: Duration, priority: EventPriority, event_payload: E) {
-        self.event_scheduler
-            .schedule(self.current_tick(), delay, priority, event_payload);
+    pub fn hook(&self) -> &impl Hook<E, M> {
+        &self.hook_delegate
     }
 }
