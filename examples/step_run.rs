@@ -1,4 +1,4 @@
-use des_sim::context::{EventContext, SourceContext};
+use des_sim::context::{EventContext, SourceContext, UserContext};
 use des_sim::execution::Engine;
 use des_sim::execution::runner::Runner;
 use des_sim::execution::runner::instance::StandardRunner;
@@ -138,7 +138,7 @@ fn main() {
     engine
         .add_hook(InteractiveStepHook)
         .add_hook(TraceHook)
-        .add_source(
+        .add_source_at(
             "Job Generator x4",
             SimTime::zero(),
             JobGenerator {
@@ -146,7 +146,7 @@ fn main() {
                 interval: Duration::ticks(4),
             },
         )
-        .add_source(
+        .add_source_at(
             "Job Generator x6",
             SimTime::zero(),
             JobGenerator {

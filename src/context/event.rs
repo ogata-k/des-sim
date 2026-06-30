@@ -6,7 +6,7 @@ use crate::modeling::hook::instance::HookDelegate;
 use crate::modeling::model::Model;
 use crate::modeling::source::Source;
 use crate::primitive::time::{Duration, MicroStep, MicroStepStatus, SimTime, TickStatus};
-use crate::source_handler::SourceHandler;
+use crate::source_handler::{SourceHandler, SourceReadyEntry, SourceView};
 
 pub struct EventContext<E, M: Model<E>> {
     pub(crate) current_tick_status: TickStatus,
@@ -25,13 +25,18 @@ impl<E, M: Model<E>> UserContext<E, M> for EventContext<E, M> {
         self.current_micro_step_status.current()
     }
 
-    fn hook(&self) -> &impl Hook<E, M> {
-        &self.hook_delegate
+    fn schedule_event(&mut self, delay: Duration, priority: EventPriority, event_payload: E) {
+        self.event_scheduler
+            .schedule(self.current_tick(), delay, priority, event_payload);
     }
 }
 
 impl<E, M: Model<E>> EventContext<E, M> {
-    pub fn add_source_after<S>(&mut self, name: &'static str, delay: Duration, source: S)
+    pub fn hook(&self) -> &impl Hook<E, M> {
+        &self.hook_delegate
+    }
+
+    pub fn add_source<S>(&mut self, name: &'static str, delay: Duration, source: S)
     where
         S: Source<E, M> + 'static,
     {
@@ -39,17 +44,31 @@ impl<E, M: Model<E>> EventContext<E, M> {
             .add_source_after(name, self.current_tick(), delay, source);
     }
 
-    pub fn add_source_at_now<S>(&mut self, name: &'static str, source: S)
+    pub fn cancel_scheduled_sources<S, F>(
+        &mut self,
+        model: &M,
+        pred: F,
+    ) -> Vec<(SimTime, SourceReadyEntry)>
     where
         S: Source<E, M> + 'static,
+        F: FnMut(SimTime, &SourceReadyEntry) -> bool,
     {
-        self.source_handler
-            .add_source_at_now(name, self.current_tick(), source);
-    }
+        let mut result = Vec::new();
+        let now = self.current_tick();
+        let micro_step = self.current_micro_step();
+        let canceled = self.source_handler.drain_cancel_scheduled(pred);
+        canceled.into_iter().for_each(|(scheduled_at, entry)| {
+            self.hook().cancel_source(
+                model,
+                now,
+                micro_step,
+                scheduled_at,
+                &SourceView::new(entry.source_id(), entry.clone_name_arc()),
+            );
+            result.push((scheduled_at, entry));
+        });
 
-    pub fn schedule_event(&mut self, delay: Duration, priority: EventPriority, event_payload: E) {
-        self.event_scheduler
-            .schedule(self.current_tick(), delay, priority, event_payload);
+        result
     }
 
     pub fn cancel_scheduled_events<F>(&mut self, model: &M, pred: F) -> Vec<(SimTime, Event<E>)>
@@ -59,7 +78,7 @@ impl<E, M: Model<E>> EventContext<E, M> {
         let mut result = Vec::new();
         let now = self.current_tick();
         let micro_step = self.current_micro_step();
-        let canceled = self.event_scheduler.drain_pending_to_cancel(pred);
+        let canceled = self.event_scheduler.drain_cancel_scheduled(pred);
         canceled.into_iter().for_each(|(scheduled_at, event)| {
             self.hook()
                 .cancel_event(model, now, micro_step, scheduled_at, &event);

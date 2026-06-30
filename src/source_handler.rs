@@ -41,6 +41,13 @@ impl<E, M: Model<E>> SourceHandler<E, M> {
         }
     }
 
+    fn to_ready_entry(&self, scheduled: ScheduledSource) -> SourceReadyEntry {
+        SourceReadyEntry::new(
+            scheduled.source_id,
+            Arc::clone(&self.source_registry[scheduled.source_id.value()].name),
+        )
+    }
+
     pub(crate) fn initialize_sources<F>(&mut self, mut initializer: F)
     where
         F: FnMut(&mut SourceEntry<E, M>),
@@ -89,23 +96,6 @@ impl<E, M: Model<E>> SourceHandler<E, M> {
         self.next_source_id += 1;
     }
 
-    /// [Source]を現在時刻の次のマイクロステップで実行するように登録する。
-    /// 使用用途は、シミュレーション中での使用。
-    pub fn add_source_at_now<S>(&mut self, name: &'static str, current_tick: SimTime, source: S)
-    where
-        S: Source<E, M> + 'static,
-    {
-        self.source_registry.push(SourceEntry {
-            name: Arc::from(name),
-            source: Box::new(source),
-        });
-        self.pending_queue.push(Reverse(ScheduledSource {
-            scheduled_at: current_tick,
-            source_id: SourceId::new(self.next_source_id),
-        }));
-        self.next_source_id += 1;
-    }
-
     /// now時点で発火しているべきソースをpopしてVecに詰めて返す。
     ///
     /// 実行時に[Duration::zero()]でイベントをスケジュールした場合に、同一時間内でも再度とれる。
@@ -126,13 +116,68 @@ impl<E, M: Model<E>> SourceHandler<E, M> {
 
             // 各Sourceで処理されてnowの次のマイクロステップに登録されても処理されないように、先に集めておく。
             let scheduled = self.ready_queue.pop().unwrap().0;
-            fired_source_indexes.push_back(SourceReadyEntry::new(
-                scheduled.source_id,
-                Arc::clone(&self.source_registry[scheduled.source_id.value()].name),
-            ));
+            fired_source_indexes.push_back(self.to_ready_entry(scheduled));
         }
 
         fired_source_indexes
+    }
+
+    pub(crate) fn drain_cancel_scheduled<F>(
+        &mut self,
+        mut pred: F,
+    ) -> Vec<(SimTime, SourceReadyEntry)>
+    where
+        F: FnMut(SimTime, &SourceReadyEntry) -> bool,
+    {
+        let mut cancelled = Vec::new();
+
+        // 対象がある場合だけ対応する
+        if self.pending_queue.iter().any(|Reverse(scheduled)| {
+            pred(scheduled.scheduled_at, &self.to_ready_entry(*scheduled))
+        }) {
+            // ヒープを分解して Vec として取り出す
+            let items = std::mem::take(&mut self.pending_queue).into_vec();
+            let mut to_keep = Vec::with_capacity(items.len());
+
+            // 振り分け
+            for Reverse(scheduled) in items {
+                if pred(scheduled.scheduled_at, &self.to_ready_entry(scheduled)) {
+                    cancelled.push(scheduled);
+                } else {
+                    to_keep.push(Reverse(scheduled));
+                }
+            }
+
+            // 残った要素でヒープを再構築
+            self.pending_queue = BinaryHeap::from(to_keep);
+        }
+
+        if self.ready_queue.iter().any(|Reverse(scheduled)| {
+            pred(scheduled.scheduled_at, &self.to_ready_entry(*scheduled))
+        }) {
+            // ヒープを分解して Vec として取り出す
+            let items = std::mem::take(&mut self.ready_queue).into_vec();
+            let mut to_keep = Vec::with_capacity(items.len());
+
+            // 振り分け
+            for Reverse(scheduled) in items {
+                if pred(scheduled.scheduled_at, &self.to_ready_entry(scheduled)) {
+                    cancelled.push(scheduled);
+                } else {
+                    to_keep.push(Reverse(scheduled));
+                }
+            }
+
+            // 残った要素でヒープを再構築
+            self.ready_queue = BinaryHeap::from(to_keep);
+        }
+
+        // 扱いやすいように発火順にしておく
+        cancelled.sort();
+        cancelled
+            .into_iter()
+            .map(|scheduled| (scheduled.scheduled_at, self.to_ready_entry(scheduled)))
+            .collect()
     }
 
     pub(crate) fn get_by_source_id(&mut self, source_id: SourceId) -> &mut SourceEntry<E, M> {

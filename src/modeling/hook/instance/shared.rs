@@ -128,6 +128,23 @@ where
         )
     }
 
+    fn cancel_source(
+        &self,
+        model: &M,
+        current_tick: SimTime,
+        current_micro_step: MicroStep,
+        scheduled_at: SimTime,
+        source_view: &SourceView,
+    ) {
+        self.inner.as_ref().cancel_source(
+            model,
+            current_tick,
+            current_micro_step,
+            scheduled_at,
+            source_view,
+        )
+    }
+
     fn discard_source(
         &self,
         model: &M,

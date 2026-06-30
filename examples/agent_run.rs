@@ -1,4 +1,4 @@
-use des_sim::context::{EventContext, SourceContext};
+use des_sim::context::{EventContext, SourceContext, UserContext};
 use des_sim::execution::Engine;
 use des_sim::execution::runner::Runner;
 use des_sim::execution::runner::instance::StandardRunner;
@@ -547,6 +547,16 @@ impl Hook<MyEvent, TrafficModel> for LaneStateCollector {
     ) {
     }
 
+    fn cancel_source(
+        &self,
+        _model: &TrafficModel,
+        _current_tick: SimTime,
+        _current_micro_step: MicroStep,
+        _scheduled_at: SimTime,
+        _source_view: &SourceView,
+    ) {
+    }
+
     fn discard_source(
         &self,
         _model: &TrafficModel,
@@ -672,7 +682,7 @@ fn main() {
         .add_hook(TraceHook)
         .add_shared_hook(lane_state_collector.clone())
         // 0 tick 時点：信号はGreen。TOGGLE_TICK_INTERVAL tick 目にRedになるようにセット
-        .add_source(
+        .add_source_at(
             "toggle signal",
             SimTime::new(TOGGLE_TICK_INTERVAL),
             ToggleSignalSource,
