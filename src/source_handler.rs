@@ -206,6 +206,12 @@ impl<E, M: Model<E>> SourceHandler<E, M> {
         self.ready_queue.peek().map(|i| (i.0.scheduled_at, &i.0))
     }
 
+    #[cfg(test)]
+    #[allow(dead_code)]
+    pub(crate) fn ready_queue_len(&self) -> usize {
+        self.ready_queue.len()
+    }
+
     /// スケジュールされたSourceを反映させる
     pub fn flush_pending(&mut self) {
         self.ready_queue.append(&mut self.pending_queue)
@@ -330,7 +336,7 @@ mod tests {
         let source = TestSource { id: 1 };
         let current_tick = SimTime::from(100);
 
-        handler.add_source_at_now("source_at_now", current_tick, source);
+        handler.add_source("source_at_now", current_tick, source);
 
         assert_eq!(handler.source_registry.len(), 1);
         assert_eq!(handler.next_source_id, 1);
@@ -539,5 +545,254 @@ mod tests {
             counter += 1;
         });
         assert_eq!(counter, 2);
+    }
+
+    #[test]
+    fn cancel_single_source_from_pending_queue() {
+        let mut handler: SourceHandler<TestEvent, TestModel> = SourceHandler::new();
+        let now = SimTime::new(0);
+
+        handler.add_source(
+            "source_to_cancel",
+            now + Duration::ticks(10),
+            TestSource { id: 0 },
+        );
+        handler.add_source(
+            "source_to_keep_1",
+            now + Duration::ticks(20),
+            TestSource { id: 1 },
+        );
+        handler.add_source(
+            "source_to_keep_2",
+            now + Duration::ticks(30),
+            TestSource { id: 2 },
+        );
+
+        let cancelled_sources =
+            handler.drain_cancel_scheduled(|_, entry| entry.name() == "source_to_cancel");
+
+        assert_eq!(cancelled_sources.len(), 1);
+        assert_eq!(cancelled_sources[0].1.name(), "source_to_cancel");
+
+        // Verify remaining sources in pending queue
+        handler.flush_pending();
+        let ready_at_20 = handler.drain_ready(now + Duration::ticks(20));
+        assert_eq!(ready_at_20.len(), 1);
+        assert_eq!(ready_at_20[0].name(), "source_to_keep_1");
+
+        let ready_at_30 = handler.drain_ready(now + Duration::ticks(30));
+        assert_eq!(ready_at_30.len(), 1);
+        assert_eq!(ready_at_30[0].name(), "source_to_keep_2");
+    }
+
+    #[test]
+    fn cancel_single_source_from_ready_queue() {
+        let mut handler: SourceHandler<TestEvent, TestModel> = SourceHandler::new();
+        let now = SimTime::new(0);
+
+        handler.add_source(
+            "source_to_keep_1",
+            now + Duration::ticks(10),
+            TestSource { id: 0 },
+        );
+        handler.add_source(
+            "source_to_cancel",
+            now + Duration::ticks(20),
+            TestSource { id: 1 },
+        );
+        handler.add_source(
+            "source_to_keep_2",
+            now + Duration::ticks(30),
+            TestSource { id: 2 },
+        );
+        handler.flush_pending();
+
+        let cancelled_sources =
+            handler.drain_cancel_scheduled(|_, entry| entry.name() == "source_to_cancel");
+
+        assert_eq!(cancelled_sources.len(), 1);
+        assert_eq!(cancelled_sources[0].1.name(), "source_to_cancel");
+
+        // Verify remaining sources in ready queue
+        let ready_at_10 = handler.drain_ready(now + Duration::ticks(10));
+        assert_eq!(ready_at_10.len(), 1);
+        assert_eq!(ready_at_10[0].name(), "source_to_keep_1");
+
+        let ready_at_30 = handler.drain_ready(now + Duration::ticks(30));
+        assert_eq!(ready_at_30.len(), 1);
+        assert_eq!(ready_at_30[0].name(), "source_to_keep_2");
+    }
+
+    #[test]
+    fn cancel_multiple_sources() {
+        let mut handler: SourceHandler<TestEvent, TestModel> = SourceHandler::new();
+        let now = SimTime::new(0);
+
+        handler.add_source(
+            "cancel_me_1",
+            now + Duration::ticks(10),
+            TestSource { id: 0 },
+        );
+        handler.add_source("keep_me", now + Duration::ticks(20), TestSource { id: 1 });
+        handler.add_source(
+            "cancel_me_2",
+            now + Duration::ticks(30),
+            TestSource { id: 2 },
+        );
+        handler.add_source(
+            "cancel_me_3",
+            now + Duration::ticks(40),
+            TestSource { id: 3 },
+        );
+        handler.flush_pending();
+
+        let cancelled_sources =
+            handler.drain_cancel_scheduled(|_, entry| entry.name().contains("cancel_me"));
+
+        assert_eq!(cancelled_sources.len(), 3);
+        let names: Vec<_> = cancelled_sources
+            .into_iter()
+            .map(|(_, entry)| entry.name().to_string())
+            .collect();
+        assert!(names.contains(&"cancel_me_1".to_string()));
+        assert!(names.contains(&"cancel_me_2".to_string()));
+        assert!(names.contains(&"cancel_me_3".to_string()));
+
+        let ready_at_20 = handler.drain_ready(now + Duration::ticks(20));
+        assert_eq!(ready_at_20.len(), 1);
+        assert_eq!(ready_at_20[0].name(), "keep_me");
+    }
+
+    #[test]
+    fn cancel_no_sources() {
+        let mut handler: SourceHandler<TestEvent, TestModel> = SourceHandler::new();
+        let now = SimTime::new(0);
+
+        handler.add_source("source_1", now + Duration::ticks(10), TestSource { id: 0 });
+        handler.add_source("source_2", now + Duration::ticks(20), TestSource { id: 1 });
+        handler.flush_pending();
+
+        let cancelled_sources =
+            handler.drain_cancel_scheduled(|_, entry| entry.name() == "non_existent_source");
+
+        assert!(cancelled_sources.is_empty());
+
+        // Verify all sources are still present
+        let ready_at_10 = handler.drain_ready(now + Duration::ticks(10));
+        assert_eq!(ready_at_10.len(), 1);
+        assert_eq!(ready_at_10[0].name(), "source_1");
+
+        let ready_at_20 = handler.drain_ready(now + Duration::ticks(20));
+        assert_eq!(ready_at_20.len(), 1);
+        assert_eq!(ready_at_20[0].name(), "source_2");
+    }
+
+    #[test]
+    fn cancel_all_sources() {
+        let mut handler: SourceHandler<TestEvent, TestModel> = SourceHandler::new();
+        let now = SimTime::new(0);
+
+        handler.add_source("source_1", now + Duration::ticks(10), TestSource { id: 0 });
+        handler.add_source("source_2", now + Duration::ticks(20), TestSource { id: 1 });
+        handler.flush_pending();
+
+        let cancelled_sources = handler.drain_cancel_scheduled(|_, _| true); // Cancel all
+
+        assert_eq!(cancelled_sources.len(), 2);
+        let names: Vec<_> = cancelled_sources
+            .into_iter()
+            .map(|(_, entry)| entry.name().to_string())
+            .collect();
+        assert!(names.contains(&"source_1".to_string()));
+        assert!(names.contains(&"source_2".to_string()));
+
+        // Verify no sources left
+        let ready = handler.drain_ready(now + Duration::ticks(10));
+        assert!(ready.is_empty());
+        let ready = handler.drain_ready(now + Duration::ticks(20));
+        assert!(ready.is_empty());
+    }
+
+    #[test]
+    fn cancel_source_with_mixed_queues() {
+        let mut handler: SourceHandler<TestEvent, TestModel> = SourceHandler::new();
+        let now = SimTime::new(0);
+
+        // Events in pending_queue initially
+        handler.add_source(
+            "pending_keep_1",
+            now + Duration::ticks(10),
+            TestSource { id: 0 },
+        );
+        handler.add_source(
+            "pending_cancel_1",
+            now + Duration::ticks(20),
+            TestSource { id: 1 },
+        );
+
+        handler.flush_pending(); // Move pending_keep_1 and pending_cancel_1 to ready_queue
+
+        // Events now in pending_queue
+        handler.add_source(
+            "pending_cancel_2",
+            now + Duration::ticks(15),
+            TestSource { id: 2 },
+        );
+        handler.add_source(
+            "pending_keep_2",
+            now + Duration::ticks(25),
+            TestSource { id: 3 },
+        );
+
+        let cancelled_sources =
+            handler.drain_cancel_scheduled(|_, entry| entry.name().contains("cancel"));
+
+        assert_eq!(cancelled_sources.len(), 2);
+        let names: Vec<_> = cancelled_sources
+            .into_iter()
+            .map(|(_, entry)| entry.name().to_string())
+            .collect();
+        assert!(names.contains(&"pending_cancel_1".to_string()));
+        assert!(names.contains(&"pending_cancel_2".to_string()));
+
+        // Verify remaining sources
+        handler.flush_pending(); // Flush the remaining pending sources
+
+        let ready_at_10 = handler.drain_ready(now + Duration::ticks(10));
+        assert_eq!(ready_at_10.len(), 1);
+        assert_eq!(ready_at_10[0].name(), "pending_keep_1");
+
+        let ready_at_25 = handler.drain_ready(now + Duration::ticks(25));
+        assert_eq!(ready_at_25.len(), 1);
+        assert_eq!(ready_at_25[0].name(), "pending_keep_2");
+    }
+
+    #[test]
+    fn cancel_source_by_id() {
+        let mut handler: SourceHandler<TestEvent, TestModel> = SourceHandler::new();
+        let now = SimTime::new(0);
+
+        handler.add_source("source_1", now + Duration::ticks(10), TestSource { id: 0 }); // id 0
+        handler.add_source("source_2", now + Duration::ticks(20), TestSource { id: 1 }); // id 1
+        handler.add_source("source_3", now + Duration::ticks(30), TestSource { id: 2 }); // id 2
+        handler.flush_pending();
+
+        let source_to_cancel_id = SourceId::new(1); // Cancel source_2
+
+        let cancelled_sources =
+            handler.drain_cancel_scheduled(|_, entry| entry.source_id() == source_to_cancel_id);
+
+        assert_eq!(cancelled_sources.len(), 1);
+        assert_eq!(cancelled_sources[0].1.name(), "source_2");
+        assert_eq!(cancelled_sources[0].1.source_id(), source_to_cancel_id);
+
+        // Verify remaining sources
+        let ready_at_10 = handler.drain_ready(now + Duration::ticks(10));
+        assert_eq!(ready_at_10.len(), 1);
+        assert_eq!(ready_at_10[0].name(), "source_1");
+
+        let ready_at_30 = handler.drain_ready(now + Duration::ticks(30));
+        assert_eq!(ready_at_30.len(), 1);
+        assert_eq!(ready_at_30[0].name(), "source_3");
     }
 }

@@ -167,6 +167,12 @@ impl<E> EventScheduler<E> {
             .map(|i| (i.0.scheduled_at, &i.0.event))
     }
 
+    #[cfg(test)]
+    #[allow(dead_code)]
+    pub(crate) fn ready_queue_len(&self) -> usize {
+        self.ready_queue.len()
+    }
+
     /// スケジュールされたEventを反映させる
     pub fn flush_pending(&mut self) {
         self.ready_queue.append(&mut self.pending_queue)
@@ -402,5 +408,247 @@ mod tests {
         scheduler.flush_pending();
 
         scheduler.drain_ready(SimTime::new(20));
+    }
+
+    #[test]
+    fn cancel_single_event_from_pending_queue() {
+        let mut scheduler = EventScheduler::<&'static str>::new();
+        let now = SimTime::new(0);
+        let priority = EventPriority::new(0);
+
+        scheduler.schedule(now, Duration::ticks(10), priority, "event_to_cancel");
+        scheduler.schedule(now, Duration::ticks(20), priority, "event_to_keep_1");
+        scheduler.schedule(now, Duration::ticks(30), priority, "event_to_keep_2");
+
+        let cancelled_events =
+            scheduler.drain_cancel_scheduled(|_, event| event.payload == "event_to_cancel");
+
+        assert_eq!(cancelled_events.len(), 1);
+        assert_eq!(cancelled_events[0].1.payload, "event_to_cancel");
+
+        // Verify remaining events in pending queue
+        scheduler.flush_pending();
+        let events_at_20 = scheduler.drain_ready(now + Duration::ticks(20));
+        assert_eq!(events_at_20.len(), 1);
+        assert_eq!(events_at_20[0].payload, "event_to_keep_1");
+
+        let events_at_30 = scheduler.drain_ready(now + Duration::ticks(30));
+        assert_eq!(events_at_30.len(), 1);
+        assert_eq!(events_at_30[0].payload, "event_to_keep_2");
+    }
+
+    #[test]
+    fn cancel_single_event_from_ready_queue() {
+        let mut scheduler = EventScheduler::<&'static str>::new();
+        let now = SimTime::new(0);
+        let priority = EventPriority::new(0);
+
+        scheduler.schedule(now, Duration::ticks(10), priority, "event_to_keep_1");
+        scheduler.schedule(now, Duration::ticks(20), priority, "event_to_cancel");
+        scheduler.schedule(now, Duration::ticks(30), priority, "event_to_keep_2");
+        scheduler.flush_pending();
+
+        let cancelled_events =
+            scheduler.drain_cancel_scheduled(|_, event| event.payload == "event_to_cancel");
+
+        assert_eq!(cancelled_events.len(), 1);
+        assert_eq!(cancelled_events[0].1.payload, "event_to_cancel");
+
+        // Verify remaining events in ready queue
+        let events_at_10 = scheduler.drain_ready(now + Duration::ticks(10));
+        assert_eq!(events_at_10.len(), 1);
+        assert_eq!(events_at_10[0].payload, "event_to_keep_1");
+
+        let events_at_30 = scheduler.drain_ready(now + Duration::ticks(30));
+        assert_eq!(events_at_30.len(), 1);
+        assert_eq!(events_at_30[0].payload, "event_to_keep_2");
+    }
+
+    #[test]
+    fn cancel_multiple_events() {
+        let mut scheduler = EventScheduler::<&'static str>::new();
+        let now = SimTime::new(0);
+        let priority = EventPriority::new(0);
+
+        scheduler.schedule(now, Duration::ticks(10), priority, "cancel_me_1");
+        scheduler.schedule(now, Duration::ticks(20), priority, "keep_me");
+        scheduler.schedule(now, Duration::ticks(30), priority, "cancel_me_2");
+        scheduler.schedule(now, Duration::ticks(40), priority, "cancel_me_3");
+        scheduler.flush_pending();
+
+        let cancelled_events =
+            scheduler.drain_cancel_scheduled(|_, event| event.payload.contains("cancel_me"));
+
+        assert_eq!(cancelled_events.len(), 3);
+        let payloads: Vec<_> = cancelled_events
+            .into_iter()
+            .map(|(_, event)| event.payload)
+            .collect();
+        assert!(payloads.contains(&"cancel_me_1"));
+        assert!(payloads.contains(&"cancel_me_2"));
+        assert!(payloads.contains(&"cancel_me_3"));
+
+        let events_at_20 = scheduler.drain_ready(now + Duration::ticks(20));
+        assert_eq!(events_at_20.len(), 1);
+        assert_eq!(events_at_20[0].payload, "keep_me");
+    }
+
+    #[test]
+    fn cancel_no_events() {
+        let mut scheduler = EventScheduler::<&'static str>::new();
+        let now = SimTime::new(0);
+        let priority = EventPriority::new(0);
+
+        scheduler.schedule(now, Duration::ticks(10), priority, "event_1");
+        scheduler.schedule(now, Duration::ticks(20), priority, "event_2");
+        scheduler.flush_pending();
+
+        let cancelled_events =
+            scheduler.drain_cancel_scheduled(|_, event| event.payload == "non_existent_event");
+
+        assert!(cancelled_events.is_empty());
+
+        // Verify all events are still present
+        let events_at_10 = scheduler.drain_ready(now + Duration::ticks(10));
+        assert_eq!(events_at_10.len(), 1);
+        assert_eq!(events_at_10[0].payload, "event_1");
+
+        let events_at_20 = scheduler.drain_ready(now + Duration::ticks(20));
+        assert_eq!(events_at_20.len(), 1);
+        assert_eq!(events_at_20[0].payload, "event_2");
+    }
+
+    #[test]
+    fn cancel_all_events() {
+        let mut scheduler = EventScheduler::<&'static str>::new();
+        let now = SimTime::new(0);
+        let priority = EventPriority::new(0);
+
+        scheduler.schedule(now, Duration::ticks(10), priority, "event_1");
+        scheduler.schedule(now, Duration::ticks(20), priority, "event_2");
+        scheduler.flush_pending();
+
+        let cancelled_events = scheduler.drain_cancel_scheduled(|_, _| true); // Cancel all
+
+        assert_eq!(cancelled_events.len(), 2);
+        let payloads: Vec<_> = cancelled_events
+            .into_iter()
+            .map(|(_, event)| event.payload)
+            .collect();
+        assert!(payloads.contains(&"event_1"));
+        assert!(payloads.contains(&"event_2"));
+
+        // Verify no events left
+        let events = scheduler.drain_ready(now + Duration::ticks(10));
+        assert!(events.is_empty());
+        let events = scheduler.drain_ready(now + Duration::ticks(20));
+        assert!(events.is_empty());
+    }
+
+    #[test]
+    fn cancel_event_before_flush_only_affects_pending() {
+        let mut scheduler = EventScheduler::<&'static str>::new();
+        let now = SimTime::new(0);
+        let priority = EventPriority::new(0);
+
+        scheduler.schedule(now, Duration::ticks(10), priority, "pending_cancel");
+        scheduler.schedule(now, Duration::ticks(20), priority, "pending_keep");
+        scheduler.flush_pending(); // Flush some events to ready queue
+        scheduler.schedule(now, Duration::ticks(30), priority, "ready_cancel");
+        scheduler.schedule(now, Duration::ticks(40), priority, "ready_keep");
+
+        // This flush is intentionally missing to test pending queue cancellation
+        // scheduler.flush_pending();
+
+        let cancelled_events =
+            scheduler.drain_cancel_scheduled(|_, event| event.payload.contains("cancel"));
+
+        assert_eq!(cancelled_events.len(), 2);
+        let payloads: Vec<_> = cancelled_events
+            .into_iter()
+            .map(|(_, event)| event.payload)
+            .collect();
+        assert!(payloads.contains(&"pending_cancel"));
+        assert!(payloads.contains(&"ready_cancel"));
+
+        // Verify remaining events
+        scheduler.flush_pending(); // Now flush the remaining pending events
+
+        let events_at_20 = scheduler.drain_ready(now + Duration::ticks(20));
+        assert_eq!(events_at_20.len(), 1);
+        assert_eq!(events_at_20[0].payload, "pending_keep");
+
+        let events_at_40 = scheduler.drain_ready(now + Duration::ticks(40));
+        assert_eq!(events_at_40.len(), 1);
+        assert_eq!(events_at_40[0].payload, "ready_keep");
+    }
+
+    #[test]
+    fn cancel_event_by_id() {
+        let mut scheduler = EventScheduler::<&'static str>::new();
+        let now = SimTime::new(0);
+        let priority = EventPriority::new(0);
+
+        scheduler.schedule(now, Duration::ticks(10), priority, "event_1"); // id 0
+        scheduler.schedule(now, Duration::ticks(20), priority, "event_2"); // id 1
+        scheduler.schedule(now, Duration::ticks(30), priority, "event_3"); // id 2
+        scheduler.flush_pending();
+
+        let event_to_cancel_id = EventId(1); // Cancel event_2
+
+        let cancelled_events =
+            scheduler.drain_cancel_scheduled(|_, event| event.id == event_to_cancel_id);
+
+        assert_eq!(cancelled_events.len(), 1);
+        assert_eq!(cancelled_events[0].1.payload, "event_2");
+        assert_eq!(cancelled_events[0].1.id, event_to_cancel_id);
+
+        // Verify remaining events
+        let events_at_10 = scheduler.drain_ready(now + Duration::ticks(10));
+        assert_eq!(events_at_10.len(), 1);
+        assert_eq!(events_at_10[0].payload, "event_1");
+
+        let events_at_30 = scheduler.drain_ready(now + Duration::ticks(30));
+        assert_eq!(events_at_30.len(), 1);
+        assert_eq!(events_at_30[0].payload, "event_3");
+    }
+
+    #[test]
+    fn cancel_event_with_mixed_queues() {
+        let mut scheduler = EventScheduler::<&'static str>::new();
+        let now = SimTime::new(0);
+        let priority = EventPriority::new(0);
+
+        // Events in pending_queue initially
+        scheduler.schedule(now, Duration::ticks(10), priority, "pending_keep_1");
+        scheduler.schedule(now, Duration::ticks(20), priority, "pending_cancel_1");
+
+        scheduler.flush_pending(); // Move pending_keep_1 and pending_cancel_1 to ready_queue
+
+        // Events now in pending_queue
+        scheduler.schedule(now, Duration::ticks(15), priority, "pending_cancel_2");
+        scheduler.schedule(now, Duration::ticks(25), priority, "pending_keep_2");
+
+        let cancelled_events =
+            scheduler.drain_cancel_scheduled(|_, event| event.payload.contains("cancel"));
+
+        assert_eq!(cancelled_events.len(), 2);
+        let payloads: Vec<_> = cancelled_events
+            .into_iter()
+            .map(|(_, event)| event.payload)
+            .collect();
+        assert!(payloads.contains(&"pending_cancel_1"));
+        assert!(payloads.contains(&"pending_cancel_2"));
+
+        // Verify remaining events
+        scheduler.flush_pending(); // Flush the remaining pending events
+
+        let events_at_10 = scheduler.drain_ready(now + Duration::ticks(10));
+        assert_eq!(events_at_10.len(), 1);
+        assert_eq!(events_at_10[0].payload, "pending_keep_1");
+
+        let events_at_25 = scheduler.drain_ready(now + Duration::ticks(25));
+        assert_eq!(events_at_25.len(), 1);
+        assert_eq!(events_at_25[0].payload, "pending_keep_2");
     }
 }
