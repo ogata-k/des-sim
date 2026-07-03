@@ -84,13 +84,13 @@ where
         self.debug_log_model(model, "  ");
     }
 
-    fn before_initialize_source(&self, model: &M, name: &str) {
-        debug!("> Initialize Source: {}", name);
+    fn before_register_source(&self, model: &M, name: &str) {
+        debug!("> Start Register Source: {}", name);
         self.debug_log_model(model, "");
     }
 
-    fn after_initialize_source(&self, model: &M, name: &str) {
-        debug!("< Initialize Source: {}", name);
+    fn after_register_source(&self, model: &M, name: &str) {
+        debug!("< After Register Source: {}", name);
         self.debug_log_model(model, "");
     }
 

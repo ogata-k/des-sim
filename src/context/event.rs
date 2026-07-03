@@ -36,12 +36,19 @@ impl<E, M: Model<E>> EventContext<E, M> {
         &self.hook_delegate
     }
 
-    pub fn add_source<S>(&mut self, name: &'static str, delay: Duration, source: S)
+    pub fn add_source<S>(&mut self, model: &M, name: &'static str, mut source: S)
     where
         S: Source<E, M> + 'static,
     {
-        self.source_handler
-            .add_source_after(name, self.current_tick(), delay, source);
+        self.hook().before_register_source(model, name);
+        let first_fire_delay = source.on_registered(self, model);
+        self.source_handler.add_source_after_registered_action(
+            name,
+            self.current_tick(),
+            first_fire_delay,
+            source,
+        );
+        self.hook().after_register_source(model, name);
     }
 
     pub fn cancel_scheduled_sources<S, F>(

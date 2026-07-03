@@ -49,11 +49,13 @@ impl<E, M: Model<E>> Engine<E, M> {
             self.source_handler.initialize_sources(|source| {
                 source_context
                     .hook()
-                    .before_initialize_source(model, source.name.as_ref());
-                source.source.initialize(&mut source_context, model);
+                    .before_register_source(model, source.name.as_ref());
+                let fist_fired_opt = source.source.on_registered(&mut source_context, model);
                 source_context
                     .hook()
-                    .after_initialize_source(model, source.name.as_ref());
+                    .after_register_source(model, source.name.as_ref());
+
+                fist_fired_opt
             });
             self = Engine {
                 hook_delegate: source_context.hook_delegate,
@@ -92,17 +94,12 @@ impl<E, M: Model<E>> Engine<E, M> {
         self
     }
 
-    pub fn add_source_at<S>(
-        &mut self,
-        name: &'static str,
-        first_fire_time: SimTime,
-        source: S,
-    ) -> &mut Self
+    pub fn add_source<S>(&mut self, name: &'static str, source: S) -> &mut Self
     where
         S: Source<E, M> + 'static,
     {
         self.source_handler
-            .add_source(name, first_fire_time, source);
+            .add_source_for_before_simulation(name, source);
         self
     }
 
