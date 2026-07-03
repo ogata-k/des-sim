@@ -33,7 +33,7 @@ impl<E, M: Model<E>> Hook<E, M> for InteractiveStepHook {
             "[Interactive Step Hook] Enterを押すとこのTickの処理（ソース/イベントフェーズ）を開始します... "
         );
 
-        if !cfg!(test) || cfg!(feature = "des_sim_test_mode") {
+        if cfg!(test) || cfg!(feature = "des_sim_test_mode") {
             // テスト中は待機すると止まるので待機処理をスキップする
             return;
         }
@@ -79,11 +79,11 @@ impl<E, M: Model<E>> Hook<E, M> for InteractiveStepHook {
         // none
     }
 
-    fn before_initialize_source(&self, _model: &M, _name: &str) {
+    fn before_register_source(&self, _model: &M, _name: &str) {
         // none
     }
 
-    fn after_initialize_source(&self, _model: &M, _name: &str) {
+    fn after_register_source(&self, _model: &M, _name: &str) {
         // none
     }
 

@@ -6,7 +6,7 @@ use des_sim::modeling::event::{Event, EventPriority};
 use des_sim::modeling::hook::instance::{InteractiveStepHook, ModelSummary, TraceHook};
 use des_sim::modeling::model::Model;
 use des_sim::modeling::source::Source;
-use des_sim::primitive::time::{Duration, SimTime, TickStatus};
+use des_sim::primitive::time::{Duration, TickStatus};
 use std::collections::VecDeque;
 use std::fmt;
 
@@ -87,7 +87,11 @@ pub struct JobGenerator {
 }
 
 impl Source<MyEvent, ServerModel> for JobGenerator {
-    fn initialize(&mut self, ctx: &mut SourceContext<MyEvent, ServerModel>, _model: &ServerModel) {
+    fn on_registered(
+        &mut self,
+        ctx: &mut dyn UserContext<MyEvent, ServerModel>,
+        _model: &ServerModel,
+    ) -> Option<Duration> {
         // 最初に一つイベントを登録する
         let job_id = self.next_job_id;
         self.next_job_id += 1;
@@ -97,6 +101,8 @@ impl Source<MyEvent, ServerModel> for JobGenerator {
             EventPriority::minimum(),
             MyEvent::JobArrived { job_id },
         );
+
+        Some(self.interval)
     }
 
     // ソースが発火したときの挙動
@@ -138,17 +144,15 @@ fn main() {
     engine
         .add_hook(InteractiveStepHook)
         .add_hook(TraceHook)
-        .add_source_at(
+        .add_source(
             "Job Generator x4",
-            SimTime::zero(),
             JobGenerator {
                 next_job_id: 0,
                 interval: Duration::ticks(4),
             },
         )
-        .add_source_at(
+        .add_source(
             "Job Generator x6",
-            SimTime::zero(),
             JobGenerator {
                 next_job_id: 0,
                 interval: Duration::ticks(6),
