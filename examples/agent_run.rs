@@ -138,16 +138,18 @@ impl MyEvent {
 const TOGGLE_TICK_INTERVAL: TimeTick = 15;
 pub struct ToggleSignalSource;
 impl Source<MyEvent, TrafficModel> for ToggleSignalSource {
-    fn initialize(
+    fn on_registered(
         &mut self,
-        context: &mut SourceContext<MyEvent, TrafficModel>,
+        context: &mut dyn UserContext<MyEvent, TrafficModel>,
         _model: &TrafficModel,
-    ) {
+    ) -> Option<Duration> {
         context.schedule_event(
             Duration::ticks(TOGGLE_TICK_INTERVAL),
             EventPriority::minimum(),
             MyEvent::ToggleSignal,
         );
+
+        Some(Duration::ticks(TOGGLE_TICK_INTERVAL))
     }
 
     fn fire(
@@ -516,9 +518,9 @@ impl Hook<MyEvent, TrafficModel> for LaneStateCollector {
     ) {
     }
 
-    fn before_initialize_source(&self, _model: &TrafficModel, _name: &str) {}
+    fn before_register_source(&self, _model: &TrafficModel, _name: &str) {}
 
-    fn after_initialize_source(&self, _model: &TrafficModel, _name: &str) {}
+    fn after_register_source(&self, _model: &TrafficModel, _name: &str) {}
 
     fn before_source_phase(
         &self,
@@ -682,11 +684,7 @@ fn main() {
         .add_hook(TraceHook)
         .add_shared_hook(lane_state_collector.clone())
         // 0 tick 時点：信号はGreen。TOGGLE_TICK_INTERVAL tick 目にRedになるようにセット
-        .add_source_at(
-            "toggle signal",
-            SimTime::new(TOGGLE_TICK_INTERVAL),
-            ToggleSignalSource,
-        );
+        .add_source("toggle signal", ToggleSignalSource);
 
     let mut runner = StandardRunner::new(true);
 

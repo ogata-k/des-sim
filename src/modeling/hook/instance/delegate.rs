@@ -69,12 +69,12 @@ impl<E, M: Model<E>> Hook<E, M> for HookDelegate<E, M> {
 
     // Source lifecycle
 
-    fn before_initialize_source(&self, model: &M, name: &str) {
-        self.delegate(|hook| hook.before_initialize_source(model, name))
+    fn before_register_source(&self, model: &M, name: &str) {
+        self.delegate(|hook| hook.before_register_source(model, name))
     }
 
-    fn after_initialize_source(&self, model: &M, name: &str) {
-        self.reverse_delegate(|hook| hook.after_initialize_source(model, name))
+    fn after_register_source(&self, model: &M, name: &str) {
+        self.reverse_delegate(|hook| hook.after_register_source(model, name))
     }
 
     fn before_source_phase(&self, model: &M, current_tick: SimTime, current_micro_step: MicroStep) {
