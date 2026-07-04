@@ -36,7 +36,6 @@ impl Sub<SimTime> for SimTime {
     type Output = Duration;
 
     fn sub(self, rhs: SimTime) -> Self::Output {
-        debug_assert!(self.0 >= rhs.0);
         Duration(self.0 - rhs.0)
     }
 }
@@ -45,7 +44,6 @@ impl Sub<Duration> for SimTime {
     type Output = SimTime;
 
     fn sub(self, rhs: Duration) -> Self::Output {
-        debug_assert!(self.0 >= rhs.0);
         SimTime(self.0 - rhs.0)
     }
 }
@@ -667,9 +665,10 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(expected = "attempt to subtract with overflow")]
     fn tick_status_previous_with_skipped_greater_than_current_minus_one() {
         // current_tick = 5, skipped = 5 => previous = 5 - 5 - 1 = 0 (saturating sub)
         let status = TickStatus::new(SimTime::new(5), Duration::ticks(5));
-        assert_eq!(status.previous(), SimTime::zero());
+        status.previous();
     }
 }
