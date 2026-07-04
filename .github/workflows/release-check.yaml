@@ -38,7 +38,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: cargo test --features des_sim_test_mode
+      - run: cargo test --features des_sim_test_mode --release
 
   examples:
     runs-on: ubuntu-latest
@@ -47,16 +47,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: cargo test --examples --features des_sim_test_mode
-
-  docs:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - run: cargo test --doc --features des_sim_test_mode
+      - run: cargo test --examples --features des_sim_test_mode --release
 
   audit:
     runs-on: ubuntu-latest
