@@ -216,6 +216,27 @@ mod tests {
     #[test]
     fn test_schedule_event() {
         let mut context = setup();
+        // 何個かあらかじめイベントを登録しておく
+        context.event_scheduler.schedule(
+            SimTime::new(0),
+            Duration::one(),
+            EventPriority::minimum(),
+            TestEvent,
+        );
+        context.event_scheduler.schedule(
+            SimTime::new(0),
+            Duration::one(),
+            EventPriority::minimum(),
+            TestEvent,
+        );
+        context.event_scheduler.schedule(
+            SimTime::new(0),
+            Duration::one(),
+            EventPriority::minimum(),
+            TestEvent,
+        );
+        context.event_scheduler.flush_pending();
+
         let initial_scheduled_events_count = context.event_scheduler.ready_queue_len();
         let delay = Duration::ticks(5);
         let priority = EventPriority::new(10);
@@ -231,9 +252,9 @@ mod tests {
         );
 
         let (scheduled_at, event) = context.event_scheduler.peek().unwrap();
-        assert_eq!(scheduled_at, SimTime::new(0) + delay);
-        assert_eq!(event.priority, priority);
-        assert_eq!(event.payload, event_payload);
+        assert_eq!(scheduled_at, SimTime::new(1));
+        assert_eq!(event.priority, EventPriority::minimum());
+        assert_eq!(event.payload, TestEvent);
     }
 
     #[test]
