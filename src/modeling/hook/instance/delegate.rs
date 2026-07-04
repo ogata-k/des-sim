@@ -246,3 +246,577 @@ impl<E, M: Model<E>> HookDelegate<E, M> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::context::EventContext;
+    use crate::modeling::event::EventPriority;
+    use crate::primitive::id::{EventId, SourceId};
+    use std::cell::RefCell;
+    use std::rc::Rc;
+    use std::sync::Arc;
+
+    struct MockModel;
+    impl Model<()> for MockModel {
+        fn handle_event(&mut self, _context: &mut EventContext<(), Self>, _event: &Event<()>) {
+            // none
+        }
+    }
+
+    struct MockHook {
+        call_order: Rc<RefCell<Vec<usize>>>,
+        id: usize,
+    }
+
+    impl MockHook {
+        fn new(call_order: Rc<RefCell<Vec<usize>>>, id: usize) -> Self {
+            Self { call_order, id }
+        }
+    }
+
+    impl Hook<(), MockModel> for MockHook {
+        fn before_simulation(&self, _model: &MockModel) {
+            self.call_order.borrow_mut().push(self.id);
+        }
+
+        fn after_simulation(&self, _model: &MockModel, _end_tick: SimTime) {
+            self.call_order.borrow_mut().push(self.id);
+        }
+
+        fn before_tick(
+            &self,
+            _model: &MockModel,
+            _current_tick: SimTime,
+            _skipped_duration: Duration,
+        ) {
+            self.call_order.borrow_mut().push(self.id);
+        }
+
+        fn after_tick(
+            &self,
+            _model: &MockModel,
+            _current_tick: SimTime,
+            _last_micro_step: MicroStep,
+        ) {
+            self.call_order.borrow_mut().push(self.id);
+        }
+
+        fn before_micro_step(
+            &self,
+            _model: &MockModel,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+        ) {
+            self.call_order.borrow_mut().push(self.id);
+        }
+
+        fn after_micro_step(
+            &self,
+            _model: &MockModel,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+        ) {
+            self.call_order.borrow_mut().push(self.id);
+        }
+
+        fn on_discard_remain_micro_step(
+            &self,
+            _model: &MockModel,
+            _current_tick: SimTime,
+            _first_discarded_micro_step: MicroStep,
+            _discarded_sources: &[SourceReadyEntry],
+            _discarded_events: &[Event<()>],
+        ) {
+            self.call_order.borrow_mut().push(self.id);
+        }
+
+        fn before_register_source(&self, _model: &MockModel, _name: &str) {
+            self.call_order.borrow_mut().push(self.id);
+        }
+
+        fn after_register_source(&self, _model: &MockModel, _name: &str) {
+            self.call_order.borrow_mut().push(self.id);
+        }
+
+        fn before_source_phase(
+            &self,
+            _model: &MockModel,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+        ) {
+            self.call_order.borrow_mut().push(self.id);
+        }
+
+        fn before_source(
+            &self,
+            _model: &MockModel,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+            _source_view: &SourceView,
+        ) {
+            self.call_order.borrow_mut().push(self.id);
+        }
+
+        fn after_source(
+            &self,
+            _model: &MockModel,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+            _source_view: &SourceView,
+            _computed_next_fire: Option<SimTime>,
+        ) {
+            self.call_order.borrow_mut().push(self.id);
+        }
+
+        fn cancel_source(
+            &self,
+            _model: &MockModel,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+            _scheduled_at: SimTime,
+            _source_view: &SourceView,
+        ) {
+            self.call_order.borrow_mut().push(self.id);
+        }
+
+        fn discard_source(
+            &self,
+            _model: &MockModel,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+            _source_view: &SourceView,
+        ) {
+            self.call_order.borrow_mut().push(self.id);
+        }
+
+        fn after_source_phase(
+            &self,
+            _model: &MockModel,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+        ) {
+            self.call_order.borrow_mut().push(self.id);
+        }
+
+        fn before_event_phase(
+            &self,
+            _model: &MockModel,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+        ) {
+            self.call_order.borrow_mut().push(self.id);
+        }
+
+        fn before_event(
+            &self,
+            _model: &MockModel,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+            _event: &Event<()>,
+        ) {
+            self.call_order.borrow_mut().push(self.id);
+        }
+
+        fn after_event(
+            &self,
+            _model: &MockModel,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+            _event: &Event<()>,
+        ) {
+            self.call_order.borrow_mut().push(self.id);
+        }
+
+        fn cancel_event(
+            &self,
+            _model: &MockModel,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+            _scheduled_at: SimTime,
+            _event: &Event<()>,
+        ) {
+            self.call_order.borrow_mut().push(self.id);
+        }
+
+        fn discard_event(
+            &self,
+            _model: &MockModel,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+            _event: &Event<()>,
+        ) {
+            self.call_order.borrow_mut().push(self.id);
+        }
+
+        fn after_event_phase(
+            &self,
+            _model: &MockModel,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+        ) {
+            self.call_order.borrow_mut().push(self.id);
+        }
+    }
+
+    #[test]
+    fn test_default_implementation() {
+        let delegate: HookDelegate<(), MockModel> = HookDelegate::default();
+        assert!(delegate.hooks.is_empty());
+    }
+
+    #[test]
+    fn test_add_shared_hook() {
+        let mut delegate = HookDelegate::new();
+        let call_order = Rc::new(RefCell::new(Vec::new()));
+
+        let shared_hook = SharedHook::new(MockHook::new(Rc::clone(&call_order), 1));
+        delegate.add_shared_hook(shared_hook);
+
+        let model = MockModel;
+        delegate.before_simulation(&model);
+
+        assert_eq!(*call_order.borrow(), vec![1]);
+    }
+
+    #[test]
+    fn test_before_simulation_delegate_order() {
+        let mut delegate = HookDelegate::new();
+        let call_order = Rc::new(RefCell::new(Vec::new()));
+
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 1));
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 2));
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 3));
+
+        let model = MockModel;
+        delegate.before_simulation(&model);
+
+        assert_eq!(*call_order.borrow(), vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn test_after_simulation_reverse_delegate_order() {
+        let mut delegate = HookDelegate::new();
+        let call_order = Rc::new(RefCell::new(Vec::new()));
+
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 1));
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 2));
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 3));
+
+        let model = MockModel;
+        delegate.after_simulation(&model, SimTime::new(10));
+
+        assert_eq!(*call_order.borrow(), vec![3, 2, 1]);
+    }
+
+    #[test]
+    fn test_before_tick_delegate_order() {
+        let mut delegate = HookDelegate::new();
+        let call_order = Rc::new(RefCell::new(Vec::new()));
+
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 1));
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 2));
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 3));
+
+        let model = MockModel;
+        delegate.before_tick(&model, SimTime::new(0), Duration::zero());
+
+        assert_eq!(*call_order.borrow(), vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn test_after_tick_reverse_delegate_order() {
+        let mut delegate = HookDelegate::new();
+        let call_order = Rc::new(RefCell::new(Vec::new()));
+
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 1));
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 2));
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 3));
+
+        let model = MockModel;
+        delegate.after_tick(&model, SimTime::new(10), MicroStep::zero());
+
+        assert_eq!(*call_order.borrow(), vec![3, 2, 1]);
+    }
+
+    #[test]
+    fn test_before_micro_step_delegate_order() {
+        let mut delegate = HookDelegate::new();
+        let call_order = Rc::new(RefCell::new(Vec::new()));
+
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 1));
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 2));
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 3));
+
+        let model = MockModel;
+        delegate.before_micro_step(&model, SimTime::new(0), MicroStep::zero());
+
+        assert_eq!(*call_order.borrow(), vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn test_after_micro_step_reverse_delegate_order() {
+        let mut delegate = HookDelegate::new();
+        let call_order = Rc::new(RefCell::new(Vec::new()));
+
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 1));
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 2));
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 3));
+
+        let model = MockModel;
+        delegate.after_micro_step(&model, SimTime::new(0), MicroStep::zero());
+
+        assert_eq!(*call_order.borrow(), vec![3, 2, 1]);
+    }
+
+    #[test]
+    fn test_on_discard_remain_micro_step_reverse_delegate_order() {
+        let mut delegate = HookDelegate::new();
+        let call_order = Rc::new(RefCell::new(Vec::new()));
+
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 1));
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 2));
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 3));
+
+        let model = MockModel;
+        delegate.on_discard_remain_micro_step(&model, SimTime::new(0), MicroStep::zero(), &[], &[]);
+
+        assert_eq!(*call_order.borrow(), vec![3, 2, 1]);
+    }
+
+    #[test]
+    fn test_before_register_source_delegate_order() {
+        let mut delegate = HookDelegate::new();
+        let call_order = Rc::new(RefCell::new(Vec::new()));
+
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 1));
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 2));
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 3));
+
+        let model = MockModel;
+        delegate.before_register_source(&model, "test_source");
+
+        assert_eq!(*call_order.borrow(), vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn test_after_register_source_reverse_delegate_order() {
+        let mut delegate = HookDelegate::new();
+        let call_order = Rc::new(RefCell::new(Vec::new()));
+
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 1));
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 2));
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 3));
+
+        let model = MockModel;
+        delegate.after_register_source(&model, "test_source");
+
+        assert_eq!(*call_order.borrow(), vec![3, 2, 1]);
+    }
+
+    #[test]
+    fn test_before_source_phase_delegate_order() {
+        let mut delegate = HookDelegate::new();
+        let call_order = Rc::new(RefCell::new(Vec::new()));
+
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 1));
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 2));
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 3));
+
+        let model = MockModel;
+        delegate.before_source_phase(&model, SimTime::new(0), MicroStep::zero());
+
+        assert_eq!(*call_order.borrow(), vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn test_before_source_delegate_order() {
+        let mut delegate = HookDelegate::new();
+        let call_order = Rc::new(RefCell::new(Vec::new()));
+
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 1));
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 2));
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 3));
+
+        let model = MockModel;
+        let source_view = SourceView::new(SourceId::new(0), Arc::from("test_source"));
+        delegate.before_source(&model, SimTime::new(0), MicroStep::zero(), &source_view);
+
+        assert_eq!(*call_order.borrow(), vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn test_after_source_reverse_delegate_order() {
+        let mut delegate = HookDelegate::new();
+        let call_order = Rc::new(RefCell::new(Vec::new()));
+
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 1));
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 2));
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 3));
+
+        let model = MockModel;
+        let source_view = SourceView::new(SourceId::new(0), Arc::from("test_source"));
+        delegate.after_source(
+            &model,
+            SimTime::new(0),
+            MicroStep::zero(),
+            &source_view,
+            None,
+        );
+
+        assert_eq!(*call_order.borrow(), vec![3, 2, 1]);
+    }
+
+    #[test]
+    fn test_cancel_source_delegate_order() {
+        let mut delegate = HookDelegate::new();
+        let call_order = Rc::new(RefCell::new(Vec::new()));
+
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 1));
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 2));
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 3));
+
+        let model = MockModel;
+        let source_view = SourceView::new(SourceId::new(0), Arc::from("test_source"));
+        delegate.cancel_source(
+            &model,
+            SimTime::new(0),
+            MicroStep::zero(),
+            SimTime::new(10),
+            &source_view,
+        );
+
+        assert_eq!(*call_order.borrow(), vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn test_discard_source_delegate_order() {
+        let mut delegate = HookDelegate::new();
+        let call_order = Rc::new(RefCell::new(Vec::new()));
+
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 1));
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 2));
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 3));
+
+        let model = MockModel;
+        let source_view = SourceView::new(SourceId::new(0), Arc::from("test_source"));
+        delegate.discard_source(&model, SimTime::new(0), MicroStep::zero(), &source_view);
+
+        assert_eq!(*call_order.borrow(), vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn test_after_source_phase_reverse_delegate_order() {
+        let mut delegate = HookDelegate::new();
+        let call_order = Rc::new(RefCell::new(Vec::new()));
+
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 1));
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 2));
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 3));
+
+        let model = MockModel;
+        delegate.after_source_phase(&model, SimTime::new(0), MicroStep::zero());
+
+        assert_eq!(*call_order.borrow(), vec![3, 2, 1]);
+    }
+
+    #[test]
+    fn test_before_event_phase_delegate_order() {
+        let mut delegate = HookDelegate::new();
+        let call_order = Rc::new(RefCell::new(Vec::new()));
+
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 1));
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 2));
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 3));
+
+        let model = MockModel;
+        delegate.before_event_phase(&model, SimTime::new(0), MicroStep::zero());
+
+        assert_eq!(*call_order.borrow(), vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn test_before_event_delegate_order() {
+        let mut delegate = HookDelegate::new();
+        let call_order = Rc::new(RefCell::new(Vec::new()));
+
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 1));
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 2));
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 3));
+
+        let model = MockModel;
+        let event = Event::new(EventId::new(0), EventPriority::minimum(), ());
+        delegate.before_event(&model, SimTime::new(0), MicroStep::zero(), &event);
+
+        assert_eq!(*call_order.borrow(), vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn test_after_event_reverse_delegate_order() {
+        let mut delegate = HookDelegate::new();
+        let call_order = Rc::new(RefCell::new(Vec::new()));
+
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 1));
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 2));
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 3));
+
+        let model = MockModel;
+        let event = Event::new(EventId::new(0), EventPriority::minimum(), ());
+        delegate.after_event(&model, SimTime::new(0), MicroStep::zero(), &event);
+
+        assert_eq!(*call_order.borrow(), vec![3, 2, 1]);
+    }
+
+    #[test]
+    fn test_cancel_event_delegate_order() {
+        let mut delegate = HookDelegate::new();
+        let call_order = Rc::new(RefCell::new(Vec::new()));
+
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 1));
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 2));
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 3));
+
+        let model = MockModel;
+        let event = Event::new(EventId::new(0), EventPriority::minimum(), ());
+        delegate.cancel_event(
+            &model,
+            SimTime::new(0),
+            MicroStep::zero(),
+            SimTime::new(10),
+            &event,
+        );
+
+        assert_eq!(*call_order.borrow(), vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn test_discard_event_delegate_order() {
+        let mut delegate = HookDelegate::new();
+        let call_order = Rc::new(RefCell::new(Vec::new()));
+
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 1));
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 2));
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 3));
+
+        let model = MockModel;
+        let event = Event::new(EventId::new(0), EventPriority::minimum(), ());
+        delegate.discard_event(&model, SimTime::new(0), MicroStep::zero(), &event);
+
+        assert_eq!(*call_order.borrow(), vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn test_after_event_phase_reverse_delegate_order() {
+        let mut delegate = HookDelegate::new();
+        let call_order = Rc::new(RefCell::new(Vec::new()));
+
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 1));
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 2));
+        delegate.add_hook(MockHook::new(Rc::clone(&call_order), 3));
+
+        let model = MockModel;
+        delegate.after_event_phase(&model, SimTime::new(0), MicroStep::zero());
+
+        assert_eq!(*call_order.borrow(), vec![3, 2, 1]);
+    }
+}
