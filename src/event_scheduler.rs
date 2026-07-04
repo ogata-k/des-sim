@@ -32,7 +32,7 @@ impl<E> Ord for ScheduledEvent<E> {
             // priorityは同一時間の範囲でしか効かない
             // Runner次第では同一時間内でも順番に実行されるわけではないので、priorityで指定した順に実行できるかはRunner次第
             .then_with(|| other.event.priority.cmp(&self.event.priority))
-            .then_with(|| self.event.id.cmp(&other.event.id))
+            .then_with(|| self.event.event_id.cmp(&other.event.event_id))
     }
 }
 
@@ -60,16 +60,12 @@ impl<E> EventScheduler<E> {
         event_payload: E,
     ) {
         let time = current_tick + delay;
-        let event_id = EventId(self.next_event_id);
+        let event_id = EventId::new(self.next_event_id);
         self.next_event_id += 1;
 
         self.pending_queue.push(Reverse(ScheduledEvent {
             scheduled_at: time,
-            event: Event {
-                id: event_id,
-                priority,
-                payload: event_payload,
-            },
+            event: Event::new(event_id, priority, event_payload),
         }));
     }
 
@@ -594,14 +590,14 @@ mod tests {
         scheduler.schedule(now, Duration::ticks(30), priority, "event_3"); // id 2
         scheduler.flush_pending();
 
-        let event_to_cancel_id = EventId(1); // Cancel event_2
+        let event_to_cancel_id = EventId::new(1); // Cancel event_2
 
         let cancelled_events =
-            scheduler.drain_cancel_scheduled(|_, event| event.id == event_to_cancel_id);
+            scheduler.drain_cancel_scheduled(|_, event| event.event_id == event_to_cancel_id);
 
         assert_eq!(cancelled_events.len(), 1);
         assert_eq!(cancelled_events[0].1.payload, "event_2");
-        assert_eq!(cancelled_events[0].1.id, event_to_cancel_id);
+        assert_eq!(cancelled_events[0].1.event_id, event_to_cancel_id);
 
         // Verify remaining events
         let events_at_10 = scheduler.drain_ready(now + Duration::ticks(10));
