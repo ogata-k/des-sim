@@ -34,7 +34,7 @@ impl<E, M: Model<E>> UserContext<E, M> for SourceContext<E, M> {
 }
 
 impl<E, M: Model<E>> SourceContext<E, M> {
-    pub fn hook(&self) -> &impl Hook<E, M> {
+    pub(crate) fn hook(&self) -> &impl Hook<E, M> {
         &self.hook_delegate
     }
 }

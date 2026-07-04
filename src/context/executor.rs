@@ -25,7 +25,7 @@ pub struct ExecutorContext<E, M: Model<E>> {
 }
 
 impl<E, M: Model<E>> ExecutorContext<E, M> {
-    pub fn hook(&self) -> &impl Hook<E, M> {
+    pub(crate) fn hook(&self) -> &impl Hook<E, M> {
         &self.hook_delegate
     }
 
@@ -79,7 +79,7 @@ pub struct ActiveExecutorContext<E, M: Model<E>> {
 }
 
 impl<E, M: Model<E>> ActiveExecutorContext<E, M> {
-    pub fn hook(&self) -> &impl Hook<E, M> {
+    pub(crate) fn hook(&self) -> &impl Hook<E, M> {
         &self.hook_delegate
     }
 
