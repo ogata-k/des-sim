@@ -172,8 +172,12 @@ mod tests {
     use super::*;
     use crate::context::{EventContext, SourceContext, UserContext};
     use crate::modeling::event::{Event, EventPriority};
+    use crate::modeling::hook::instance::SharedHook;
     use crate::modeling::source::Source;
     use crate::primitive::time::{Duration, MicroStep, SimTime};
+    use crate::source_handler::SourceView;
+    use std::cell::RefCell;
+    use std::rc::Rc;
 
     // Mock Event and Source for testing
     #[derive(Debug, PartialEq, Eq, Copy, Clone)]
@@ -215,17 +219,233 @@ mod tests {
         }
     }
 
+    #[derive(Default)]
+    struct MockHook {
+        before_tick_called: Rc<RefCell<Vec<(SimTime, Duration)>>>,
+        after_tick_called: Rc<RefCell<Vec<(SimTime, MicroStep)>>>,
+        before_micro_step_called: Rc<RefCell<Vec<(SimTime, MicroStep)>>>,
+        #[allow(clippy::type_complexity)]
+        on_discard_remain_micro_step_called: Rc<RefCell<Vec<(SimTime, MicroStep, usize, usize)>>>,
+        after_simulation_called: Rc<RefCell<Vec<SimTime>>>,
+    }
+
+    impl MockHook {
+        fn new() -> Self {
+            Default::default()
+        }
+    }
+
+    impl<E, M: Model<E>> Hook<E, M> for MockHook {
+        fn before_simulation(&self, _model: &M) {
+            // 呼ばれないことを確認する
+            unreachable!();
+        }
+
+        fn after_simulation(&self, _model: &M, last_tick: SimTime) {
+            self.after_simulation_called.borrow_mut().push(last_tick);
+        }
+
+        fn before_tick(&self, _model: &M, now: SimTime, skipped: Duration) {
+            self.before_tick_called.borrow_mut().push((now, skipped));
+        }
+
+        fn after_tick(&self, _model: &M, now: SimTime, micro_step: MicroStep) {
+            self.after_tick_called.borrow_mut().push((now, micro_step));
+        }
+
+        fn before_micro_step(&self, _model: &M, now: SimTime, micro_step: MicroStep) {
+            self.before_micro_step_called
+                .borrow_mut()
+                .push((now, micro_step));
+        }
+
+        fn after_micro_step(
+            &self,
+            _model: &M,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+        ) {
+            // 呼ばれないことを確認する
+            unreachable!();
+        }
+
+        fn on_discard_remain_micro_step(
+            &self,
+            _model: &M,
+            now: SimTime,
+            micro_step: MicroStep,
+            ready_sources: &[SourceReadyEntry],
+            ready_events: &[Event<E>],
+        ) {
+            self.on_discard_remain_micro_step_called.borrow_mut().push((
+                now,
+                micro_step,
+                ready_sources.len(),
+                ready_events.len(),
+            ));
+        }
+
+        fn before_register_source(&self, _model: &M, _name: &str) {
+            // 呼ばれないことを確認する
+            unreachable!();
+        }
+
+        fn after_register_source(&self, _model: &M, _name: &str) {
+            // 呼ばれないことを確認する
+            unreachable!();
+        }
+
+        fn before_source_phase(
+            &self,
+            _model: &M,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+        ) {
+            // 呼ばれないことを確認する
+            unreachable!();
+        }
+
+        fn before_source(
+            &self,
+            _model: &M,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+            _source_view: &SourceView,
+        ) {
+            // 呼ばれないことを確認する
+            unreachable!();
+        }
+
+        fn after_source(
+            &self,
+            _model: &M,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+            _source_view: &SourceView,
+            _computed_next_fire: Option<SimTime>,
+        ) {
+            // 呼ばれないことを確認する
+            unreachable!();
+        }
+
+        fn cancel_source(
+            &self,
+            _model: &M,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+            _scheduled_at: SimTime,
+            _source_view: &SourceView,
+        ) {
+            // 呼ばれないことを確認する
+            unreachable!();
+        }
+
+        fn discard_source(
+            &self,
+            _model: &M,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+            _source_view: &SourceView,
+        ) {
+            // 呼ばれないことを確認する
+            unreachable!();
+        }
+
+        fn after_source_phase(
+            &self,
+            _model: &M,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+        ) {
+            // 呼ばれないことを確認する
+            unreachable!();
+        }
+
+        fn before_event_phase(
+            &self,
+            _model: &M,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+        ) {
+            // 呼ばれないことを確認する
+            unreachable!();
+        }
+
+        fn before_event(
+            &self,
+            _model: &M,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+            _event: &Event<E>,
+        ) {
+            // 呼ばれないことを確認する
+            unreachable!();
+        }
+
+        fn after_event(
+            &self,
+            _model: &M,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+            _event: &Event<E>,
+        ) {
+            // 呼ばれないことを確認する
+            unreachable!();
+        }
+
+        fn cancel_event(
+            &self,
+            _model: &M,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+            _scheduled_at: SimTime,
+            _event: &Event<E>,
+        ) {
+            // 呼ばれないことを確認する
+            unreachable!();
+        }
+
+        fn discard_event(
+            &self,
+            _model: &M,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+            _event: &Event<E>,
+        ) {
+            // 呼ばれないことを確認する
+            unreachable!();
+        }
+
+        fn after_event_phase(
+            &self,
+            _model: &M,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+        ) {
+            // 呼ばれないことを確認する
+            unreachable!();
+        }
+    }
+
     fn create_mock_executor_context(
         current_tick: SimTime,
         next_tick_status: TickStatus,
-    ) -> ExecutorContext<TestEvent, TestModel> {
-        ExecutorContext {
+    ) -> (
+        ExecutorContext<TestEvent, TestModel>,
+        SharedHook<TestEvent, TestModel, MockHook>,
+    ) {
+        let test_hook = MockHook::new();
+        let shared_hook = SharedHook::new(test_hook);
+        let mut hook_delegate = HookDelegate::new();
+        hook_delegate.add_shared_hook(shared_hook.clone());
+        let context = ExecutorContext {
             next_tick_status,
             current_tick,
-            hook_delegate: HookDelegate::new(),
+            hook_delegate,
             source_handler: SourceHandler::new(),
             event_scheduler: EventScheduler::new(),
-        }
+        };
+        (context, shared_hook)
     }
 
     #[test]
@@ -233,7 +453,7 @@ mod tests {
         let current_tick = SimTime::new(0);
         let next_tick_status = TickStatus::new(SimTime::new(1), Duration::zero());
 
-        let context = create_mock_executor_context(current_tick, next_tick_status);
+        let (context, _) = create_mock_executor_context(current_tick, next_tick_status);
 
         let (status, tick_status) = context.peek_next_tick();
         assert_eq!(status, ExecutorStatus::NoMoreEvent);
@@ -244,7 +464,7 @@ mod tests {
     fn test_executor_context_peek_next_tick_with_event() {
         let current_tick = SimTime::new(0);
         let next_tick_status = TickStatus::new(SimTime::new(1), Duration::zero());
-        let mut context = create_mock_executor_context(current_tick, next_tick_status);
+        let (mut context, _) = create_mock_executor_context(current_tick, next_tick_status);
         context.event_scheduler.schedule(
             SimTime::new(5),
             Duration::ticks(0),
@@ -267,7 +487,7 @@ mod tests {
     fn test_executor_context_begin_tick() {
         let current_tick = SimTime::new(0);
         let next_tick_status = TickStatus::new(SimTime::new(1), Duration::zero());
-        let context = create_mock_executor_context(current_tick, next_tick_status);
+        let (context, shared_hook) = create_mock_executor_context(current_tick, next_tick_status);
 
         let model = TestModel;
         let active_context = context.begin_tick(&model);
@@ -277,13 +497,18 @@ mod tests {
             active_context.next_micro_step_status,
             MicroStepStatus::initialize()
         );
+        assert_eq!(shared_hook.get_ref().before_tick_called.borrow().len(), 1);
+        assert_eq!(
+            shared_hook.get_ref().before_tick_called.borrow()[0],
+            (SimTime::new(1), Duration::zero())
+        );
     }
 
     #[test]
     fn test_executor_context_end_simulation_as_ok() {
         let current_tick = SimTime::new(10);
         let next_tick_status = TickStatus::new(SimTime::new(11), Duration::zero());
-        let context = create_mock_executor_context(current_tick, next_tick_status);
+        let (context, shared_hook) = create_mock_executor_context(current_tick, next_tick_status);
 
         let model = TestModel;
         let result: SimulationResult<TestModel, &'static str> = context.end_simulation_as_ok(model);
@@ -291,13 +516,21 @@ mod tests {
         assert!(result.is_ok());
         let output = result.unwrap();
         assert_eq!(output.last_tick(), current_tick);
+        assert_eq!(
+            shared_hook.get_ref().after_simulation_called.borrow().len(),
+            1
+        );
+        assert_eq!(
+            shared_hook.get_ref().after_simulation_called.borrow()[0],
+            current_tick
+        );
     }
 
     #[test]
     fn test_executor_context_end_simulation_as_error() {
         let current_tick = SimTime::new(10);
         let next_tick_status = TickStatus::new(SimTime::new(11), Duration::zero());
-        let context = create_mock_executor_context(current_tick, next_tick_status);
+        let (context, shared_hook) = create_mock_executor_context(current_tick, next_tick_status);
 
         let model = TestModel;
         let error_msg = "Simulation failed";
@@ -307,27 +540,43 @@ mod tests {
         let error = result.unwrap_err();
         assert_eq!(error.last_tick(), current_tick);
         assert_eq!(error.error(), &error_msg);
+        assert_eq!(
+            shared_hook.get_ref().after_simulation_called.borrow().len(),
+            1
+        );
+        assert_eq!(
+            shared_hook.get_ref().after_simulation_called.borrow()[0],
+            current_tick
+        );
     }
 
     // ActiveExecutorContext Tests
     fn create_mock_active_executor_context(
         current_tick_status: TickStatus,
         next_micro_step_status: MicroStepStatus,
-    ) -> ActiveExecutorContext<TestEvent, TestModel> {
-        ActiveExecutorContext {
+    ) -> (
+        ActiveExecutorContext<TestEvent, TestModel>,
+        SharedHook<TestEvent, TestModel, MockHook>,
+    ) {
+        let test_hook = MockHook::new();
+        let shared_hook = SharedHook::new(test_hook);
+        let mut hook_delegate = HookDelegate::new();
+        hook_delegate.add_shared_hook(shared_hook.clone());
+        let context = ActiveExecutorContext {
             current_tick_status,
             next_micro_step_status,
-            hook_delegate: HookDelegate::new(),
+            hook_delegate,
             source_handler: SourceHandler::new(),
             event_scheduler: EventScheduler::new(),
-        }
+        };
+        (context, shared_hook)
     }
 
     #[test]
     fn test_active_executor_context_begin_micro_step() {
         let current_tick_status = TickStatus::new(SimTime::new(5), Duration::zero());
         let next_micro_step_status = MicroStepStatus::new(MicroStep::zero());
-        let context =
+        let (context, shared_hook) =
             create_mock_active_executor_context(current_tick_status, next_micro_step_status);
 
         let model = TestModel;
@@ -336,6 +585,18 @@ mod tests {
         assert_eq!(
             micro_step_handler.ref_context().current_tick_status,
             current_tick_status
+        );
+        assert_eq!(
+            shared_hook
+                .get_ref()
+                .before_micro_step_called
+                .borrow()
+                .len(),
+            1
+        );
+        assert_eq!(
+            shared_hook.get_ref().before_micro_step_called.borrow()[0],
+            (SimTime::new(5), MicroStep::zero())
         );
     }
 
@@ -347,7 +608,7 @@ mod tests {
             micro_step_ten = micro_step_ten.next();
         }
         let next_micro_step_status = MicroStepStatus::new(micro_step_ten);
-        let context =
+        let (context, shared_hook) =
             create_mock_active_executor_context(current_tick_status, next_micro_step_status);
 
         let model = TestModel;
@@ -356,6 +617,11 @@ mod tests {
         assert_eq!(next_context.current_tick, SimTime::new(5));
         assert_eq!(next_context.next_tick_status.current(), SimTime::new(6));
         assert_eq!(next_context.next_tick_status.skipped(), Duration::zero());
+        assert_eq!(shared_hook.get_ref().after_tick_called.borrow().len(), 1);
+        assert_eq!(
+            shared_hook.get_ref().after_tick_called.borrow()[0],
+            (SimTime::new(5), micro_step_ten)
+        );
     }
 
     #[test]
@@ -366,7 +632,7 @@ mod tests {
             micro_step_ten = micro_step_ten.next();
         }
         let next_micro_step_status = MicroStepStatus::new(micro_step_ten);
-        let mut context =
+        let (mut context, shared_hook) =
             create_mock_active_executor_context(current_tick_status, next_micro_step_status);
         context.source_handler.add_source_after_registered_action(
             "test source",
@@ -384,6 +650,11 @@ mod tests {
         assert_eq!(next_context.current_tick, SimTime::new(5));
         assert_eq!(next_context.next_tick_status.current(), SimTime::new(12));
         assert_eq!(next_context.next_tick_status.skipped(), Duration::ticks(6));
+        assert_eq!(shared_hook.get_ref().after_tick_called.borrow().len(), 1);
+        assert_eq!(
+            shared_hook.get_ref().after_tick_called.borrow()[0],
+            (SimTime::new(5), micro_step_ten)
+        );
     }
 
     #[test]
@@ -394,7 +665,7 @@ mod tests {
             micro_step_ten = micro_step_ten.next();
         }
         let next_micro_step_status = MicroStepStatus::new(micro_step_ten);
-        let mut context =
+        let (mut context, shared_hook) =
             create_mock_active_executor_context(current_tick_status, next_micro_step_status);
         context.event_scheduler.schedule(
             SimTime::new(5),
@@ -410,6 +681,11 @@ mod tests {
         assert_eq!(next_context.current_tick, SimTime::new(5));
         assert_eq!(next_context.next_tick_status.current(), SimTime::new(10));
         assert_eq!(next_context.next_tick_status.skipped(), Duration::ticks(4));
+        assert_eq!(shared_hook.get_ref().after_tick_called.borrow().len(), 1);
+        assert_eq!(
+            shared_hook.get_ref().after_tick_called.borrow()[0],
+            (SimTime::new(5), micro_step_ten)
+        );
     }
 
     #[test]
@@ -420,7 +696,7 @@ mod tests {
             micro_step_ten = micro_step_ten.next();
         }
         let next_micro_step_status = MicroStepStatus::new(micro_step_ten);
-        let mut context =
+        let (mut context, shared_hook) =
             create_mock_active_executor_context(current_tick_status, next_micro_step_status);
         context.source_handler.add_source_after_registered_action(
             "test source",
@@ -445,6 +721,11 @@ mod tests {
         assert_eq!(next_context.current_tick, SimTime::new(5));
         assert_eq!(next_context.next_tick_status.current(), SimTime::new(10)); // min(10, 12) = 10
         assert_eq!(next_context.next_tick_status.skipped(), Duration::ticks(4));
+        assert_eq!(shared_hook.get_ref().after_tick_called.borrow().len(), 1);
+        assert_eq!(
+            shared_hook.get_ref().after_tick_called.borrow()[0],
+            (SimTime::new(5), micro_step_ten)
+        );
     }
 
     #[test]
@@ -455,7 +736,7 @@ mod tests {
             micro_step_ten = micro_step_ten.next();
         }
         let next_micro_step_status = MicroStepStatus::new(micro_step_ten);
-        let context =
+        let (context, shared_hook) =
             create_mock_active_executor_context(current_tick_status, next_micro_step_status);
 
         let model = TestModel;
@@ -464,6 +745,11 @@ mod tests {
         assert_eq!(next_context.current_tick, SimTime::new(5));
         assert_eq!(next_context.next_tick_status.current(), SimTime::new(6));
         assert_eq!(next_context.next_tick_status.skipped(), Duration::zero());
+        assert_eq!(shared_hook.get_ref().after_tick_called.borrow().len(), 1);
+        assert_eq!(
+            shared_hook.get_ref().after_tick_called.borrow()[0],
+            (SimTime::new(5), micro_step_ten)
+        );
     }
 
     #[test]
@@ -474,7 +760,7 @@ mod tests {
             micro_step_ten = micro_step_ten.next();
         }
         let next_micro_step_status = MicroStepStatus::new(micro_step_ten);
-        let mut context =
+        let (mut context, shared_hook) =
             create_mock_active_executor_context(current_tick_status, next_micro_step_status);
         context.source_handler.add_source_after_registered_action(
             "test source",
@@ -507,5 +793,21 @@ mod tests {
         assert_eq!(discarded_events.len(), 2);
         assert_eq!(discarded_events[0].payload, TestEvent);
         assert_eq!(discarded_events[1].payload, TestEvent);
+
+        assert_eq!(
+            shared_hook
+                .get_ref()
+                .on_discard_remain_micro_step_called
+                .borrow()
+                .len(),
+            1
+        );
+        assert_eq!(
+            shared_hook
+                .get_ref()
+                .on_discard_remain_micro_step_called
+                .borrow()[0],
+            (SimTime::new(5), micro_step_ten, 1, 2)
+        );
     }
 }

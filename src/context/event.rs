@@ -100,6 +100,10 @@ impl<E, M: Model<E>> EventContext<E, M> {
 mod tests {
     use super::*;
     use crate::context::SourceContext;
+    use crate::modeling::hook::instance::SharedHook;
+    use std::cell::RefCell;
+    use std::fmt::Debug;
+    use std::rc::Rc;
 
     #[derive(Debug, Clone, PartialEq)]
     struct TestEvent;
@@ -140,32 +144,254 @@ mod tests {
         }
     }
 
-    fn setup() -> EventContext<TestEvent, TestModel> {
-        EventContext {
+    #[derive(Default)]
+    struct MockHook {
+        before_register_source_called: Rc<RefCell<Vec<String>>>,
+        after_register_source_called: Rc<RefCell<Vec<String>>>,
+        cancel_source_called: Rc<RefCell<Vec<String>>>,
+        cancel_event_called: Rc<RefCell<Vec<String>>>,
+    }
+
+    impl MockHook {
+        fn new() -> Self {
+            Default::default()
+        }
+    }
+
+    impl<E: Debug, M: Model<E>> Hook<E, M> for MockHook {
+        fn before_simulation(&self, _model: &M) {
+            // 呼ばれないことを確認する
+            unreachable!();
+        }
+
+        fn after_simulation(&self, _model: &M, _end_tick: SimTime) {
+            // 呼ばれないことを確認する
+            unreachable!();
+        }
+
+        fn before_tick(&self, _model: &M, _current_tick: SimTime, _skipped_duration: Duration) {
+            // 呼ばれないことを確認する
+            unreachable!();
+        }
+
+        fn after_tick(&self, _model: &M, _current_tick: SimTime, _last_micro_step: MicroStep) {
+            // 呼ばれないことを確認する
+            unreachable!();
+        }
+
+        fn before_micro_step(
+            &self,
+            _model: &M,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+        ) {
+            // 呼ばれないことを確認する
+            unreachable!();
+        }
+
+        fn after_micro_step(
+            &self,
+            _model: &M,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+        ) {
+            // 呼ばれないことを確認する
+            unreachable!();
+        }
+
+        fn on_discard_remain_micro_step(
+            &self,
+            _model: &M,
+            _current_tick: SimTime,
+            _first_discarded_micro_step: MicroStep,
+            _discarded_sources: &[SourceReadyEntry],
+            _discarded_events: &[Event<E>],
+        ) {
+            // 呼ばれないことを確認する
+            unreachable!();
+        }
+
+        fn before_register_source(&self, _model: &M, name: &str) {
+            self.before_register_source_called
+                .borrow_mut()
+                .push(name.to_string());
+        }
+
+        fn after_register_source(&self, _model: &M, name: &str) {
+            self.after_register_source_called
+                .borrow_mut()
+                .push(name.to_string());
+        }
+
+        fn before_source_phase(
+            &self,
+            _model: &M,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+        ) {
+            // 呼ばれないことを確認する
+            unreachable!();
+        }
+
+        fn before_source(
+            &self,
+            _model: &M,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+            _source_view: &SourceView,
+        ) {
+            // 呼ばれないことを確認する
+            unreachable!();
+        }
+
+        fn after_source(
+            &self,
+            _model: &M,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+            _source_view: &SourceView,
+            _computed_next_fire: Option<SimTime>,
+        ) {
+            // 呼ばれないことを確認する
+            unreachable!();
+        }
+
+        fn cancel_source(
+            &self,
+            _model: &M,
+            _now: SimTime,
+            _micro_step: MicroStep,
+            _scheduled_at: SimTime,
+            source_view: &SourceView,
+        ) {
+            self.cancel_source_called
+                .borrow_mut()
+                .push(source_view.name().to_string());
+        }
+
+        fn discard_source(
+            &self,
+            _model: &M,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+            _source_view: &SourceView,
+        ) {
+            // 呼ばれないことを確認する
+            unreachable!();
+        }
+
+        fn after_source_phase(
+            &self,
+            _model: &M,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+        ) {
+            // 呼ばれないことを確認する
+            unreachable!();
+        }
+
+        fn before_event_phase(
+            &self,
+            _model: &M,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+        ) {
+            // 呼ばれないことを確認する
+            unreachable!();
+        }
+
+        fn before_event(
+            &self,
+            _model: &M,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+            _event: &Event<E>,
+        ) {
+            // 呼ばれないことを確認する
+            unreachable!();
+        }
+
+        fn after_event(
+            &self,
+            _model: &M,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+            _event: &Event<E>,
+        ) {
+            // 呼ばれないことを確認する
+            unreachable!();
+        }
+
+        fn cancel_event(
+            &self,
+            _model: &M,
+            _now: SimTime,
+            _micro_step: MicroStep,
+            _scheduled_at: SimTime,
+            event: &Event<E>,
+        ) {
+            self.cancel_event_called
+                .borrow_mut()
+                .push(format!("{:?}", event.payload));
+        }
+
+        fn discard_event(
+            &self,
+            _model: &M,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+            _event: &Event<E>,
+        ) {
+            // 呼ばれないことを確認する
+            unreachable!();
+        }
+
+        fn after_event_phase(
+            &self,
+            _model: &M,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+        ) {
+            // 呼ばれないことを確認する
+            unreachable!();
+        }
+    }
+
+    fn setup() -> (
+        EventContext<TestEvent, TestModel>,
+        SharedHook<TestEvent, TestModel, MockHook>,
+    ) {
+        let test_hook = MockHook::new();
+        let shared_hook = SharedHook::new(test_hook);
+        let mut hook_delegate = HookDelegate::new();
+        hook_delegate.add_shared_hook(shared_hook.clone());
+        let context = EventContext {
             current_tick_status: TickStatus::initialize(),
             current_micro_step_status: MicroStepStatus::new(MicroStep::zero()),
-            hook_delegate: HookDelegate::new(),
+            hook_delegate,
             source_handler: SourceHandler::new(),
             event_scheduler: EventScheduler::new(),
-        }
+        };
+
+        (context, shared_hook)
     }
 
     #[test]
     fn test_current_tick() {
-        let context = setup();
+        let (context, _) = setup();
         assert_eq!(context.current_tick(), SimTime::new(0));
     }
 
     #[test]
     fn test_current_micro_step() {
-        let context = setup();
+        let (context, _) = setup();
         assert_eq!(context.current_micro_step(), MicroStep::zero());
     }
 
     #[test]
     fn test_add_source_after() {
         let model = TestModel;
-        let mut context = setup();
+        let (mut context, shared_hook) = setup();
         let initial_sources_count = context.source_handler.ready_queue_len();
         let delay = Duration::ticks(10);
         context.add_source(
@@ -186,12 +412,37 @@ mod tests {
         let (scheduled_at, scheduled_source) = context.source_handler.peek().unwrap();
         assert_eq!(scheduled_at, SimTime::new(0) + delay);
         assert_eq!(scheduled_source.source_id.value(), 0); // Assuming it's the first source added
+
+        assert_eq!(
+            shared_hook
+                .get_ref()
+                .before_register_source_called
+                .borrow()
+                .len(),
+            1
+        );
+        assert_eq!(
+            shared_hook.get_ref().before_register_source_called.borrow()[0],
+            "test_source"
+        );
+        assert_eq!(
+            shared_hook
+                .get_ref()
+                .after_register_source_called
+                .borrow()
+                .len(),
+            1
+        );
+        assert_eq!(
+            shared_hook.get_ref().after_register_source_called.borrow()[0],
+            "test_source"
+        );
     }
 
     #[test]
     fn test_add_source_at_now() {
         let model = TestModel;
-        let mut context = setup();
+        let (mut context, shared_hook) = setup();
         let initial_sources_count = context.source_handler.ready_queue_len();
         context.add_source(
             &model,
@@ -211,11 +462,36 @@ mod tests {
         let (scheduled_at, scheduled_source) = context.source_handler.peek().unwrap();
         assert_eq!(scheduled_at, SimTime::new(0));
         assert_eq!(scheduled_source.source_id.value(), 0); // Assuming it's the first source added
+
+        assert_eq!(
+            shared_hook
+                .get_ref()
+                .before_register_source_called
+                .borrow()
+                .len(),
+            1
+        );
+        assert_eq!(
+            shared_hook.get_ref().before_register_source_called.borrow()[0],
+            "test_source_now"
+        );
+        assert_eq!(
+            shared_hook
+                .get_ref()
+                .after_register_source_called
+                .borrow()
+                .len(),
+            1
+        );
+        assert_eq!(
+            shared_hook.get_ref().after_register_source_called.borrow()[0],
+            "test_source_now"
+        );
     }
 
     #[test]
     fn test_schedule_event() {
-        let mut context = setup();
+        let (mut context, _) = setup();
         // 何個かあらかじめイベントを登録しておく
         context.event_scheduler.schedule(
             SimTime::new(0),
@@ -259,7 +535,7 @@ mod tests {
 
     #[test]
     fn test_cancel_scheduled_events() {
-        let mut context = setup();
+        let (mut context, shared_hook) = setup();
         let model = TestModel;
 
         context.schedule_event(Duration::ticks(5), EventPriority::minimum(), TestEvent);
@@ -270,6 +546,15 @@ mod tests {
         let canceled_events = context.cancel_scheduled_events(&model, |_, _| true);
         assert_eq!(canceled_events.len(), 2);
         assert_eq!(context.event_scheduler.ready_queue_len(), 0);
+        assert_eq!(shared_hook.get_ref().cancel_event_called.borrow().len(), 2);
+        assert_eq!(
+            shared_hook.get_ref().cancel_event_called.borrow()[0],
+            "TestEvent"
+        );
+        assert_eq!(
+            shared_hook.get_ref().cancel_event_called.borrow()[1],
+            "TestEvent"
+        );
 
         context.schedule_event(Duration::ticks(5), EventPriority::minimum(), TestEvent);
         context.schedule_event(Duration::ticks(10), EventPriority::minimum(), TestEvent);
@@ -284,11 +569,16 @@ mod tests {
         assert_eq!(context.event_scheduler.ready_queue_len(), 1);
         let (remaining_scheduled_at, _) = context.event_scheduler.peek().unwrap();
         assert_eq!(remaining_scheduled_at, SimTime::new(10));
+        assert_eq!(shared_hook.get_ref().cancel_event_called.borrow().len(), 3);
+        assert_eq!(
+            shared_hook.get_ref().cancel_event_called.borrow()[2],
+            "TestEvent"
+        );
     }
 
     #[test]
     fn test_cancel_scheduled_sources() {
-        let mut context = setup();
+        let (mut context, shared_hook) = setup();
         let model = TestModel;
 
         context.add_source(
@@ -312,6 +602,15 @@ mod tests {
             context.cancel_scheduled_sources::<TestSource, _>(&model, |_, _| true);
         assert_eq!(canceled_sources.len(), 2);
         assert_eq!(context.source_handler.ready_queue_len(), 0);
+        assert_eq!(shared_hook.get_ref().cancel_source_called.borrow().len(), 2);
+        assert_eq!(
+            shared_hook.get_ref().cancel_source_called.borrow()[0],
+            "source1"
+        );
+        assert_eq!(
+            shared_hook.get_ref().cancel_source_called.borrow()[1],
+            "source2"
+        );
 
         context.add_source(
             &model,
@@ -339,5 +638,10 @@ mod tests {
         assert_eq!(context.source_handler.ready_queue_len(), 1);
         let (remaining_scheduled_at, _) = context.source_handler.peek().unwrap();
         assert_eq!(remaining_scheduled_at, SimTime::new(10));
+        assert_eq!(shared_hook.get_ref().cancel_source_called.borrow().len(), 3);
+        assert_eq!(
+            shared_hook.get_ref().cancel_source_called.borrow()[2],
+            "source3"
+        );
     }
 }
