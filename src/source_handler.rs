@@ -287,6 +287,7 @@ mod tests {
             _context: &mut dyn UserContext<TestEvent, TestModel>,
             _model: &TestModel,
         ) -> Option<Duration> {
+            // none
             Some(self.initial_delay)
         }
 
@@ -303,7 +304,7 @@ mod tests {
     fn test_new() {
         let handler: SourceHandler<TestEvent, TestModel> = SourceHandler::new();
         assert!(handler.source_registry.is_empty());
-        assert!(handler.ready_queue.is_empty());
+        assert_eq!(handler.next_source_id, 0);
         assert!(handler.pending_queue.is_empty());
     }
 
@@ -347,7 +348,6 @@ mod tests {
 
         let mut dummy_context = UserContextImpl;
         let dummy_model = TestModel;
-
         handler.initialize_sources(|entry| {
             entry.source.on_registered(&mut dummy_context, &dummy_model)
         });
@@ -359,6 +359,7 @@ mod tests {
             handler.pending_queue.iter().map(|s| s.0).collect();
         pending_sources.sort_by_key(|s| s.scheduled_at); // Sort for consistent assertion order
 
+        assert_eq!(pending_sources.len(), 2);
         assert_eq!(pending_sources[0].scheduled_at, SimTime::from(5));
         assert_eq!(pending_sources[0].source_id, SourceId::new(1)); // Source 's2' (index 1) has initial_delay 5
         assert_eq!(pending_sources[1].scheduled_at, SimTime::from(10));
@@ -480,8 +481,6 @@ mod tests {
         assert_eq!(scheduled.scheduled_at, current_tick + delay);
         assert_eq!(scheduled.source_id, SourceId::new(0));
     }
-
-    // The following tests are kept as they were, assuming they are correct with the SourceId changes.
 
     #[test]
     fn test_flush_pending() {
@@ -1074,6 +1073,7 @@ mod tests {
         let now = SimTime::new(0);
 
         // Events in pending_queue initially
+
         handler.add_source_for_before_simulation(
             "pending_keep_1",
             TestSource {

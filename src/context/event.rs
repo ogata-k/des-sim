@@ -32,7 +32,7 @@ impl<E, M: Model<E>> UserContext<E, M> for EventContext<E, M> {
 }
 
 impl<E, M: Model<E>> EventContext<E, M> {
-    pub fn hook(&self) -> &impl Hook<E, M> {
+    pub(crate) fn hook(&self) -> &impl Hook<E, M> {
         &self.hook_delegate
     }
 
@@ -93,5 +93,230 @@ impl<E, M: Model<E>> EventContext<E, M> {
         });
 
         result
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::context::SourceContext;
+
+    #[derive(Debug, Clone, PartialEq)]
+    struct TestEvent;
+
+    struct TestModel;
+
+    impl Model<TestEvent> for TestModel {
+        fn handle_event(
+            &mut self,
+            _event_context: &mut EventContext<TestEvent, Self>,
+            _event: &Event<TestEvent>,
+        ) {
+            // Do nothing for test
+        }
+    }
+
+    struct TestSource {
+        initial_delay: Duration,
+    }
+
+    impl Source<TestEvent, TestModel> for TestSource {
+        fn on_registered(
+            &mut self,
+            context: &mut dyn UserContext<TestEvent, TestModel>,
+            _model: &TestModel,
+        ) -> Option<Duration> {
+            context.schedule_event(Duration::ticks(5), EventPriority::minimum(), TestEvent);
+            Some(self.initial_delay)
+        }
+
+        fn fire(
+            &mut self,
+            context: &mut SourceContext<TestEvent, TestModel>,
+            _model: &TestModel,
+        ) -> Option<Duration> {
+            context.schedule_event(Duration::ticks(5), EventPriority::minimum(), TestEvent);
+            Some(Duration::ticks(5))
+        }
+    }
+
+    fn setup() -> EventContext<TestEvent, TestModel> {
+        EventContext {
+            current_tick_status: TickStatus::initialize(),
+            current_micro_step_status: MicroStepStatus::new(MicroStep::zero()),
+            hook_delegate: HookDelegate::new(),
+            source_handler: SourceHandler::new(),
+            event_scheduler: EventScheduler::new(),
+        }
+    }
+
+    #[test]
+    fn test_current_tick() {
+        let context = setup();
+        assert_eq!(context.current_tick(), SimTime::new(0));
+    }
+
+    #[test]
+    fn test_current_micro_step() {
+        let context = setup();
+        assert_eq!(context.current_micro_step(), MicroStep::zero());
+    }
+
+    #[test]
+    fn test_add_source_after() {
+        let model = TestModel;
+        let mut context = setup();
+        let initial_sources_count = context.source_handler.ready_queue_len();
+        let delay = Duration::ticks(10);
+        context.add_source(
+            &model,
+            "test_source",
+            TestSource {
+                initial_delay: delay,
+            },
+        );
+        context.source_handler.flush_pending();
+        context.event_scheduler.flush_pending(); // Ensure event scheduler is also flushed if it was used by source initialization
+
+        assert_eq!(
+            context.source_handler.ready_queue_len(),
+            initial_sources_count + 1
+        );
+
+        let (scheduled_at, scheduled_source) = context.source_handler.peek().unwrap();
+        assert_eq!(scheduled_at, SimTime::new(0) + delay);
+        assert_eq!(scheduled_source.source_id.value(), 0); // Assuming it's the first source added
+    }
+
+    #[test]
+    fn test_add_source_at_now() {
+        let model = TestModel;
+        let mut context = setup();
+        let initial_sources_count = context.source_handler.ready_queue_len();
+        context.add_source(
+            &model,
+            "test_source_now",
+            TestSource {
+                initial_delay: Duration::zero(),
+            },
+        );
+        context.source_handler.flush_pending();
+        context.event_scheduler.flush_pending(); // Ensure event scheduler is also flushed if it was used by source initialization
+
+        assert_eq!(
+            context.source_handler.ready_queue_len(),
+            initial_sources_count + 1
+        );
+
+        let (scheduled_at, scheduled_source) = context.source_handler.peek().unwrap();
+        assert_eq!(scheduled_at, SimTime::new(0));
+        assert_eq!(scheduled_source.source_id.value(), 0); // Assuming it's the first source added
+    }
+
+    #[test]
+    fn test_schedule_event() {
+        let mut context = setup();
+        let initial_scheduled_events_count = context.event_scheduler.ready_queue_len();
+        let delay = Duration::ticks(5);
+        let priority = EventPriority::new(10);
+        let event_payload = TestEvent;
+
+        context.schedule_event(delay, priority, event_payload.clone());
+        context.source_handler.flush_pending(); // Ensure source handler is also flushed
+        context.event_scheduler.flush_pending();
+
+        assert_eq!(
+            context.event_scheduler.ready_queue_len(),
+            initial_scheduled_events_count + 1
+        );
+
+        let (scheduled_at, event) = context.event_scheduler.peek().unwrap();
+        assert_eq!(scheduled_at, SimTime::new(0) + delay);
+        assert_eq!(event.priority, priority);
+        assert_eq!(event.payload, event_payload);
+    }
+
+    #[test]
+    fn test_cancel_scheduled_events() {
+        let mut context = setup();
+        let model = TestModel;
+
+        context.schedule_event(Duration::ticks(5), EventPriority::minimum(), TestEvent);
+        context.schedule_event(Duration::ticks(10), EventPriority::minimum(), TestEvent);
+        context.source_handler.flush_pending();
+        context.event_scheduler.flush_pending();
+
+        let canceled_events = context.cancel_scheduled_events(&model, |_, _| true);
+        assert_eq!(canceled_events.len(), 2);
+        assert_eq!(context.event_scheduler.ready_queue_len(), 0);
+
+        context.schedule_event(Duration::ticks(5), EventPriority::minimum(), TestEvent);
+        context.schedule_event(Duration::ticks(10), EventPriority::minimum(), TestEvent);
+
+        context.source_handler.flush_pending();
+        context.event_scheduler.flush_pending();
+
+        let canceled_events_filtered = context
+            .cancel_scheduled_events(&model, |scheduled_at, _| scheduled_at == SimTime::new(5));
+        assert_eq!(canceled_events_filtered.len(), 1);
+        assert_eq!(canceled_events_filtered[0].0, SimTime::new(5));
+        assert_eq!(context.event_scheduler.ready_queue_len(), 1);
+        let (remaining_scheduled_at, _) = context.event_scheduler.peek().unwrap();
+        assert_eq!(remaining_scheduled_at, SimTime::new(10));
+    }
+
+    #[test]
+    fn test_cancel_scheduled_sources() {
+        let mut context = setup();
+        let model = TestModel;
+
+        context.add_source(
+            &model,
+            "source1",
+            TestSource {
+                initial_delay: Duration::ticks(5),
+            },
+        );
+        context.add_source(
+            &model,
+            "source2",
+            TestSource {
+                initial_delay: Duration::ticks(10),
+            },
+        );
+        context.source_handler.flush_pending();
+        context.event_scheduler.flush_pending();
+
+        let canceled_sources =
+            context.cancel_scheduled_sources::<TestSource, _>(&model, |_, _| true);
+        assert_eq!(canceled_sources.len(), 2);
+        assert_eq!(context.source_handler.ready_queue_len(), 0);
+
+        context.add_source(
+            &model,
+            "source3",
+            TestSource {
+                initial_delay: Duration::ticks(5),
+            },
+        );
+        context.add_source(
+            &model,
+            "source4",
+            TestSource {
+                initial_delay: Duration::ticks(10),
+            },
+        );
+        context.source_handler.flush_pending();
+        context.event_scheduler.flush_pending();
+
+        let canceled_sources_filtered = context
+            .cancel_scheduled_sources::<TestSource, _>(&model, |scheduled_at, _| {
+                scheduled_at == SimTime::new(5)
+            });
+        assert_eq!(canceled_sources_filtered.len(), 1);
+        assert_eq!(canceled_sources_filtered[0].0, SimTime::new(5));
+        assert_eq!(context.source_handler.ready_queue_len(), 1);
+        let (remaining_scheduled_at, _) = context.source_handler.peek().unwrap();
+        assert_eq!(remaining_scheduled_at, SimTime::new(10));
     }
 }
