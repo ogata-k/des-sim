@@ -56,3 +56,116 @@ impl EmpiricalSampler {
         EmpiricalSampler::new(histogram.into_iter().map(|d| (d, 1)))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::modeling::sampler::instance::ExponentialSampler;
+    use crate::primitive::time::Duration;
+    use rand::SeedableRng;
+    use rand::rngs::SmallRng;
+    use std::collections::HashMap;
+
+    #[test]
+    fn test_empirical_sampler_weighted() {
+        let mut rng = SmallRng::seed_from_u64(2);
+        let d1 = Duration::ticks(10);
+        let d2 = Duration::ticks(20);
+        let d3 = Duration::ticks(30);
+
+        // Since the weights are 1, 2, 1, the total weight is 4.
+        // The CDF will be [0, 1, 3, 4].
+        // If random_range(0..4) returns:
+        // 0 => d1 (10.0)
+        // 1, 2 => d2 (20.0)
+        // 3 => d3 (30.0)
+        let mut sampler = EmpiricalSampler::new(vec![(d1, 1), (d2, 2), (d3, 1)]);
+
+        let mut results: HashMap<String, usize> = HashMap::new();
+        for _ in 0..1000 {
+            let sample = sampler.sample(&mut rng, SimTime::new(0));
+            let entry = results
+                .entry(format!("{:<.2}", sample.raw_value()))
+                .or_insert(0);
+            *entry += 1;
+        }
+
+        // Check if the distribution is roughly as expected
+        // With 1000 samples, and weights 1:2:1, we expect roughly 250:500:250
+        let count_10 = *results.get(&format!("{:<.2}", 10.0)).unwrap_or(&0);
+        let count_20 = *results.get(&format!("{:<.2}", 20.0)).unwrap_or(&0);
+        let count_30 = *results.get(&format!("{:<.2}", 30.0)).unwrap_or(&0);
+
+        // Allow for some deviation due to randomness
+        assert!(count_10 > 200 && count_10 < 300);
+        assert!(count_20 > 450 && count_20 < 550);
+        assert!(count_30 > 200 && count_30 < 300);
+    }
+
+    #[test]
+    fn test_empirical_sampler_uniform() {
+        let mut rng = SmallRng::seed_from_u64(2);
+        let d1 = Duration::ticks(10);
+        let d2 = Duration::ticks(20);
+        let d3 = Duration::ticks(30);
+
+        let mut sampler = EmpiricalSampler::new_as_uniform(vec![d1, d2, d3]);
+
+        let mut results: HashMap<String, usize> = HashMap::new();
+        for _ in 0..1000 {
+            let sample = sampler.sample(&mut rng, SimTime::new(0));
+            let entry = results
+                .entry(format!("{:<.2}", sample.raw_value()))
+                .or_insert(0);
+            *entry += 1;
+        }
+
+        // With 1000 samples and 3 choices, we expect roughly 333 for each
+        let count_10 = *results.get(&format!("{:<.2}", 10.0)).unwrap_or(&0);
+        let count_20 = *results.get(&format!("{:<.2}", 20.0)).unwrap_or(&0);
+        let count_30 = *results.get(&format!("{:<.2}", 30.0)).unwrap_or(&0);
+
+        assert!(count_10 > 280 && count_10 < 380);
+        assert!(count_20 > 280 && count_20 < 380);
+        assert!(count_30 > 280 && count_30 < 380);
+    }
+
+    #[test]
+    #[should_panic(expected = "EmpiricalSampler must have at least one sampler")]
+    fn test_empirical_sampler_empty_histogram() {
+        let _sampler = EmpiricalSampler::new(vec![]);
+    }
+
+    #[test]
+    #[should_panic(expected = "Total weight must be greater than 0")]
+    fn test_empirical_sampler_zero_total_weight() {
+        let d1 = Duration::ticks(10);
+        let _sampler = EmpiricalSampler::new(vec![(d1, 0)]);
+    }
+
+    #[test]
+    fn test_exponential_sampler() {
+        let mut rng = SmallRng::seed_from_u64(2);
+        let lambda = 0.5; // mean = 1/lambda = 2.0
+        let mut sampler = ExponentialSampler::new(lambda).unwrap();
+
+        let mut samples = Vec::new();
+        for _ in 0..10000 {
+            samples.push(sampler.sample(&mut rng, SimTime::new(0)).raw_value());
+        }
+
+        let mean: f64 = samples.iter().sum::<f64>() / samples.len() as f64;
+        let expected_mean = 1.0 / lambda;
+
+        // Check if the sampled mean is close to the expected mean
+        assert!(
+            (mean - expected_mean).abs() < 0.1,
+            "Mean: {}, Expected: {}",
+            mean,
+            expected_mean
+        );
+
+        // Check if all samples are non-negative
+        assert!(samples.iter().all(|&x| x >= 0.0));
+    }
+}
