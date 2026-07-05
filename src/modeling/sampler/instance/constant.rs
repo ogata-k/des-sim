@@ -3,7 +3,6 @@ use crate::primitive::time::SimTime;
 use rand::Rng;
 
 /// 定数値をサンプリングするサンプラー。
-/// 直接[Duration]を取得したいときは[ConstantSampler::sample_constant]を使う。
 #[derive(Debug, Clone)]
 pub struct ConstantSampler {
     value: f64,
@@ -19,6 +18,15 @@ impl DurationSampler for ConstantSampler {
 impl ConstantSampler {
     pub fn new(value: f64) -> Self {
         Self { value }
+    }
+
+    pub fn value(&self) -> f64 {
+        self.value
+    }
+
+    /// [Rng]や[SimTime]を用意するのは面倒だけど[PendingDuration]は欲しいというときは[sample()](DurationSampler::sample)の代わりにこちらを利用する。
+    pub fn constant_sample(&self) -> PendingDuration {
+        PendingDuration::new(self.value)
     }
 }
 
