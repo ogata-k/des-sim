@@ -22,7 +22,7 @@ impl Add<Duration> for PendingDuration {
     type Output = PendingDuration;
 
     fn add(self, rhs: Duration) -> Self::Output {
-        PendingDuration::new(self.0 + rhs.as_ticks() as f64)
+        PendingDuration::new(self.0 + rhs.as_time_tick() as f64)
     }
 }
 
@@ -38,7 +38,7 @@ impl Sub<Duration> for PendingDuration {
     type Output = PendingDuration;
 
     fn sub(self, rhs: Duration) -> Self::Output {
-        PendingDuration::new(self.0 - rhs.as_ticks() as f64)
+        PendingDuration::new(self.0 - rhs.as_time_tick() as f64)
     }
 }
 
@@ -57,7 +57,7 @@ impl PendingDuration {
     }
 
     pub fn from_duration(duration: Duration) -> Self {
-        Self::new(duration.as_ticks() as f64)
+        Self::new(duration.as_time_tick() as f64)
     }
 
     pub fn raw_value(&self) -> f64 {
@@ -311,7 +311,7 @@ mod tests {
     fn test_combinator_ext_boxed() {
         let mut sampler = MockSampler { value: 10.0 };
         let mut rng = SmallRng::seed_from_u64(2);
-        let current_tick = SimTime::new(0);
+        let current_tick = SimTime::from_ticks(0);
         assert_eq!(sampler.sample(&mut rng, current_tick).raw_value(), 10.0);
     }
 
@@ -320,7 +320,7 @@ mod tests {
         let sampler = MockSampler { value: 10.0 };
         let mut map_sampler = sampler.map(|_rng, _tick, v| v * 2.0);
         let mut rng = SmallRng::seed_from_u64(2);
-        let current_tick = SimTime::new(0);
+        let current_tick = SimTime::from_ticks(0);
         assert_eq!(map_sampler.sample(&mut rng, current_tick).raw_value(), 20.0);
     }
 
@@ -330,7 +330,7 @@ mod tests {
         let delay_sampler_impl = MockSampler { value: 5.0 };
         let mut delay_sampler = base_sampler.delay(delay_sampler_impl.boxed());
         let mut rng = SmallRng::seed_from_u64(2);
-        let current_tick = SimTime::new(0);
+        let current_tick = SimTime::from_ticks(0);
         assert_eq!(
             delay_sampler.sample(&mut rng, current_tick).raw_value(),
             15.0
@@ -343,7 +343,7 @@ mod tests {
         let jitter_sampler_impl = MockSampler { value: 2.0 };
         let mut jitter_sampler = base_sampler.jitter(jitter_sampler_impl.boxed());
         let mut rng = SmallRng::seed_from_u64(2);
-        let current_tick = SimTime::new(0);
+        let current_tick = SimTime::from_ticks(0);
         // Jitter adds or subtracts, so we expect a range. For a fixed mock, it will be base + jitter
         assert_eq!(
             jitter_sampler.sample(&mut rng, current_tick).raw_value(),
@@ -357,7 +357,7 @@ mod tests {
         let s2 = MockSampler { value: 5.0 };
         let mut chain_sampler = s1.chain(s2.boxed(), |_rng, _tick, v1, v2| v1 + v2 * 2.0);
         let mut rng = SmallRng::seed_from_u64(2);
-        let current_tick = SimTime::new(0);
+        let current_tick = SimTime::from_ticks(0);
         assert_eq!(
             chain_sampler.sample(&mut rng, current_tick).raw_value(),
             20.0
@@ -373,7 +373,7 @@ mod tests {
         let mut aggregate_sampler =
             s1.aggregate(others, |_rng, _tick, values| values.iter().sum::<f64>());
         let mut rng = SmallRng::seed_from_u64(2);
-        let current_tick = SimTime::new(0);
+        let current_tick = SimTime::from_ticks(0);
         assert_eq!(
             aggregate_sampler.sample(&mut rng, current_tick).raw_value(),
             17.0
@@ -385,7 +385,7 @@ mod tests {
         let sampler = MockSampler { value: 10.0 };
         let mut clamp_sampler = sampler.clamp(5.0, 8.0);
         let mut rng = SmallRng::seed_from_u64(2);
-        let current_tick = SimTime::new(0);
+        let current_tick = SimTime::from_ticks(0);
         assert_eq!(
             clamp_sampler.sample(&mut rng, current_tick).raw_value(),
             8.0
@@ -420,7 +420,7 @@ mod tests {
         let sampler = NegativeSampler;
         let mut ensure_sampler = sampler.ensure_non_negative(3, |_rng, _tick| Duration::ticks(10));
         let mut rng = SmallRng::seed_from_u64(2);
-        let current_tick = SimTime::new(0);
+        let current_tick = SimTime::from_ticks(0);
         // Should fall back to the provided duration
         assert_eq!(
             ensure_sampler.sample(&mut rng, current_tick).raw_value(),

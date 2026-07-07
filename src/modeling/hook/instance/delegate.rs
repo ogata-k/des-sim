@@ -504,7 +504,7 @@ mod tests {
         delegate.add_hook(MockHook::new(Rc::clone(&call_order), 3));
 
         let model = MockModel;
-        delegate.after_simulation(&model, SimTime::new(10));
+        delegate.after_simulation(&model, SimTime::from_ticks(10));
 
         assert_eq!(*call_order.borrow(), vec![3, 2, 1]);
     }
@@ -519,7 +519,7 @@ mod tests {
         delegate.add_hook(MockHook::new(Rc::clone(&call_order), 3));
 
         let model = MockModel;
-        delegate.before_tick(&model, SimTime::new(0), Duration::zero());
+        delegate.before_tick(&model, SimTime::from_ticks(0), Duration::zero());
 
         assert_eq!(*call_order.borrow(), vec![1, 2, 3]);
     }
@@ -534,7 +534,7 @@ mod tests {
         delegate.add_hook(MockHook::new(Rc::clone(&call_order), 3));
 
         let model = MockModel;
-        delegate.after_tick(&model, SimTime::new(10), MicroStep::zero());
+        delegate.after_tick(&model, SimTime::from_ticks(10), MicroStep::zero());
 
         assert_eq!(*call_order.borrow(), vec![3, 2, 1]);
     }
@@ -549,7 +549,7 @@ mod tests {
         delegate.add_hook(MockHook::new(Rc::clone(&call_order), 3));
 
         let model = MockModel;
-        delegate.before_micro_step(&model, SimTime::new(0), MicroStep::zero());
+        delegate.before_micro_step(&model, SimTime::from_ticks(0), MicroStep::zero());
 
         assert_eq!(*call_order.borrow(), vec![1, 2, 3]);
     }
@@ -564,7 +564,7 @@ mod tests {
         delegate.add_hook(MockHook::new(Rc::clone(&call_order), 3));
 
         let model = MockModel;
-        delegate.after_micro_step(&model, SimTime::new(0), MicroStep::zero());
+        delegate.after_micro_step(&model, SimTime::from_ticks(0), MicroStep::zero());
 
         assert_eq!(*call_order.borrow(), vec![3, 2, 1]);
     }
@@ -579,7 +579,13 @@ mod tests {
         delegate.add_hook(MockHook::new(Rc::clone(&call_order), 3));
 
         let model = MockModel;
-        delegate.on_discard_remain_micro_step(&model, SimTime::new(0), MicroStep::zero(), &[], &[]);
+        delegate.on_discard_remain_micro_step(
+            &model,
+            SimTime::from_ticks(0),
+            MicroStep::zero(),
+            &[],
+            &[],
+        );
 
         assert_eq!(*call_order.borrow(), vec![3, 2, 1]);
     }
@@ -624,7 +630,7 @@ mod tests {
         delegate.add_hook(MockHook::new(Rc::clone(&call_order), 3));
 
         let model = MockModel;
-        delegate.before_source_phase(&model, SimTime::new(0), MicroStep::zero());
+        delegate.before_source_phase(&model, SimTime::from_ticks(0), MicroStep::zero());
 
         assert_eq!(*call_order.borrow(), vec![1, 2, 3]);
     }
@@ -640,7 +646,12 @@ mod tests {
 
         let model = MockModel;
         let source_view = SourceView::new(SourceId::new(0), Arc::from("test_source"));
-        delegate.before_source(&model, SimTime::new(0), MicroStep::zero(), &source_view);
+        delegate.before_source(
+            &model,
+            SimTime::from_ticks(0),
+            MicroStep::zero(),
+            &source_view,
+        );
 
         assert_eq!(*call_order.borrow(), vec![1, 2, 3]);
     }
@@ -658,7 +669,7 @@ mod tests {
         let source_view = SourceView::new(SourceId::new(0), Arc::from("test_source"));
         delegate.after_source(
             &model,
-            SimTime::new(0),
+            SimTime::from_ticks(0),
             MicroStep::zero(),
             &source_view,
             None,
@@ -680,9 +691,9 @@ mod tests {
         let source_view = SourceView::new(SourceId::new(0), Arc::from("test_source"));
         delegate.cancel_source(
             &model,
-            SimTime::new(0),
+            SimTime::from_ticks(0),
             MicroStep::zero(),
-            SimTime::new(10),
+            SimTime::from_ticks(10),
             &source_view,
         );
 
@@ -700,7 +711,12 @@ mod tests {
 
         let model = MockModel;
         let source_view = SourceView::new(SourceId::new(0), Arc::from("test_source"));
-        delegate.discard_source(&model, SimTime::new(0), MicroStep::zero(), &source_view);
+        delegate.discard_source(
+            &model,
+            SimTime::from_ticks(0),
+            MicroStep::zero(),
+            &source_view,
+        );
 
         assert_eq!(*call_order.borrow(), vec![1, 2, 3]);
     }
@@ -715,7 +731,7 @@ mod tests {
         delegate.add_hook(MockHook::new(Rc::clone(&call_order), 3));
 
         let model = MockModel;
-        delegate.after_source_phase(&model, SimTime::new(0), MicroStep::zero());
+        delegate.after_source_phase(&model, SimTime::from_ticks(0), MicroStep::zero());
 
         assert_eq!(*call_order.borrow(), vec![3, 2, 1]);
     }
@@ -730,7 +746,7 @@ mod tests {
         delegate.add_hook(MockHook::new(Rc::clone(&call_order), 3));
 
         let model = MockModel;
-        delegate.before_event_phase(&model, SimTime::new(0), MicroStep::zero());
+        delegate.before_event_phase(&model, SimTime::from_ticks(0), MicroStep::zero());
 
         assert_eq!(*call_order.borrow(), vec![1, 2, 3]);
     }
@@ -746,7 +762,7 @@ mod tests {
 
         let model = MockModel;
         let event = Event::new(EventId::new(0), EventPriority::minimum(), ());
-        delegate.before_event(&model, SimTime::new(0), MicroStep::zero(), &event);
+        delegate.before_event(&model, SimTime::from_ticks(0), MicroStep::zero(), &event);
 
         assert_eq!(*call_order.borrow(), vec![1, 2, 3]);
     }
@@ -762,7 +778,7 @@ mod tests {
 
         let model = MockModel;
         let event = Event::new(EventId::new(0), EventPriority::minimum(), ());
-        delegate.after_event(&model, SimTime::new(0), MicroStep::zero(), &event);
+        delegate.after_event(&model, SimTime::from_ticks(0), MicroStep::zero(), &event);
 
         assert_eq!(*call_order.borrow(), vec![3, 2, 1]);
     }
@@ -780,9 +796,9 @@ mod tests {
         let event = Event::new(EventId::new(0), EventPriority::minimum(), ());
         delegate.cancel_event(
             &model,
-            SimTime::new(0),
+            SimTime::from_ticks(0),
             MicroStep::zero(),
-            SimTime::new(10),
+            SimTime::from_ticks(10),
             &event,
         );
 
@@ -800,7 +816,7 @@ mod tests {
 
         let model = MockModel;
         let event = Event::new(EventId::new(0), EventPriority::minimum(), ());
-        delegate.discard_event(&model, SimTime::new(0), MicroStep::zero(), &event);
+        delegate.discard_event(&model, SimTime::from_ticks(0), MicroStep::zero(), &event);
 
         assert_eq!(*call_order.borrow(), vec![1, 2, 3]);
     }
@@ -815,7 +831,7 @@ mod tests {
         delegate.add_hook(MockHook::new(Rc::clone(&call_order), 3));
 
         let model = MockModel;
-        delegate.after_event_phase(&model, SimTime::new(0), MicroStep::zero());
+        delegate.after_event_phase(&model, SimTime::from_ticks(0), MicroStep::zero());
 
         assert_eq!(*call_order.borrow(), vec![3, 2, 1]);
     }

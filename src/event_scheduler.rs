@@ -185,7 +185,7 @@ mod tests {
     fn collect_returns_only_matching_time() {
         let mut scheduler = EventScheduler::<&'static str>::new();
 
-        let now = SimTime::new(0);
+        let now = SimTime::from_ticks(0);
         let priority = EventPriority::new(0);
         scheduler.schedule(now, Duration::ticks(10), priority, "t10");
         scheduler.schedule(now, Duration::ticks(20), priority, "t20");
@@ -198,7 +198,7 @@ mod tests {
         assert_eq!(events[0].payload, "t10");
 
         let (time, event) = scheduler.peek().unwrap();
-        assert_eq!(time, SimTime::new(20));
+        assert_eq!(time, SimTime::from_ticks(20));
         assert_eq!(event.payload, "t20");
     }
 
@@ -206,7 +206,7 @@ mod tests {
     fn collect_orders_by_priority_when_time_is_same() {
         let mut scheduler = EventScheduler::<u8>::new();
 
-        let now = SimTime::new(0);
+        let now = SimTime::from_ticks(0);
         let duration = Duration::ticks(10);
         scheduler.schedule(now, duration, EventPriority::new(10), 10);
         scheduler.schedule(now, duration, EventPriority::new(20), 20);
@@ -224,7 +224,7 @@ mod tests {
     fn collect_before_flush() {
         let mut scheduler = EventScheduler::<u8>::new();
 
-        let now = SimTime::new(0);
+        let now = SimTime::from_ticks(0);
         let duration = Duration::ticks(10);
         scheduler.schedule(now, duration, EventPriority::new(10), 10);
         scheduler.schedule(now, duration, EventPriority::new(20), 20);
@@ -247,7 +247,7 @@ mod tests {
     fn collect_orders_by_time_then_priority() {
         let mut scheduler = EventScheduler::<u8>::new();
 
-        let now = SimTime::new(0);
+        let now = SimTime::from_ticks(0);
         let duration = Duration::ticks(10);
         scheduler.schedule(now, duration, EventPriority::new(20), 1);
         scheduler.schedule(now, duration, EventPriority::new(10), 2);
@@ -272,7 +272,7 @@ mod tests {
     fn collect_from_empty_scheduler_returns_empty_vec() {
         let mut scheduler = EventScheduler::<()>::new();
 
-        let events = scheduler.drain_ready(SimTime::new(0));
+        let events = scheduler.drain_ready(SimTime::from_ticks(0));
 
         assert!(events.is_empty());
 
@@ -283,26 +283,26 @@ mod tests {
     fn collect_returns_empty_when_no_event_matches_now() {
         let mut scheduler = EventScheduler::<u8>::new();
 
-        let now = SimTime::new(30);
+        let now = SimTime::from_ticks(30);
         let priority = EventPriority::new(0);
         scheduler.schedule(now, Duration::ticks(10), priority, 1);
         scheduler.schedule(now, Duration::ticks(30), priority, 2);
         scheduler.schedule(now, Duration::ticks(40), priority, 3);
         scheduler.flush_pending();
 
-        let events = scheduler.drain_ready(SimTime::new(30));
+        let events = scheduler.drain_ready(SimTime::from_ticks(30));
 
         assert!(events.is_empty());
 
         let time = scheduler.peek_next_time().unwrap();
-        assert_eq!(time, SimTime::new(40));
+        assert_eq!(time, SimTime::from_ticks(40));
     }
 
     #[test]
     fn collect_orders_by_event_id_when_time_and_priority_are_same() {
         let mut scheduler = EventScheduler::<u8>::new();
 
-        let now = SimTime::new(0);
+        let now = SimTime::from_ticks(0);
         let duration = Duration::ticks(10);
         let priority = EventPriority::new(10);
         scheduler.schedule(now, duration, priority, 1);
@@ -310,7 +310,7 @@ mod tests {
         scheduler.schedule(now, duration, priority, 3);
         scheduler.flush_pending();
 
-        let events = scheduler.drain_ready(SimTime::new(10));
+        let events = scheduler.drain_ready(SimTime::from_ticks(10));
 
         let payloads: Vec<_> = events.into_iter().map(|e| e.payload).collect();
 
@@ -321,14 +321,14 @@ mod tests {
     fn collect_leaves_future_events_in_queue() {
         let mut scheduler = EventScheduler::<u8>::new();
 
-        let now = SimTime::new(0);
+        let now = SimTime::from_ticks(0);
         let priority = EventPriority::new(10);
         scheduler.schedule(now, Duration::ticks(10), priority, 1);
         scheduler.schedule(now, Duration::ticks(10), priority, 1);
         scheduler.schedule(now, Duration::ticks(20), priority, 3);
         scheduler.flush_pending();
 
-        let events = scheduler.drain_ready(SimTime::new(10));
+        let events = scheduler.drain_ready(SimTime::from_ticks(10));
 
         assert_eq!(events.len(), 2);
         assert_eq!(events[0].payload, 1);
@@ -336,7 +336,7 @@ mod tests {
 
         let (time, event) = scheduler.peek().unwrap();
 
-        assert_eq!(time, SimTime::new(20));
+        assert_eq!(time, SimTime::from_ticks(20));
         assert_eq!(event.payload, 3);
     }
 
@@ -344,14 +344,14 @@ mod tests {
     fn collect_reversed_payload() {
         let mut scheduler = EventScheduler::<u8>::new();
 
-        let now = SimTime::new(0);
+        let now = SimTime::from_ticks(0);
         let priority = EventPriority::new(10);
         scheduler.schedule(now, Duration::ticks(10), priority, 2);
         scheduler.schedule(now, Duration::ticks(10), priority, 1);
         scheduler.schedule(now, Duration::ticks(20), priority, 3);
         scheduler.flush_pending();
 
-        let events = scheduler.drain_ready(SimTime::new(10));
+        let events = scheduler.drain_ready(SimTime::from_ticks(10));
 
         assert_eq!(events.len(), 2);
         assert_eq!(events[0].payload, 2);
@@ -359,7 +359,7 @@ mod tests {
 
         let (time, event) = scheduler.peek().unwrap();
 
-        assert_eq!(time, SimTime::new(20));
+        assert_eq!(time, SimTime::from_ticks(20));
         assert_eq!(event.payload, 3);
     }
 
@@ -367,20 +367,20 @@ mod tests {
     fn collect_same_payload_in_queue() {
         let mut scheduler = EventScheduler::<u8>::new();
 
-        let now = SimTime::new(0);
+        let now = SimTime::from_ticks(0);
         let priority = EventPriority::new(10);
         scheduler.schedule(now, Duration::ticks(10), priority, 1);
         scheduler.schedule(now, Duration::ticks(10), priority, 2);
         scheduler.schedule(now, Duration::ticks(20), priority, 3);
         scheduler.flush_pending();
 
-        let events = scheduler.drain_ready(SimTime::new(10));
+        let events = scheduler.drain_ready(SimTime::from_ticks(10));
 
         assert_eq!(events.len(), 2);
 
         let (time, event) = scheduler.peek().unwrap();
 
-        assert_eq!(time, SimTime::new(20));
+        assert_eq!(time, SimTime::from_ticks(20));
         assert_eq!(event.payload, 3);
     }
 
@@ -390,26 +390,26 @@ mod tests {
         let mut scheduler = EventScheduler::<u8>::new();
 
         scheduler.schedule(
-            SimTime::new(0),
+            SimTime::from_ticks(0),
             Duration::ticks(10),
             EventPriority::new(0),
             1,
         );
         scheduler.schedule(
-            SimTime::new(0),
+            SimTime::from_ticks(0),
             Duration::ticks(20),
             EventPriority::new(0),
             2,
         );
         scheduler.flush_pending();
 
-        scheduler.drain_ready(SimTime::new(20));
+        scheduler.drain_ready(SimTime::from_ticks(20));
     }
 
     #[test]
     fn cancel_single_event_from_pending_queue() {
         let mut scheduler = EventScheduler::<&'static str>::new();
-        let now = SimTime::new(0);
+        let now = SimTime::from_ticks(0);
         let priority = EventPriority::new(0);
 
         scheduler.schedule(now, Duration::ticks(10), priority, "event_to_cancel");
@@ -436,7 +436,7 @@ mod tests {
     #[test]
     fn cancel_single_event_from_ready_queue() {
         let mut scheduler = EventScheduler::<&'static str>::new();
-        let now = SimTime::new(0);
+        let now = SimTime::from_ticks(0);
         let priority = EventPriority::new(0);
 
         scheduler.schedule(now, Duration::ticks(10), priority, "event_to_keep_1");
@@ -463,7 +463,7 @@ mod tests {
     #[test]
     fn cancel_multiple_events() {
         let mut scheduler = EventScheduler::<&'static str>::new();
-        let now = SimTime::new(0);
+        let now = SimTime::from_ticks(0);
         let priority = EventPriority::new(0);
 
         scheduler.schedule(now, Duration::ticks(10), priority, "cancel_me_1");
@@ -492,7 +492,7 @@ mod tests {
     #[test]
     fn cancel_no_events() {
         let mut scheduler = EventScheduler::<&'static str>::new();
-        let now = SimTime::new(0);
+        let now = SimTime::from_ticks(0);
         let priority = EventPriority::new(0);
 
         scheduler.schedule(now, Duration::ticks(10), priority, "event_1");
@@ -517,7 +517,7 @@ mod tests {
     #[test]
     fn cancel_all_events() {
         let mut scheduler = EventScheduler::<&'static str>::new();
-        let now = SimTime::new(0);
+        let now = SimTime::from_ticks(0);
         let priority = EventPriority::new(0);
 
         scheduler.schedule(now, Duration::ticks(10), priority, "event_1");
@@ -544,7 +544,7 @@ mod tests {
     #[test]
     fn cancel_event_before_flush_only_affects_pending() {
         let mut scheduler = EventScheduler::<&'static str>::new();
-        let now = SimTime::new(0);
+        let now = SimTime::from_ticks(0);
         let priority = EventPriority::new(0);
 
         scheduler.schedule(now, Duration::ticks(10), priority, "pending_cancel");
@@ -582,7 +582,7 @@ mod tests {
     #[test]
     fn cancel_event_by_id() {
         let mut scheduler = EventScheduler::<&'static str>::new();
-        let now = SimTime::new(0);
+        let now = SimTime::from_ticks(0);
         let priority = EventPriority::new(0);
 
         scheduler.schedule(now, Duration::ticks(10), priority, "event_1"); // id 0
@@ -612,7 +612,7 @@ mod tests {
     #[test]
     fn cancel_event_with_mixed_queues() {
         let mut scheduler = EventScheduler::<&'static str>::new();
-        let now = SimTime::new(0);
+        let now = SimTime::from_ticks(0);
         let priority = EventPriority::new(0);
 
         // Events in pending_queue initially

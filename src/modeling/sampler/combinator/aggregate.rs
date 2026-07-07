@@ -85,7 +85,7 @@ mod tests {
                 samples.iter().sum()
             });
 
-        let sample = sampler.sample(&mut rng, SimTime::new(0));
+        let sample = sampler.sample(&mut rng, SimTime::from_ticks(0));
         assert_eq!(sample.raw_value(), 60.0);
     }
 
@@ -99,7 +99,7 @@ mod tests {
             .add_sampler(s2.boxed())
             .build(|_, _, samples| samples[0] * samples[1]);
 
-        let sample = sampler.sample(&mut rng, SimTime::new(0));
+        let sample = sampler.sample(&mut rng, SimTime::from_ticks(0));
         assert_eq!(sample.raw_value(), 75.0); // 5.0 * 15.0
     }
 

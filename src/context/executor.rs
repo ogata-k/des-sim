@@ -450,8 +450,8 @@ mod tests {
 
     #[test]
     fn test_executor_context_peek_next_tick_no_event() {
-        let current_tick = SimTime::new(0);
-        let next_tick_status = TickStatus::new(SimTime::new(1), Duration::zero());
+        let current_tick = SimTime::from_ticks(0);
+        let next_tick_status = TickStatus::new(SimTime::from_ticks(1), Duration::zero());
 
         let (context, _) = create_mock_executor_context(current_tick, next_tick_status);
 
@@ -462,11 +462,11 @@ mod tests {
 
     #[test]
     fn test_executor_context_peek_next_tick_with_event() {
-        let current_tick = SimTime::new(0);
-        let next_tick_status = TickStatus::new(SimTime::new(1), Duration::zero());
+        let current_tick = SimTime::from_ticks(0);
+        let next_tick_status = TickStatus::new(SimTime::from_ticks(1), Duration::zero());
         let (mut context, _) = create_mock_executor_context(current_tick, next_tick_status);
         context.event_scheduler.schedule(
-            SimTime::new(5),
+            SimTime::from_ticks(5),
             Duration::ticks(0),
             EventPriority::minimum(),
             TestEvent,
@@ -475,7 +475,7 @@ mod tests {
 
         assert_eq!(
             context.event_scheduler.peek_next_time(),
-            Some(SimTime::new(5))
+            Some(SimTime::from_ticks(5))
         );
 
         let (status, tick_status) = context.peek_next_tick();
@@ -485,8 +485,8 @@ mod tests {
 
     #[test]
     fn test_executor_context_begin_tick() {
-        let current_tick = SimTime::new(0);
-        let next_tick_status = TickStatus::new(SimTime::new(1), Duration::zero());
+        let current_tick = SimTime::from_ticks(0);
+        let next_tick_status = TickStatus::new(SimTime::from_ticks(1), Duration::zero());
         let (context, shared_hook) = create_mock_executor_context(current_tick, next_tick_status);
 
         let model = TestModel;
@@ -500,14 +500,14 @@ mod tests {
         assert_eq!(shared_hook.get_ref().before_tick_called.borrow().len(), 1);
         assert_eq!(
             shared_hook.get_ref().before_tick_called.borrow()[0],
-            (SimTime::new(1), Duration::zero())
+            (SimTime::from_ticks(1), Duration::zero())
         );
     }
 
     #[test]
     fn test_executor_context_end_simulation_as_ok() {
-        let current_tick = SimTime::new(10);
-        let next_tick_status = TickStatus::new(SimTime::new(11), Duration::zero());
+        let current_tick = SimTime::from_ticks(10);
+        let next_tick_status = TickStatus::new(SimTime::from_ticks(11), Duration::zero());
         let (context, shared_hook) = create_mock_executor_context(current_tick, next_tick_status);
 
         let model = TestModel;
@@ -528,8 +528,8 @@ mod tests {
 
     #[test]
     fn test_executor_context_end_simulation_as_error() {
-        let current_tick = SimTime::new(10);
-        let next_tick_status = TickStatus::new(SimTime::new(11), Duration::zero());
+        let current_tick = SimTime::from_ticks(10);
+        let next_tick_status = TickStatus::new(SimTime::from_ticks(11), Duration::zero());
         let (context, shared_hook) = create_mock_executor_context(current_tick, next_tick_status);
 
         let model = TestModel;
@@ -574,7 +574,7 @@ mod tests {
 
     #[test]
     fn test_active_executor_context_begin_micro_step() {
-        let current_tick_status = TickStatus::new(SimTime::new(5), Duration::zero());
+        let current_tick_status = TickStatus::new(SimTime::from_ticks(5), Duration::zero());
         let next_micro_step_status = MicroStepStatus::new(MicroStep::zero());
         let (context, shared_hook) =
             create_mock_active_executor_context(current_tick_status, next_micro_step_status);
@@ -596,13 +596,13 @@ mod tests {
         );
         assert_eq!(
             shared_hook.get_ref().before_micro_step_called.borrow()[0],
-            (SimTime::new(5), MicroStep::zero())
+            (SimTime::from_ticks(5), MicroStep::zero())
         );
     }
 
     #[test]
     fn test_active_executor_context_end_tick_with_increment_tick() {
-        let current_tick_status = TickStatus::new(SimTime::new(5), Duration::zero());
+        let current_tick_status = TickStatus::new(SimTime::from_ticks(5), Duration::zero());
         let mut micro_step_ten = MicroStep::zero();
         for _ in 0..10 {
             micro_step_ten = micro_step_ten.next();
@@ -614,19 +614,22 @@ mod tests {
         let model = TestModel;
         let next_context = context.end_tick_with_increment_tick(&model);
 
-        assert_eq!(next_context.current_tick, SimTime::new(5));
-        assert_eq!(next_context.next_tick_status.current(), SimTime::new(6));
+        assert_eq!(next_context.current_tick, SimTime::from_ticks(5));
+        assert_eq!(
+            next_context.next_tick_status.current(),
+            SimTime::from_ticks(6)
+        );
         assert_eq!(next_context.next_tick_status.skipped(), Duration::zero());
         assert_eq!(shared_hook.get_ref().after_tick_called.borrow().len(), 1);
         assert_eq!(
             shared_hook.get_ref().after_tick_called.borrow()[0],
-            (SimTime::new(5), micro_step_ten)
+            (SimTime::from_ticks(5), micro_step_ten)
         );
     }
 
     #[test]
     fn test_active_executor_context_end_tick_with_jump_to_next_tick_only_source() {
-        let current_tick_status = TickStatus::new(SimTime::new(5), Duration::zero());
+        let current_tick_status = TickStatus::new(SimTime::from_ticks(5), Duration::zero());
         let mut micro_step_ten = MicroStep::zero();
         for _ in 0..10 {
             micro_step_ten = micro_step_ten.next();
@@ -647,19 +650,22 @@ mod tests {
         let model = TestModel;
         let next_context = context.end_tick_with_jump_to_next_tick(&model);
 
-        assert_eq!(next_context.current_tick, SimTime::new(5));
-        assert_eq!(next_context.next_tick_status.current(), SimTime::new(12));
+        assert_eq!(next_context.current_tick, SimTime::from_ticks(5));
+        assert_eq!(
+            next_context.next_tick_status.current(),
+            SimTime::from_ticks(12)
+        );
         assert_eq!(next_context.next_tick_status.skipped(), Duration::ticks(6));
         assert_eq!(shared_hook.get_ref().after_tick_called.borrow().len(), 1);
         assert_eq!(
             shared_hook.get_ref().after_tick_called.borrow()[0],
-            (SimTime::new(5), micro_step_ten)
+            (SimTime::from_ticks(5), micro_step_ten)
         );
     }
 
     #[test]
     fn test_active_executor_context_end_tick_with_jump_to_next_tick_only_event() {
-        let current_tick_status = TickStatus::new(SimTime::new(5), Duration::zero());
+        let current_tick_status = TickStatus::new(SimTime::from_ticks(5), Duration::zero());
         let mut micro_step_ten = MicroStep::zero();
         for _ in 0..10 {
             micro_step_ten = micro_step_ten.next();
@@ -668,7 +674,7 @@ mod tests {
         let (mut context, shared_hook) =
             create_mock_active_executor_context(current_tick_status, next_micro_step_status);
         context.event_scheduler.schedule(
-            SimTime::new(5),
+            SimTime::from_ticks(5),
             Duration::ticks(5),
             EventPriority::minimum(),
             TestEvent,
@@ -678,19 +684,22 @@ mod tests {
         let model = TestModel;
         let next_context = context.end_tick_with_jump_to_next_tick(&model);
 
-        assert_eq!(next_context.current_tick, SimTime::new(5));
-        assert_eq!(next_context.next_tick_status.current(), SimTime::new(10));
+        assert_eq!(next_context.current_tick, SimTime::from_ticks(5));
+        assert_eq!(
+            next_context.next_tick_status.current(),
+            SimTime::from_ticks(10)
+        );
         assert_eq!(next_context.next_tick_status.skipped(), Duration::ticks(4));
         assert_eq!(shared_hook.get_ref().after_tick_called.borrow().len(), 1);
         assert_eq!(
             shared_hook.get_ref().after_tick_called.borrow()[0],
-            (SimTime::new(5), micro_step_ten)
+            (SimTime::from_ticks(5), micro_step_ten)
         );
     }
 
     #[test]
     fn test_active_executor_context_end_tick_with_jump_to_next_tick_both_event_and_source() {
-        let current_tick_status = TickStatus::new(SimTime::new(5), Duration::zero());
+        let current_tick_status = TickStatus::new(SimTime::from_ticks(5), Duration::zero());
         let mut micro_step_ten = MicroStep::zero();
         for _ in 0..10 {
             micro_step_ten = micro_step_ten.next();
@@ -707,7 +716,7 @@ mod tests {
             },
         );
         context.event_scheduler.schedule(
-            SimTime::new(5),
+            SimTime::from_ticks(5),
             Duration::ticks(5),
             EventPriority::minimum(),
             TestEvent,
@@ -718,19 +727,22 @@ mod tests {
         let model = TestModel;
         let next_context = context.end_tick_with_jump_to_next_tick(&model);
 
-        assert_eq!(next_context.current_tick, SimTime::new(5));
-        assert_eq!(next_context.next_tick_status.current(), SimTime::new(10)); // min(10, 12) = 10
+        assert_eq!(next_context.current_tick, SimTime::from_ticks(5));
+        assert_eq!(
+            next_context.next_tick_status.current(),
+            SimTime::from_ticks(10)
+        ); // min(10, 12) = 10
         assert_eq!(next_context.next_tick_status.skipped(), Duration::ticks(4));
         assert_eq!(shared_hook.get_ref().after_tick_called.borrow().len(), 1);
         assert_eq!(
             shared_hook.get_ref().after_tick_called.borrow()[0],
-            (SimTime::new(5), micro_step_ten)
+            (SimTime::from_ticks(5), micro_step_ten)
         );
     }
 
     #[test]
     fn test_active_executor_context_end_tick_with_jump_to_next_tick_no_next() {
-        let current_tick_status = TickStatus::new(SimTime::new(5), Duration::zero());
+        let current_tick_status = TickStatus::new(SimTime::from_ticks(5), Duration::zero());
         let mut micro_step_ten = MicroStep::zero();
         for _ in 0..10 {
             micro_step_ten = micro_step_ten.next();
@@ -742,19 +754,22 @@ mod tests {
         let model = TestModel;
         let next_context = context.end_tick_with_jump_to_next_tick(&model);
 
-        assert_eq!(next_context.current_tick, SimTime::new(5));
-        assert_eq!(next_context.next_tick_status.current(), SimTime::new(6));
+        assert_eq!(next_context.current_tick, SimTime::from_ticks(5));
+        assert_eq!(
+            next_context.next_tick_status.current(),
+            SimTime::from_ticks(6)
+        );
         assert_eq!(next_context.next_tick_status.skipped(), Duration::zero());
         assert_eq!(shared_hook.get_ref().after_tick_called.borrow().len(), 1);
         assert_eq!(
             shared_hook.get_ref().after_tick_called.borrow()[0],
-            (SimTime::new(5), micro_step_ten)
+            (SimTime::from_ticks(5), micro_step_ten)
         );
     }
 
     #[test]
     fn test_active_executor_context_discard_remain_micro_step() {
-        let current_tick_status = TickStatus::new(SimTime::new(5), Duration::zero());
+        let current_tick_status = TickStatus::new(SimTime::from_ticks(5), Duration::zero());
         let mut micro_step_ten = MicroStep::zero();
         for _ in 0..10 {
             micro_step_ten = micro_step_ten.next();
@@ -771,13 +786,13 @@ mod tests {
             },
         );
         context.event_scheduler.schedule(
-            SimTime::new(5),
+            SimTime::from_ticks(5),
             Duration::ticks(0),
             EventPriority::minimum(),
             TestEvent,
         );
         context.event_scheduler.schedule(
-            SimTime::new(5),
+            SimTime::from_ticks(5),
             Duration::ticks(0),
             EventPriority::minimum(),
             TestEvent,
@@ -807,7 +822,7 @@ mod tests {
                 .get_ref()
                 .on_discard_remain_micro_step_called
                 .borrow()[0],
-            (SimTime::new(5), micro_step_ten, 1, 2)
+            (SimTime::from_ticks(5), micro_step_ten, 1, 2)
         );
     }
 }

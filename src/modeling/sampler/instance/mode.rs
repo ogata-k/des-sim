@@ -83,7 +83,7 @@ mod tests {
         };
         let mut sampler = ModeSampler::new(trigger, vec![s1.boxed(), s2.boxed(), s3.boxed()]);
 
-        let sample = sampler.sample(&mut rng, SimTime::new(0));
+        let sample = sampler.sample(&mut rng, SimTime::from_ticks(0));
         assert_eq!(sample.raw_value(), 20.0); // Should sample from s2
     }
 
@@ -99,7 +99,7 @@ mod tests {
         };
         let mut sampler = ModeSampler::new(trigger, vec![s1.boxed(), s2.boxed()]);
 
-        let sample = sampler.sample(&mut rng, SimTime::new(0));
+        let sample = sampler.sample(&mut rng, SimTime::from_ticks(0));
         assert_eq!(sample.raw_value(), 10.0); // Should fall back to s1
     }
 

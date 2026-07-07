@@ -41,7 +41,7 @@ mod tests {
         let mut rng = SmallRng::seed_from_u64(2);
         let mut sampler = ConstantSampler::new(100.0);
 
-        let sample = sampler.sample(&mut rng, SimTime::new(0));
+        let sample = sampler.sample(&mut rng, SimTime::from_ticks(0));
         assert_eq!(sample.raw_value(), 100.0);
     }
 }

@@ -83,7 +83,7 @@ mod tests {
 
         let mut results: HashMap<String, usize> = HashMap::new();
         for _ in 0..1000 {
-            let sample = sampler.sample(&mut rng, SimTime::new(0));
+            let sample = sampler.sample(&mut rng, SimTime::from_ticks(0));
             let entry = results
                 .entry(format!("{:<.2}", sample.raw_value()))
                 .or_insert(0);
@@ -113,7 +113,7 @@ mod tests {
 
         let mut results: HashMap<String, usize> = HashMap::new();
         for _ in 0..1000 {
-            let sample = sampler.sample(&mut rng, SimTime::new(0));
+            let sample = sampler.sample(&mut rng, SimTime::from_ticks(0));
             let entry = results
                 .entry(format!("{:<.2}", sample.raw_value()))
                 .or_insert(0);
@@ -151,7 +151,7 @@ mod tests {
 
         let mut samples = Vec::new();
         for _ in 0..10000 {
-            samples.push(sampler.sample(&mut rng, SimTime::new(0)).raw_value());
+            samples.push(sampler.sample(&mut rng, SimTime::from_ticks(0)).raw_value());
         }
 
         let mean: f64 = samples.iter().sum::<f64>() / samples.len() as f64;

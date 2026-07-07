@@ -379,7 +379,7 @@ mod tests {
     #[test]
     fn test_current_tick() {
         let (context, _) = setup();
-        assert_eq!(context.current_tick(), SimTime::new(0));
+        assert_eq!(context.current_tick(), SimTime::from_ticks(0));
     }
 
     #[test]
@@ -410,7 +410,7 @@ mod tests {
         );
 
         let (scheduled_at, scheduled_source) = context.source_handler.peek().unwrap();
-        assert_eq!(scheduled_at, SimTime::new(0) + delay);
+        assert_eq!(scheduled_at, SimTime::from_ticks(0) + delay);
         assert_eq!(scheduled_source.source_id.value(), 0); // Assuming it's the first source added
 
         assert_eq!(
@@ -460,7 +460,7 @@ mod tests {
         );
 
         let (scheduled_at, scheduled_source) = context.source_handler.peek().unwrap();
-        assert_eq!(scheduled_at, SimTime::new(0));
+        assert_eq!(scheduled_at, SimTime::from_ticks(0));
         assert_eq!(scheduled_source.source_id.value(), 0); // Assuming it's the first source added
 
         assert_eq!(
@@ -494,19 +494,19 @@ mod tests {
         let (mut context, _) = setup();
         // 何個かあらかじめイベントを登録しておく
         context.event_scheduler.schedule(
-            SimTime::new(0),
+            SimTime::from_ticks(0),
             Duration::one(),
             EventPriority::minimum(),
             TestEvent,
         );
         context.event_scheduler.schedule(
-            SimTime::new(0),
+            SimTime::from_ticks(0),
             Duration::one(),
             EventPriority::minimum(),
             TestEvent,
         );
         context.event_scheduler.schedule(
-            SimTime::new(0),
+            SimTime::from_ticks(0),
             Duration::one(),
             EventPriority::minimum(),
             TestEvent,
@@ -528,7 +528,7 @@ mod tests {
         );
 
         let (scheduled_at, event) = context.event_scheduler.peek().unwrap();
-        assert_eq!(scheduled_at, SimTime::new(1));
+        assert_eq!(scheduled_at, SimTime::from_ticks(1));
         assert_eq!(event.priority, EventPriority::minimum());
         assert_eq!(event.payload, TestEvent);
     }
@@ -563,12 +563,14 @@ mod tests {
         context.event_scheduler.flush_pending();
 
         let canceled_events_filtered = context
-            .cancel_scheduled_events(&model, |scheduled_at, _| scheduled_at == SimTime::new(5));
+            .cancel_scheduled_events(&model, |scheduled_at, _| {
+                scheduled_at == SimTime::from_ticks(5)
+            });
         assert_eq!(canceled_events_filtered.len(), 1);
-        assert_eq!(canceled_events_filtered[0].0, SimTime::new(5));
+        assert_eq!(canceled_events_filtered[0].0, SimTime::from_ticks(5));
         assert_eq!(context.event_scheduler.ready_queue_len(), 1);
         let (remaining_scheduled_at, _) = context.event_scheduler.peek().unwrap();
-        assert_eq!(remaining_scheduled_at, SimTime::new(10));
+        assert_eq!(remaining_scheduled_at, SimTime::from_ticks(10));
         assert_eq!(shared_hook.get_ref().cancel_event_called.borrow().len(), 3);
         assert_eq!(
             shared_hook.get_ref().cancel_event_called.borrow()[2],
@@ -631,13 +633,13 @@ mod tests {
 
         let canceled_sources_filtered = context
             .cancel_scheduled_sources::<TestSource, _>(&model, |scheduled_at, _| {
-                scheduled_at == SimTime::new(5)
+                scheduled_at == SimTime::from_ticks(5)
             });
         assert_eq!(canceled_sources_filtered.len(), 1);
-        assert_eq!(canceled_sources_filtered[0].0, SimTime::new(5));
+        assert_eq!(canceled_sources_filtered[0].0, SimTime::from_ticks(5));
         assert_eq!(context.source_handler.ready_queue_len(), 1);
         let (remaining_scheduled_at, _) = context.source_handler.peek().unwrap();
-        assert_eq!(remaining_scheduled_at, SimTime::new(10));
+        assert_eq!(remaining_scheduled_at, SimTime::from_ticks(10));
         assert_eq!(shared_hook.get_ref().cancel_source_called.borrow().len(), 3);
         assert_eq!(
             shared_hook.get_ref().cancel_source_called.borrow()[2],

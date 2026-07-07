@@ -75,16 +75,28 @@ mod tests {
         assert_eq!(sampler.peek_next_index(), 0);
         assert_eq!(sampler.item_count(), 3);
 
-        assert_eq!(sampler.sample(&mut rng, SimTime::new(0)).raw_value(), 1.0);
+        assert_eq!(
+            sampler.sample(&mut rng, SimTime::from_ticks(0)).raw_value(),
+            1.0
+        );
         assert_eq!(sampler.peek_next_index(), 1);
 
-        assert_eq!(sampler.sample(&mut rng, SimTime::new(0)).raw_value(), 2.0);
+        assert_eq!(
+            sampler.sample(&mut rng, SimTime::from_ticks(0)).raw_value(),
+            2.0
+        );
         assert_eq!(sampler.peek_next_index(), 2);
 
-        assert_eq!(sampler.sample(&mut rng, SimTime::new(0)).raw_value(), 3.0);
+        assert_eq!(
+            sampler.sample(&mut rng, SimTime::from_ticks(0)).raw_value(),
+            3.0
+        );
         assert_eq!(sampler.peek_next_index(), 0); // Rotates back to start
 
-        assert_eq!(sampler.sample(&mut rng, SimTime::new(0)).raw_value(), 1.0);
+        assert_eq!(
+            sampler.sample(&mut rng, SimTime::from_ticks(0)).raw_value(),
+            1.0
+        );
         assert_eq!(sampler.peek_next_index(), 1);
     }
 
@@ -96,7 +108,10 @@ mod tests {
 
         assert_eq!(sampler.peek_next_index(), 1);
 
-        assert_eq!(sampler.sample(&mut rng, SimTime::new(0)).raw_value(), 2.0);
+        assert_eq!(
+            sampler.sample(&mut rng, SimTime::from_ticks(0)).raw_value(),
+            2.0
+        );
         assert_eq!(sampler.peek_next_index(), 2);
     }
 

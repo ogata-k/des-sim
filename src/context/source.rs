@@ -68,7 +68,7 @@ mod tests {
 
     fn create_test_source_context() -> SourceContext<TestEvent, TestModel> {
         SourceContext {
-            current_tick_status: TickStatus::new(SimTime::new(0), Duration::zero()),
+            current_tick_status: TickStatus::new(SimTime::from_ticks(0), Duration::zero()),
             current_micro_step_status: MicroStepStatus::new(MicroStep::zero()),
             hook_delegate: HookDelegate::new(),
             source_handler: None,
@@ -79,7 +79,7 @@ mod tests {
     #[test]
     fn test_current_tick() {
         let context = create_test_source_context();
-        assert_eq!(context.current_tick(), SimTime::new(0));
+        assert_eq!(context.current_tick(), SimTime::from_ticks(0));
     }
 
     #[test]
@@ -93,19 +93,19 @@ mod tests {
         let mut context = create_test_source_context();
         // 何個かあらかじめイベントを登録しておく
         context.event_scheduler.schedule(
-            SimTime::new(0),
+            SimTime::from_ticks(0),
             Duration::one(),
             EventPriority::minimum(),
             TestEvent::EventA,
         );
         context.event_scheduler.schedule(
-            SimTime::new(0),
+            SimTime::from_ticks(0),
             Duration::one(),
             EventPriority::minimum(),
             TestEvent::EventA,
         );
         context.event_scheduler.schedule(
-            SimTime::new(0),
+            SimTime::from_ticks(0),
             Duration::one(),
             EventPriority::minimum(),
             TestEvent::EventA,

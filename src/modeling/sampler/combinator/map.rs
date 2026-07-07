@@ -47,7 +47,7 @@ mod tests {
         let base_sampler = ConstantSampler::new(10.0);
         let mut sampler = MapSampler::new(base_sampler, |_, _, value| value * 2.0);
 
-        let sample = sampler.sample(&mut rng, SimTime::new(0));
+        let sample = sampler.sample(&mut rng, SimTime::from_ticks(0));
         assert_eq!(sample.raw_value(), 20.0);
     }
 
@@ -57,7 +57,7 @@ mod tests {
         let base_sampler = ConstantSampler::new(10.0);
         let mut sampler = MapSampler::new(base_sampler, |_, _, value| value + 5.0);
 
-        let sample = sampler.sample(&mut rng, SimTime::new(0));
+        let sample = sampler.sample(&mut rng, SimTime::from_ticks(0));
         assert_eq!(sample.raw_value(), 15.0);
     }
 
@@ -67,7 +67,7 @@ mod tests {
         let base_sampler = ConstantSampler::new(10.0);
         let mut sampler = MapSampler::new(base_sampler, |_, _, value| -value);
 
-        let sample = sampler.sample(&mut rng, SimTime::new(0));
+        let sample = sampler.sample(&mut rng, SimTime::from_ticks(0));
         assert_eq!(sample.raw_value(), -10.0);
     }
 }

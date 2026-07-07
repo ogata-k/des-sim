@@ -51,7 +51,7 @@ mod tests {
         let jitter_sampler = Box::new(ConstantSampler::new(5.0));
         let mut sampler = JitterSampler::new(base_sampler, jitter_sampler);
 
-        let sample = sampler.sample(&mut rng, SimTime::new(0));
+        let sample = sampler.sample(&mut rng, SimTime::from_ticks(0));
         assert_eq!(sample.raw_value(), 15.0); // 10.0 + 5.0
     }
 
@@ -62,7 +62,7 @@ mod tests {
         let jitter_sampler = Box::new(ConstantSampler::new(0.0));
         let mut sampler = JitterSampler::new(base_sampler, jitter_sampler);
 
-        let sample = sampler.sample(&mut rng, SimTime::new(0));
+        let sample = sampler.sample(&mut rng, SimTime::from_ticks(0));
         assert_eq!(sample.raw_value(), 10.0); // 10.0 + 0.0
     }
 
@@ -73,7 +73,7 @@ mod tests {
         let jitter_sampler = Box::new(ConstantSampler::new(-5.0));
         let mut sampler = JitterSampler::new(base_sampler, jitter_sampler);
 
-        let sample = sampler.sample(&mut rng, SimTime::new(0));
+        let sample = sampler.sample(&mut rng, SimTime::from_ticks(0));
         assert_eq!(sample.raw_value(), 5.0); // 10.0 + (-5.0) = 5.0
     }
 }

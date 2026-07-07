@@ -51,7 +51,7 @@ mod tests {
         let lambda = 1.0;
         let mut sampler = ExponentialSampler::new(lambda).unwrap();
         let mut rng = SmallRng::seed_from_u64(2);
-        let current_tick = SimTime::new(0);
+        let current_tick = SimTime::from_ticks(0);
 
         for _ in 0..1000 {
             let duration = sampler.sample(&mut rng, current_tick);
@@ -64,7 +64,7 @@ mod tests {
         let lambda_high = 10.0; // Shorter average duration
         let mut sampler_high = ExponentialSampler::new(lambda_high).unwrap();
         let mut rng_high = SmallRng::seed_from_u64(2);
-        let current_tick = SimTime::new(0);
+        let current_tick = SimTime::from_ticks(0);
 
         let mut sum_high = 0.0;
         for _ in 0..1000 {

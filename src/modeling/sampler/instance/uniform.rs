@@ -38,7 +38,7 @@ mod tests {
 
         let mut samples = Vec::new();
         for _ in 0..10000 {
-            samples.push(sampler.sample(&mut rng, SimTime::new(0)).raw_value());
+            samples.push(sampler.sample(&mut rng, SimTime::from_ticks(0)).raw_value());
         }
 
         // Check if all samples are within the bounds

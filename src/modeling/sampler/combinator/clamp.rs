@@ -37,7 +37,7 @@ mod tests {
         let s = ConstantSampler::new(50.0);
         let mut sampler = ClampSampler::new(s, 10.0, 100.0);
 
-        let sample = sampler.sample(&mut rng, SimTime::new(0));
+        let sample = sampler.sample(&mut rng, SimTime::from_ticks(0));
         assert_eq!(sample.raw_value(), 50.0);
     }
 
@@ -47,7 +47,7 @@ mod tests {
         let s = ConstantSampler::new(5.0);
         let mut sampler = ClampSampler::new(s, 10.0, 100.0);
 
-        let sample = sampler.sample(&mut rng, SimTime::new(0));
+        let sample = sampler.sample(&mut rng, SimTime::from_ticks(0));
         assert_eq!(sample.raw_value(), 10.0);
     }
 
@@ -57,7 +57,7 @@ mod tests {
         let s = ConstantSampler::new(150.0);
         let mut sampler = ClampSampler::new(s, 10.0, 100.0);
 
-        let sample = sampler.sample(&mut rng, SimTime::new(0));
+        let sample = sampler.sample(&mut rng, SimTime::from_ticks(0));
         assert_eq!(sample.raw_value(), 100.0);
     }
 }

@@ -360,7 +360,7 @@ mod tests {
             TestEvent::AgentContinuationEvent(AgentActionTicket::issue(continuation)),
         );
         context.event_scheduler.flush_pending();
-        let events = context.event_scheduler.drain_ready(SimTime::new(1));
+        let events = context.event_scheduler.drain_ready(SimTime::from_ticks(1));
         for event in events {
             model.handle_event(&mut context, &event);
         }
@@ -368,7 +368,7 @@ mod tests {
         assert_eq!(*counter.borrow(), 1); // Only step1 logic should have run
 
         context.event_scheduler.flush_pending();
-        let mut scheduled_events = context.event_scheduler.drain_ready(SimTime::new(2));
+        let mut scheduled_events = context.event_scheduler.drain_ready(SimTime::from_ticks(2));
 
         assert_eq!(scheduled_events.len(), 1);
         let event = scheduled_events.pop_front().unwrap();

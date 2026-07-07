@@ -53,7 +53,7 @@ mod tests {
         let delay_sampler = ConstantSampler::new(5.0);
         let mut sampler = DelaySampler::new(base_sampler, delay_sampler.boxed());
 
-        let sample = sampler.sample(&mut rng, SimTime::new(0));
+        let sample = sampler.sample(&mut rng, SimTime::from_ticks(0));
         assert_eq!(sample.raw_value(), 15.0); // 10.0 + 5.0
     }
 
@@ -64,7 +64,7 @@ mod tests {
         let delay_sampler = ConstantSampler::new(0.0);
         let mut sampler = DelaySampler::new(base_sampler, delay_sampler.boxed());
 
-        let sample = sampler.sample(&mut rng, SimTime::new(0));
+        let sample = sampler.sample(&mut rng, SimTime::from_ticks(0));
         assert_eq!(sample.raw_value(), 10.0); // 10.0 + 0.0
     }
 
@@ -75,7 +75,7 @@ mod tests {
         let delay_sampler = ConstantSampler::new(-5.0);
         let mut sampler = DelaySampler::new(base_sampler, delay_sampler.boxed());
 
-        let sample = sampler.sample(&mut rng, SimTime::new(0));
+        let sample = sampler.sample(&mut rng, SimTime::from_ticks(0));
         assert_eq!(sample.raw_value(), 10.0); // 10.0 + max(-5.0, 0.0) = 10.0
     }
 }

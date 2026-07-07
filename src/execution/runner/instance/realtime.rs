@@ -47,7 +47,7 @@ impl<E, M: Model<E>, CS: ContinueStrategy<E, M, ()>> Runner<E, M, CS> for Realti
 
             // --- [リアルタイム同期処理] ---
             // 次に処理すべきシミュレーション上のTick数を取得
-            let next_tick_value = tick_status.current().as_tick_value();
+            let next_tick_value = tick_status.current().as_time_tick();
 
             // シミュレーション開始時点から、本来「あるべき理想の実経過時間」を計算
             let target_elapsed = self.tick_unit_duration * next_tick_value as u32;

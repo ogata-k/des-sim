@@ -257,7 +257,7 @@ mod tests {
 
     impl<E, M: Model<E>> UserContext<E, M> for UserContextImpl {
         fn current_tick(&self) -> SimTime {
-            SimTime::new(0)
+            SimTime::from_ticks(0)
         }
 
         fn current_micro_step(&self) -> MicroStep {
@@ -818,7 +818,7 @@ mod tests {
     #[test]
     fn cancel_single_source_from_pending_queue() {
         let mut handler: SourceHandler<TestEvent, TestModel> = SourceHandler::new();
-        let now = SimTime::new(0);
+        let now = SimTime::from_ticks(0);
 
         handler.add_source_for_before_simulation(
             "source_to_cancel",
@@ -872,7 +872,7 @@ mod tests {
     #[test]
     fn cancel_single_source_from_ready_queue() {
         let mut handler: SourceHandler<TestEvent, TestModel> = SourceHandler::new();
-        let now = SimTime::new(0);
+        let now = SimTime::from_ticks(0);
 
         handler.add_source_for_before_simulation(
             "source_to_keep_1",
@@ -924,7 +924,7 @@ mod tests {
     #[test]
     fn cancel_multiple_sources() {
         let mut handler: SourceHandler<TestEvent, TestModel> = SourceHandler::new();
-        let now = SimTime::new(0);
+        let now = SimTime::from_ticks(0);
 
         handler.add_source_for_before_simulation(
             "cancel_me_1",
@@ -982,7 +982,7 @@ mod tests {
     #[test]
     fn cancel_no_sources() {
         let mut handler: SourceHandler<TestEvent, TestModel> = SourceHandler::new();
-        let now = SimTime::new(0);
+        let now = SimTime::from_ticks(0);
 
         handler.add_source_for_before_simulation(
             "source_1",
@@ -1026,7 +1026,7 @@ mod tests {
     #[test]
     fn cancel_all_sources() {
         let mut handler: SourceHandler<TestEvent, TestModel> = SourceHandler::new();
-        let now = SimTime::new(0);
+        let now = SimTime::from_ticks(0);
 
         handler.add_source_for_before_simulation(
             "source_1",
@@ -1070,7 +1070,7 @@ mod tests {
     #[test]
     fn cancel_source_with_mixed_queues() {
         let mut handler: SourceHandler<TestEvent, TestModel> = SourceHandler::new();
-        let now = SimTime::new(0);
+        let now = SimTime::from_ticks(0);
 
         // Events in pending_queue initially
 
@@ -1144,7 +1144,7 @@ mod tests {
     #[test]
     fn cancel_source_by_id() {
         let mut handler: SourceHandler<TestEvent, TestModel> = SourceHandler::new();
-        let now = SimTime::new(0);
+        let now = SimTime::from_ticks(0);
 
         handler.add_source_for_before_simulation(
             "source_1",

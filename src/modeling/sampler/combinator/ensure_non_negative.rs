@@ -62,7 +62,7 @@ mod tests {
         let base_sampler = ConstantSampler::new(10.0);
         let mut sampler = EnsureNonNegativeSampler::new(base_sampler, 3, |_, _| Duration::ticks(0));
 
-        let sample = sampler.sample(&mut rng, SimTime::new(0));
+        let sample = sampler.sample(&mut rng, SimTime::from_ticks(0));
         assert_eq!(sample.raw_value(), 10.0);
     }
 
@@ -80,7 +80,7 @@ mod tests {
         let base_sampler = NegativeSampler;
         let mut sampler = EnsureNonNegativeSampler::new(base_sampler, 1, |_, _| Duration::ticks(5));
 
-        let sample = sampler.sample(&mut rng, SimTime::new(0));
+        let sample = sampler.sample(&mut rng, SimTime::from_ticks(0));
         assert_eq!(sample.raw_value(), 5.0); // Should fall back to 5.0
     }
 
@@ -104,7 +104,7 @@ mod tests {
         let base_sampler = MixedSampler { call_count: 0 };
         let mut sampler = EnsureNonNegativeSampler::new(base_sampler, 5, |_, _| Duration::ticks(0));
 
-        let sample = sampler.sample(&mut rng, SimTime::new(0));
+        let sample = sampler.sample(&mut rng, SimTime::from_ticks(0));
         assert_eq!(sample.raw_value(), 10.0);
         assert_eq!(sampler.sampler.call_count, 3); // Should have tried 3 times
     }

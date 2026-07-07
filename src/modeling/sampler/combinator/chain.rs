@@ -54,7 +54,7 @@ mod tests {
 
         let mut sampler = ChainSampler::new(s1, s2.boxed(), |_, _, val1, val2| val1 + val2);
 
-        let sample = sampler.sample(&mut rng, SimTime::new(0));
+        let sample = sampler.sample(&mut rng, SimTime::from_ticks(0));
         assert_eq!(sample.raw_value(), 30.0);
     }
 
@@ -66,7 +66,7 @@ mod tests {
 
         let mut sampler = ChainSampler::new(s1, s2.boxed(), |_, _, val1, val2| val1 * val2);
 
-        let sample = sampler.sample(&mut rng, SimTime::new(0));
+        let sample = sampler.sample(&mut rng, SimTime::from_ticks(0));
         assert_eq!(sample.raw_value(), 20.0);
     }
 }
