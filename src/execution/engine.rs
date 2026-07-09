@@ -115,3 +115,101 @@ impl<E, M: Model<E>> Engine<E, M> {
         self
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::context::{EventContext, UserContext};
+    use crate::modeling::event::Event;
+    use crate::modeling::hook::instance::InteractiveStepHook;
+
+    #[derive(Debug, PartialEq)]
+    enum TestEvent {
+        Start,
+    }
+
+    struct TestModel;
+
+    impl TestModel {
+        fn new() -> Self {
+            TestModel
+        }
+    }
+
+    impl Model<TestEvent> for TestModel {
+        fn handle_event(
+            &mut self,
+            _context: &mut EventContext<TestEvent, Self>,
+            _event: &Event<TestEvent>,
+        ) {
+            // none
+        }
+    }
+
+    #[test]
+    fn test_engine_new() {
+        let engine: Engine<TestEvent, TestModel> = Engine::new();
+
+        assert!(engine.hook_delegate.is_empty());
+        assert_eq!(engine.source_handler.ready_queue_len(), 0);
+        assert_eq!(engine.event_scheduler.ready_queue_len(), 0);
+    }
+
+    #[test]
+    fn test_engine_begin_simulation() {
+        let model = TestModel::new();
+        let engine: Engine<TestEvent, TestModel> = Engine::new();
+        let context = engine.begin_simulation(&model);
+
+        assert!(context.hook_delegate.is_empty());
+        assert_eq!(context.source_handler.ready_queue_len(), 0);
+        assert_eq!(context.event_scheduler.ready_queue_len(), 0);
+    }
+
+    #[test]
+    fn test_engine_add_hook() {
+        let mut engine: Engine<TestEvent, TestModel> = Engine::new();
+        engine.add_hook(InteractiveStepHook);
+        assert_eq!(engine.hook_delegate.len(), 1);
+    }
+
+    #[test]
+    fn test_engine_add_source() {
+        struct MySource;
+        impl Source<TestEvent, TestModel> for MySource {
+            fn on_registered(
+                &mut self,
+                context: &mut dyn UserContext<TestEvent, TestModel>,
+                _model: &TestModel,
+            ) -> Option<Duration> {
+                context.schedule_event(Duration::one(), EventPriority::minimum(), TestEvent::Start);
+                None
+            }
+
+            fn fire(
+                &mut self,
+                _context: &mut SourceContext<TestEvent, TestModel>,
+                _model: &TestModel,
+            ) -> Option<Duration> {
+                None
+            }
+        }
+
+        let model = TestModel;
+        let mut engine: Engine<TestEvent, TestModel> = Engine::new();
+        engine.add_source("my_source", MySource);
+        let context = engine.begin_simulation(&model);
+        assert_eq!(context.event_scheduler.ready_queue_len(), 1);
+    }
+
+    #[test]
+    fn test_engine_schedule_event_at() {
+        let mut engine: Engine<TestEvent, TestModel> = Engine::new();
+        let sim_time = SimTime::from_ticks(10);
+        engine.schedule_event_at(sim_time, EventPriority::minimum(), TestEvent::Start);
+        assert_eq!(engine.event_scheduler.ready_queue_len(), 0);
+
+        engine.event_scheduler.flush_pending();
+        assert_eq!(engine.event_scheduler.ready_queue_len(), 1);
+    }
+}

@@ -164,8 +164,7 @@ impl<E> EventScheduler<E> {
     }
 
     #[cfg(test)]
-    #[allow(dead_code)]
-    pub(crate) fn ready_queue_len(&self) -> usize {
+    pub fn ready_queue_len(&self) -> usize {
         self.ready_queue.len()
     }
 

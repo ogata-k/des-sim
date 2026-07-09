@@ -245,6 +245,16 @@ impl<E, M: Model<E>> HookDelegate<E, M> {
             f(hook.as_ref());
         }
     }
+
+    #[cfg(test)]
+    pub fn is_empty(&self) -> bool {
+        self.hooks.is_empty()
+    }
+
+    #[cfg(test)]
+    pub fn len(&self) -> usize {
+        self.hooks.len()
+    }
 }
 
 #[cfg(test)]
