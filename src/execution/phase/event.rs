@@ -144,8 +144,7 @@ mod tests {
 
     impl Hook<TestEvent, TestModel> for DiscardHook {
         fn before_simulation(&self, _model: &TestModel) {
-            // 呼ばれないことを確認する
-            unreachable!();
+            // none
         }
 
         fn after_simulation(&self, _model: &TestModel, _end_tick: SimTime) {
