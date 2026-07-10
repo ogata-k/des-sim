@@ -135,16 +135,16 @@ impl<E, M: Model<E>> SourcePhase<E, M> {
         );
     }
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::context::{EventContext, UserContext};
     use crate::event_scheduler::EventScheduler;
-    use crate::modeling::event::{Event, EventPriority};
+    use crate::modeling::event::Event;
     use crate::modeling::hook::Hook;
     use crate::modeling::hook::instance::{HookDelegate, SharedHook};
     use crate::modeling::model::Model;
-    use crate::modeling::source::Source;
     use crate::primitive::id::SourceId;
     use crate::primitive::time::{Duration, MicroStep, MicroStepStatus, SimTime, TickStatus};
     use std::collections::VecDeque;
@@ -152,46 +152,7 @@ mod tests {
     use std::sync::{Arc, Mutex};
 
     #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-    enum TestEvent {
-        A,
-        B,
-        C,
-    }
-
-    struct TestSource {
-        id: u32,
-        name: String,
-        next_delay: Option<Duration>,
-    }
-
-    impl Source<TestEvent, TestModel> for TestSource {
-        fn on_registered(
-            &mut self,
-            context: &mut dyn UserContext<TestEvent, TestModel>,
-            _model: &TestModel,
-        ) -> Option<Duration> {
-            context.schedule_event(Duration::one(), EventPriority::minimum(), TestEvent::A);
-            Some(Duration::one())
-        }
-
-        fn fire(
-            &mut self,
-            _context: &mut SourceContext<TestEvent, TestModel>,
-            _model: &TestModel,
-        ) -> Option<Duration> {
-            self.next_delay
-        }
-    }
-
-    impl TestSource {
-        fn new(id: u32, name: &str, next_delay: Option<Duration>) -> Self {
-            Self {
-                id,
-                name: name.to_string(),
-                next_delay,
-            }
-        }
-    }
+    enum TestEvent {}
 
     struct TestModel {
         handled_events: Vec<TestEvent>,
@@ -368,10 +329,7 @@ mod tests {
             _current_micro_step: MicroStep,
             event: &Event<TestEvent>,
         ) {
-            self.discarded_events
-                .lock()
-                .unwrap()
-                .push(event.payload.clone());
+            self.discarded_events.lock().unwrap().push(event.payload);
         }
         fn after_event_phase(
             &self,
