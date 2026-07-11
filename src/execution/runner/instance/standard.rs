@@ -240,4 +240,31 @@ mod tests {
         // 戦略によってシミュレーションがエラー中断したことを検証
         assert!(result.is_err());
     }
+
+    #[test]
+    fn test_standard_runner_run_without_strategy_error() {
+        let model = TestModel { event_count: 0 };
+        let mut engine = Engine::new();
+
+        // エンジンで登録した時刻0のイベントはシミュレーション開始時に時刻0のイベントとして処理されるよう登録されるため、
+        // マイクロステップ上限が0でも上限に引っかからない。
+        engine.schedule_event_at(SimTime::zero(), EventPriority::minimum(), TestEvent::A);
+
+        // マイクロステップ上限を「0」に、許容回数を「0」に設定した LimitAbortStrategy を投入
+        // これにより、最初の Continue 判定で即座にエラーに落とす
+        let strategy = LimitAbortStrategy::new(0, 0);
+        let mut runner = StandardRunner::new_with_continue_strategy(true, strategy);
+
+        // 無限ループを防ぐためのセーフティ付き停止条件（通常は戦略エラーで先に抜ける）
+        let mut loop_count = 0;
+        let should_stop = |_m: &TestModel, _status: ExecutorStatus, _tick: TickStatus| {
+            loop_count += 1;
+            loop_count > 10
+        };
+
+        let result = runner.run(engine, model, should_stop);
+
+        // 戦略によってシミュレーションがエラー中断しなかったことを検証
+        assert!(result.is_ok());
+    }
 }
