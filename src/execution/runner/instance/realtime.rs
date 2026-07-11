@@ -142,3 +142,131 @@ impl<CS> RealtimeRunner<CS> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::context::{EventContext, SourceContext, UserContext};
+    use crate::execution::strategy::LimitAbortStrategy;
+    use crate::modeling::event::{Event, EventPriority};
+    use crate::modeling::source::Source;
+    use crate::primitive::time::{Duration, SimTime, TickStatus};
+
+    #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+    enum TestEvent {
+        A,
+    }
+
+    #[derive(Debug)]
+    struct TestModel {
+        event_count: usize,
+    }
+
+    impl Model<TestEvent> for TestModel {
+        fn handle_event(
+            &mut self,
+            _context: &mut EventContext<TestEvent, Self>,
+            _event: &Event<TestEvent>,
+        ) {
+            self.event_count += 1;
+        }
+    }
+
+    #[test]
+    fn test_realtime_runner_new() {
+        let runner_always = RealtimeRunner::<AlwaysContinueStrategy<TestEvent, TestModel>>::new(
+            std::time::Duration::from_millis(100),
+        );
+        assert_eq!(
+            runner_always.tick_unit_duration,
+            std::time::Duration::from_millis(100)
+        );
+
+        let strategy = AlwaysContinueStrategy::<TestEvent, TestModel>::new();
+        let runner_custom = RealtimeRunner::new_with_continue_strategy(
+            std::time::Duration::from_millis(100),
+            strategy,
+        );
+        assert_eq!(
+            runner_custom.tick_unit_duration,
+            std::time::Duration::from_millis(100)
+        );
+    }
+
+    #[test]
+    fn test_realtime_runner_run_success() {
+        let model = TestModel { event_count: 0 };
+        let mut engine = Engine::new();
+
+        // 微妙なタイミングのTickで処理されるイベントを仕込む
+        engine.schedule_event_at(
+            SimTime::from_ticks(5),
+            EventPriority::minimum(),
+            TestEvent::A,
+        );
+
+        let mut runner = RealtimeRunner::new(std::time::Duration::from_millis(100));
+
+        // 10Tick分だけ回し終わったところで、シミュレーションを終了する停止条件
+        let should_stop = |_m: &TestModel, _status: ExecutorStatus, tick: TickStatus| {
+            tick.is_done_ticks(false, 10)
+        };
+
+        let result = runner.run(engine, model, should_stop);
+
+        // シミュレーションが正常終了し、イベントが処理されたことを検証
+        assert!(result.is_ok());
+        let output = result.unwrap();
+        assert_eq!(output.model().event_count, 1);
+    }
+
+    #[test]
+    fn test_realtime_runner_run_with_strategy_error() {
+        let model = TestModel { event_count: 0 };
+        let mut engine = Engine::new();
+
+        struct TestSource;
+
+        impl Source<TestEvent, TestModel> for TestSource {
+            fn on_registered(
+                &mut self,
+                _context: &mut dyn UserContext<TestEvent, TestModel>,
+                _model: &TestModel,
+            ) -> Option<Duration> {
+                // 最初のマイクロステップ内で確実にループ/継続が発生するようイベントを登録
+                Some(Duration::zero())
+            }
+
+            fn fire(
+                &mut self,
+                context: &mut SourceContext<TestEvent, TestModel>,
+                _model: &TestModel,
+            ) -> Option<Duration> {
+                // 同一のマイクロステップ内で確実にループ/継続が発生するようイベントを登録
+                context.schedule_event(Duration::zero(), EventPriority::minimum(), TestEvent::A);
+                Some(Duration::one())
+            }
+        }
+        engine.add_source("test source", TestSource);
+
+        // マイクロステップ上限を「0」に、許容回数を「0」に設定した LimitAbortStrategy を投入
+        // これにより、最初の Continue 判定で即座にエラーに落とす
+        let strategy = LimitAbortStrategy::new(0, 0);
+        let mut runner = RealtimeRunner::new_with_continue_strategy(
+            std::time::Duration::from_millis(100),
+            strategy,
+        );
+
+        // 無限ループを防ぐためのセーフティ付き停止条件（通常は戦略エラーで先に抜ける）
+        let mut loop_count = 0;
+        let should_stop = |_m: &TestModel, _status: ExecutorStatus, _tick: TickStatus| {
+            loop_count += 1;
+            loop_count > 10
+        };
+
+        let result = runner.run(engine, model, should_stop);
+
+        // 戦略によってシミュレーションがエラー中断したことを検証
+        assert!(result.is_err());
+    }
+}
