@@ -82,51 +82,56 @@ impl<E, M: Model<E>> MicroStepHandler<EventContext<E, M>> {
         // これがないとここ以後の処理が事故る。
         self.ref_mut_context().source_handler.flush_pending();
         self.ref_mut_context().event_scheduler.flush_pending();
+        let current_tick = self.ref_context().current_tick_status.current();
 
-        let next_event_scheduled_at = self.ref_context().event_scheduler.peek_next_time();
-        match next_event_scheduled_at {
-            Some(next_scheduled_at)
-                if self.ref_context().current_tick_status.current() == next_scheduled_at =>
-            {
-                // まだ同tick中に発火可能なイベントがあるので次のマイクロステップに進める
-                let current_micro_step = self.ref_context().current_micro_step_status.current();
-                let next_micro_step = current_micro_step.next();
-                self.context.hook().after_micro_step(
-                    model,
-                    self.ref_context().current_tick_status.current(),
-                    self.ref_context().current_micro_step_status.current(),
-                );
+        // Event と Source の両方から「次の予定時間」を覗き見る
+        let next_event_at = self.ref_context().event_scheduler.peek_next_time();
+        let next_source_at = self.ref_context().source_handler.peek_next_time();
 
-                let active_context = ActiveExecutorContext {
-                    current_tick_status: self.ref_context().current_tick_status,
-                    next_micro_step_status: MicroStepStatus::new(next_micro_step),
-                    hook_delegate: self.context.hook_delegate,
-                    source_handler: self.context.source_handler,
-                    event_scheduler: self.context.event_scheduler,
-                };
-                MicroStepResult::Continue(UncheckedActiveExecutor::new(
-                    active_context,
-                    current_micro_step,
-                ))
-            }
-            _ => {
-                // 処理すべきイベントがある次のtickが未来の時間かそもそもないので、今のマイクロステップで終了
-                let last_micro_step_status = self.ref_context().current_micro_step_status;
-                self.context.hook().after_micro_step(
-                    model,
-                    self.ref_context().current_tick_status.current(),
-                    self.ref_context().current_micro_step_status.current(),
-                );
+        // いずれかが「現在のTickと同じ時間」であれば、まだ同Tick内でやるべきことがあるので Continue
+        let has_next_in_current_tick = matches!(next_event_at, Some(t) if t == current_tick)
+            || matches!(next_source_at, Some(t) if t == current_tick);
 
-                let active_context = ActiveExecutorContext {
-                    current_tick_status: self.ref_context().current_tick_status,
-                    next_micro_step_status: last_micro_step_status,
-                    hook_delegate: self.context.hook_delegate,
-                    source_handler: self.context.source_handler,
-                    event_scheduler: self.context.event_scheduler,
-                };
-                MicroStepResult::Complete(active_context, last_micro_step_status)
-            }
+        if has_next_in_current_tick {
+            // まだ同tick中に発火可能なイベント/ソースがあるので次のマイクロステップに進める
+            let current_micro_step = self.ref_context().current_micro_step_status.current();
+            let next_micro_step = current_micro_step.next();
+
+            self.context.hook().after_micro_step(
+                model,
+                current_tick,
+                self.ref_context().current_micro_step_status.current(),
+            );
+
+            let active_context = ActiveExecutorContext {
+                current_tick_status: self.ref_context().current_tick_status,
+                next_micro_step_status: MicroStepStatus::new(next_micro_step),
+                hook_delegate: self.context.hook_delegate,
+                source_handler: self.context.source_handler,
+                event_scheduler: self.context.event_scheduler,
+            };
+            MicroStepResult::Continue(UncheckedActiveExecutor::new(
+                active_context,
+                current_micro_step,
+            ))
+        } else {
+            // 処理すべきイベント・ソースが未来の時間か、そもそもないので、今のマイクロステップで終了
+            let last_micro_step_status = self.ref_context().current_micro_step_status;
+
+            self.context.hook().after_micro_step(
+                model,
+                current_tick,
+                self.ref_context().current_micro_step_status.current(),
+            );
+
+            let active_context = ActiveExecutorContext {
+                current_tick_status: self.ref_context().current_tick_status,
+                next_micro_step_status: last_micro_step_status,
+                hook_delegate: self.context.hook_delegate,
+                source_handler: self.context.source_handler,
+                event_scheduler: self.context.event_scheduler,
+            };
+            MicroStepResult::Complete(active_context, last_micro_step_status)
         }
     }
 }
