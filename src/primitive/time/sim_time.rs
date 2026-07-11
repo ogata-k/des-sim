@@ -680,4 +680,54 @@ mod tests {
         let status = TickStatus::new(SimTime::from_ticks(5), Duration::ticks(5));
         status.previous();
     }
+
+    #[test]
+    fn sim_time_saturating_add_boundary() {
+        // SimTime::MAX に対する saturating_add の挙動
+        let max_sim_time = SimTime::from_ticks(TimeTick::MAX);
+        let d_one = Duration::one();
+        assert_eq!(max_sim_time.saturating_add(d_one), max_sim_time);
+
+        let d_max = Duration::ticks(TimeTick::MAX);
+        assert_eq!(max_sim_time.saturating_add(d_max), max_sim_time);
+    }
+
+    #[test]
+    fn sim_time_saturating_sub_boundary() {
+        // SimTime::zero() に対する saturating_sub / saturating_sub_duration の挙動（ゼロで止まるか）
+        let t_zero = SimTime::zero();
+        let t_five = SimTime::from_ticks(5);
+        let d_five = Duration::ticks(5);
+
+        assert_eq!(t_zero.saturating_sub(t_five), Duration::zero());
+        assert_eq!(t_zero.saturating_sub_duration(d_five), SimTime::zero());
+
+        // 小さい値から大きい値を引いたとき、しっかり下限でサチュレートするか
+        let t_three = SimTime::from_ticks(3);
+        assert_eq!(t_three.saturating_sub(t_five), Duration::zero());
+        assert_eq!(t_three.saturating_sub_duration(d_five), SimTime::zero());
+    }
+
+    #[test]
+    fn sim_time_checked_sub_duration_underflow() {
+        // checked_sub_duration のアンダーフロー: 減算結果が負になる際、正しく None が返るか
+        let t_three = SimTime::from_ticks(3);
+        let d_five = Duration::ticks(5);
+        assert_eq!(t_three.checked_sub_duration(d_five), None);
+
+        let t_zero = SimTime::zero();
+        let d_one = Duration::one();
+        assert_eq!(t_zero.checked_sub_duration(d_one), None);
+    }
+
+    #[test]
+    #[should_panic(expected = "attempt to subtract with overflow")]
+    fn sim_time_sub_operator_underflow_panic() {
+        // SimTime の Sub 特性の実装 (self.0 - rhs.0) は checked/saturating になっていないため、
+        // アンダーフロー時にパニック（debug時は確実、release時も overflow-checks=true なら）する。。
+        // この挙動を明確化するためのテスト。
+        let t_three = SimTime::from_ticks(3);
+        let d_five = Duration::ticks(5);
+        let _ = t_three - d_five;
+    }
 }
