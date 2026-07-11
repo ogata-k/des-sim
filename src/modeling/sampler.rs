@@ -111,9 +111,39 @@ pub trait DurationSampler {
     fn sample(&mut self, rng: &mut dyn Rng, current_tick: SimTime) -> PendingDuration;
 }
 
+/// 複製可能なトレイトオブジェクトのためのトレイト
+pub trait ClonableDurationSampler: DurationSampler + Send + Sync {
+    fn box_clone(&self) -> Box<dyn ClonableDurationSampler>;
+}
+
+// Cloneを実装しているすべてのDurationSamplerに対して自動実装
+impl<S> ClonableDurationSampler for S
+where
+    S: DurationSampler + Clone + Send + Sync + 'static,
+{
+    fn box_clone(&self) -> Box<dyn ClonableDurationSampler> {
+        Box::new(self.clone())
+    }
+}
+
+// これにより、Box<dyn ClonableDurationSampler> 自体に Clone トレイトを直接実装できる
+impl Clone for Box<dyn ClonableDurationSampler> {
+    fn clone(&self) -> Self {
+        self.box_clone()
+    }
+}
+
 pub trait CombinatorExt: DurationSampler + Sized + 'static {
     /// コンビネータを作るたびに Box::new() を書く手間を省くだけのヘルパー
     fn boxed(self) -> Box<dyn DurationSampler> {
+        Box::new(self)
+    }
+
+    /// 複製可能なSamplerとしてBoxで包む処理を書く手間を省くだけのヘルパー
+    fn boxed_clonable(self) -> Box<dyn ClonableDurationSampler>
+    where
+        Self: Clone + Send + Sync,
+    {
         Box::new(self)
     }
 

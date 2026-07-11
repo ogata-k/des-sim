@@ -11,6 +11,7 @@ use crate::primitive::time::TickStatus;
 /// skippableがtrueであれば、イベントがない時間をスキップすることができる。
 ///
 /// ※ [`Model`](Model)と[`Source`](crate::modeling::source::Source)と[`Hook`](crate::modeling::hook::Hook)が決定論的に動くとき決定論的に処理を行うことができる。
+#[derive(Clone)]
 pub struct StandardRunner<CS> {
     skippable: bool,
     continue_strategy: CS,

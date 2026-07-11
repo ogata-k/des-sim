@@ -13,6 +13,7 @@ use std::time::{Duration as StdDuration, Instant};
 /// [`Source`](crate::modeling::source::Source)や[`Event`](crate::modeling::event::Event)がしばらくの間発火しない状態であれば、その時間は処理がスキップされる。
 /// そのため、定期的に集計したいのであれば定期的に発火するが何もしない[`Source`](crate::modeling::source::Source)を使って観測点といて使う必要があることに注意。
 /// ※ [`Model`](Model)と[`Source`](crate::modeling::source::Source)と[`Hook`](crate::modeling::hook::Hook)が決定論的に動くとき決定論的に処理を行うことができる。
+#[derive(Clone)]
 pub struct RealtimeRunner<CS> {
     continue_strategy: CS,
     /// 1 Tickの処理に必要な実時間（例: [std::time::Duration::from_millis(100)] で 1秒間に10Ticks）。

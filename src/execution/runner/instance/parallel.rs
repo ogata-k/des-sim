@@ -25,6 +25,7 @@ pub trait ParallelModel<E, Command>: Model<E> {
 /// イベントを発火した順番に並列で処理する標準的なRunner。
 /// sync_priority_thresholdで指定された以上の[EventPriority]以上のイベントは直列で処理することもできるようになっている。
 /// そして、skippableがtrueであれば、イベントがない時間をスキップすることができる。
+#[derive(Clone)]
 pub struct ParallelRunner<Command, CS> {
     skippable: bool,
     continue_strategy: CS,

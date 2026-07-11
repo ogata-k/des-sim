@@ -37,6 +37,7 @@ impl<RunnerError: std::error::Error> std::error::Error for LimitAbortStrategyErr
 /// 指定された上限突破回数を超えてマイクロステップ上限に達したらエラーとする継続戦略
 /// マイクロステップ上限に達してもallow_error_countを超えるまでは、エラーにならずそのtick内で処理すべきイベントなどがまだ残っている場合は破棄して継続する。
 /// 超えた場合は、エラーとして中断する。
+#[derive(Clone)]
 pub struct LimitAbortStrategy {
     limit_micro_step_count: u64,
     allow_error_count: usize,

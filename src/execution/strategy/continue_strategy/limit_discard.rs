@@ -3,6 +3,7 @@ use crate::execution::strategy::{ContinueStrategy, ContinuousStrategyResult};
 use crate::modeling::model::Model;
 
 /// 指定されたマイクロステップ上限に達したらそのtick内で処理すべきイベントなどがまだ残っている場合は破棄して継続する継続戦略
+#[derive(Clone)]
 pub struct LimitDiscardStrategy {
     limit_micro_step_count: u64,
 }
