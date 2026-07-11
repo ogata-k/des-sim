@@ -15,6 +15,12 @@ impl MicroStep {
         Self(0)
     }
 
+    #[cfg(test)]
+    #[allow(dead_code)]
+    pub const fn new(value: u64) -> Self {
+        Self(value)
+    }
+
     #[must_use]
     pub const fn next(self) -> Self {
         Self(self.0 + 1)
