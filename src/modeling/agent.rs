@@ -242,7 +242,7 @@ mod tests {
 
         assert_eq!(continuation.get_remain_step_count(), 2);
 
-        let step1 = continuation.future_steps.get(0).unwrap();
+        let step1 = continuation.future_steps.front().unwrap();
         assert_eq!(step1.tag, "step1");
         assert_eq!(step1.delay, Duration::ticks(1));
         assert_eq!(step1.priority, EventPriority::new(5));

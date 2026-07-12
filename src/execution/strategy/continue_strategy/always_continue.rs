@@ -57,6 +57,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::default_constructed_unit_structs)]
     fn test_always_continue_strategy_default_and_new() {
         // new と default でインスタンス化できることを確認
         let _strategy_new = AlwaysContinueStrategy::new();

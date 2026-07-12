@@ -193,7 +193,7 @@ fn main() {
     println!("⚡ {} 件の待ち行列シナリオを並列で実行中...", count);
 
     let batch_results =
-        (&runner).run_batch_parallel(count, engine_builder, model_builder, should_stop);
+        runner.run_batch_parallel(count, engine_builder, model_builder, should_stop);
 
     let reports: Vec<SimulationReport> = batch_results
         .into_iter()

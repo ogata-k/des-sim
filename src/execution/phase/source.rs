@@ -440,12 +440,12 @@ mod tests {
 
         let taken_entries = source_phase.take_all_if(|e| e.source_id() == SourceId::new(1));
         assert_eq!(taken_entries.len(), 2);
-        assert_eq!(taken_entries.get(0).unwrap().source_id(), SourceId::new(1));
+        assert_eq!(taken_entries.front().unwrap().source_id(), SourceId::new(1));
         assert_eq!(taken_entries.get(1).unwrap().source_id(), SourceId::new(1));
 
         assert_eq!(source_phase.ready_sources.len(), 2);
         assert_eq!(
-            source_phase.ready_sources.get(0).unwrap().source_id(),
+            source_phase.ready_sources.front().unwrap().source_id(),
             SourceId::new(2)
         );
         assert_eq!(

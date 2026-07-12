@@ -134,7 +134,7 @@ mod tests {
             _context: &mut EventContext<TestEvent, Self>,
             event: &Event<TestEvent>,
         ) {
-            self.handled_events.push(event.payload.clone());
+            self.handled_events.push(event.payload);
         }
     }
 
@@ -313,10 +313,7 @@ mod tests {
             _current_micro_step: MicroStep,
             event: &Event<TestEvent>,
         ) {
-            self.discarded_events
-                .lock()
-                .unwrap()
-                .push(event.payload.clone());
+            self.discarded_events.lock().unwrap().push(event.payload);
         }
 
         fn after_event_phase(
@@ -434,12 +431,12 @@ mod tests {
 
         let taken_events = event_phase.take_all_if(|e| e.payload == TestEvent::A);
         assert_eq!(taken_events.len(), 2); // Original A + added A
-        assert_eq!(taken_events.get(0).unwrap().payload, TestEvent::A);
+        assert_eq!(taken_events.front().unwrap().payload, TestEvent::A);
         assert_eq!(taken_events.get(1).unwrap().payload, TestEvent::A);
 
         assert_eq!(event_phase.ready_events.len(), 2);
         assert_eq!(
-            event_phase.ready_events.get(0).unwrap().payload,
+            event_phase.ready_events.front().unwrap().payload,
             TestEvent::B
         );
         assert_eq!(
