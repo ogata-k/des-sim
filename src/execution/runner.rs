@@ -132,13 +132,11 @@ pub trait Runner<E, M: Model<E>, CS: ContinueStrategy<E, M, Self::Err>> {
     where
         Self: Clone + Sync,
         // 並列スレッドから同時に何回でも安全に呼び出せるよう、FnMut ではなく不変の Fn に制限
-        EF: Fn(usize) -> Engine<E, M> + Send + Sync,
-        M: Clone + Send + Sync,
-        E: Clone + Send + Sync,
+        EF: Fn(usize) -> Engine<E, M> + Sync,
+        M: Send,
         // 並列スレッドから同時に何回でも安全に呼び出せるよう、FnMut ではなく不変の Fn に制限
-        MF: Fn(usize) -> M + Send + Sync,
-        F: FnMut(&M, ExecutorStatus, TickStatus) -> bool + Clone + Send + Sync,
-        Self::Err: Send,
+        MF: Fn(usize) -> M + Sync,
+        F: FnMut(&M, ExecutorStatus, TickStatus) -> bool + Clone + Sync,
         CS::Err: Send,
     {
         use rayon::prelude::*;

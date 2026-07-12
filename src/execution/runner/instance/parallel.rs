@@ -167,9 +167,7 @@ where
     }
 }
 
-impl<E, Command, M: ParallelModel<E, Command>>
-    ParallelRunner<Command, AlwaysContinueStrategy<E, M>>
-{
+impl<Command> ParallelRunner<Command, AlwaysContinueStrategy> {
     pub fn new(skippable: bool, sync_priority_threshold: EventPriority) -> Self {
         ParallelRunner {
             skippable,
@@ -263,10 +261,10 @@ mod tests {
 
     #[test]
     fn test_parallel_runner_new_and_args() {
-        let runner = ParallelRunner::<
-            TestCommand,
-            AlwaysContinueStrategy<TestEvent, TestParallelModel>,
-        >::new(true, EventPriority::new(100));
+        let runner = ParallelRunner::<TestCommand, AlwaysContinueStrategy>::new(
+            true,
+            EventPriority::new(100),
+        );
         assert!(runner.skippable);
         assert_eq!(runner.sync_priority_threshold, EventPriority::new(100));
     }

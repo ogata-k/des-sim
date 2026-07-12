@@ -217,7 +217,7 @@ fn main() {
 
     // すべてのイベントを非同期処理の対象にするため、sync_priority_threshold には EventPriority::maximum() などを設定。
     // (もし特定の重要イベントだけを同期させたい場合は、その優先度を閾値に指定します)
-    let mut runner = ParallelRunner::<ServerCommand, _>::new(true, EventPriority::maximum());
+    let mut runner = ParallelRunner::new(true, EventPriority::maximum());
     let result = runner.run_do_ticks(engine, model, 60, false);
 
     print!("\nSimulation Result: {:?}", result);

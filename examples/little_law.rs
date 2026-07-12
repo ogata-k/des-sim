@@ -47,32 +47,11 @@ pub struct QueueModel {
     queue: VecDeque<Customer>,
     arrival_sampler: ExponentialSampler,
     service_sampler: ExponentialSampler,
-    rng_mode: RngMode,
     rng: StdRng,
     pub total_stay_duration: Duration,
     pub total_served_customers: usize,
     pub time_weighted_queue_length: f64,
     pub last_event_time: SimTime,
-}
-
-impl Clone for QueueModel {
-    fn clone(&self) -> Self {
-        Self {
-            queue: self.queue.clone(),
-            arrival_sampler: self.arrival_sampler.clone(),
-            service_sampler: self.service_sampler.clone(),
-            rng_mode: self.rng_mode.clone(),
-            // 初期化されたStdRngになってしまうがサンプルなので複製できる方が大事
-            rng: match self.rng_mode {
-                RngMode::Fixed(seed) => StdRng::seed_from_u64(seed),
-                RngMode::Random => StdRng::from_rng(&mut rng()),
-            },
-            total_stay_duration: self.total_stay_duration,
-            total_served_customers: self.total_served_customers,
-            time_weighted_queue_length: self.time_weighted_queue_length,
-            last_event_time: self.last_event_time,
-        }
-    }
 }
 
 impl QueueModel {
@@ -86,7 +65,6 @@ impl QueueModel {
             queue: VecDeque::new(),
             arrival_sampler: ExponentialSampler::new(arrival_rate).unwrap(),
             service_sampler: ExponentialSampler::new(service_rate).unwrap(),
-            rng_mode,
             rng,
             total_stay_duration: Duration::zero(),
             total_served_customers: 0,
@@ -215,7 +193,7 @@ fn main() {
     println!("⚡ {} 件の待ち行列シナリオを並列で実行中...", count);
 
     let batch_results =
-        runner.run_batch_parallel(count, engine_builder, model_builder, should_stop);
+        (&runner).run_batch_parallel(count, engine_builder, model_builder, should_stop);
 
     let reports: Vec<SimulationReport> = batch_results
         .into_iter()

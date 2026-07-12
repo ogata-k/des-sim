@@ -124,7 +124,7 @@ impl<E, M: Model<E>, CS: ContinueStrategy<E, M, ()>> Runner<E, M, CS> for Realti
     }
 }
 
-impl<E, M: Model<E>> RealtimeRunner<AlwaysContinueStrategy<E, M>> {
+impl RealtimeRunner<AlwaysContinueStrategy> {
     /// 新しい `RealtimeRunner` を生成します。
     /// `tick_unit_duration` には 1 Tickの処理に必要な実時間を指定します（例: `Duration::from_millis(100)` で 1秒間に10Ticks）。
     pub fn new(tick_unit_duration: StdDuration) -> Self {
@@ -184,15 +184,13 @@ mod tests {
 
     #[test]
     fn test_realtime_runner_new() {
-        let runner_always = RealtimeRunner::<AlwaysContinueStrategy<TestEvent, TestModel>>::new(
-            std::time::Duration::from_millis(100),
-        );
+        let runner_always = RealtimeRunner::new(std::time::Duration::from_millis(100));
         assert_eq!(
             runner_always.tick_unit_duration,
             std::time::Duration::from_millis(100)
         );
 
-        let strategy = AlwaysContinueStrategy::<TestEvent, TestModel>::new();
+        let strategy = AlwaysContinueStrategy::new();
         let runner_custom = RealtimeRunner::new_with_continue_strategy(
             std::time::Duration::from_millis(100),
             strategy,

@@ -114,7 +114,7 @@ impl<E, M: Model<E>, CS: ContinueStrategy<E, M, ()>> Runner<E, M, CS> for Standa
     }
 }
 
-impl<E, M: Model<E>> StandardRunner<AlwaysContinueStrategy<E, M>> {
+impl StandardRunner<AlwaysContinueStrategy> {
     pub fn new(skippable: bool) -> Self {
         StandardRunner {
             skippable,
@@ -167,11 +167,10 @@ mod tests {
 
     #[test]
     fn test_standard_runner_new_and_skippable() {
-        let runner_always =
-            StandardRunner::<AlwaysContinueStrategy<TestEvent, TestModel>>::new(true);
+        let runner_always = StandardRunner::new(true);
         assert!(runner_always.skippable);
 
-        let strategy = AlwaysContinueStrategy::<TestEvent, TestModel>::new();
+        let strategy = AlwaysContinueStrategy::new();
         let runner_custom = StandardRunner::new_with_continue_strategy(false, strategy);
         assert!(!runner_custom.skippable);
     }

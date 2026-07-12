@@ -1,21 +1,18 @@
 use crate::execution::phase::UncheckedActiveExecutor;
 use crate::execution::strategy::{ContinueStrategy, ContinuousStrategyResult};
 use crate::modeling::model::Model;
-use std::marker::PhantomData;
 
 /// [Runner](crate::execution::runner::Runner)のデフォルトの挙動のままの継続戦略
 #[derive(Clone)]
-pub struct AlwaysContinueStrategy<E, M>(PhantomData<(E, M)>);
+pub struct AlwaysContinueStrategy;
 
-impl<E, M> Default for AlwaysContinueStrategy<E, M> {
+impl Default for AlwaysContinueStrategy {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<E, M: Model<E>, RunnerError> ContinueStrategy<E, M, RunnerError>
-    for AlwaysContinueStrategy<E, M>
-{
+impl<E, M: Model<E>, RunnerError> ContinueStrategy<E, M, RunnerError> for AlwaysContinueStrategy {
     type Err = RunnerError;
 
     fn handle_micro_step_continue(
@@ -27,9 +24,9 @@ impl<E, M: Model<E>, RunnerError> ContinueStrategy<E, M, RunnerError>
     }
 }
 
-impl<E, M> AlwaysContinueStrategy<E, M> {
+impl AlwaysContinueStrategy {
     pub fn new() -> Self {
-        Self(PhantomData)
+        Self
     }
 }
 
@@ -62,8 +59,8 @@ mod tests {
     #[test]
     fn test_always_continue_strategy_default_and_new() {
         // new と default でインスタンス化できることを確認
-        let _strategy_new = AlwaysContinueStrategy::<TestEvent, TestModel>::new();
-        let _strategy_default = AlwaysContinueStrategy::<TestEvent, TestModel>::default();
+        let _strategy_new = AlwaysContinueStrategy::new();
+        let _strategy_default = AlwaysContinueStrategy::default();
     }
 
     #[test]
@@ -83,7 +80,7 @@ mod tests {
         let current_micro_step = MicroStep::zero();
         let unchecked_executor = UncheckedActiveExecutor::new(active_context, current_micro_step);
 
-        let mut strategy = AlwaysContinueStrategy::<TestEvent, TestModel>::new();
+        let mut strategy = AlwaysContinueStrategy::new();
 
         // ダミーのエラー型として()を指定して戦略を実行
         let result: ContinuousStrategyResult<TestEvent, TestModel, ()> =
