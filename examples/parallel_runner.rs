@@ -60,7 +60,7 @@ impl Model<MyEvent> for ServerModel {
 
 impl ParallelModel<MyEvent, ServerCommand> for ServerModel {
     /// 【非同期実行】スレッドプール上で &self (不変参照) を使って安全に並列計算
-    fn handle_event_parallel(&self, event: Event<MyEvent>, tx: Sender<ServerCommand>) {
+    fn handle_event_parallel(&self, event: Event<MyEvent>, sender: Sender<ServerCommand>) {
         // 現在の状態を安全に読み取り、書き換えコマンドをチャンネルに送る
         match event.payload {
             MyEvent::JobArrived { job_id } => {
@@ -70,13 +70,13 @@ impl ParallelModel<MyEvent, ServerCommand> for ServerModel {
                 } else {
                     std::thread::sleep(std::time::Duration::from_millis(200));
                 }
-                tx.send(ServerCommand::EnqueueJob { job_id }).unwrap();
+                sender.send(ServerCommand::EnqueueJob { job_id }).unwrap();
             }
             MyEvent::JobProcessed { job_id: _ } => {
-                tx.send(ServerCommand::ProcessNextOrIdle).unwrap();
+                sender.send(ServerCommand::ProcessNextOrIdle).unwrap();
             }
             MyEvent::JobProcessNext => {
-                tx.send(ServerCommand::ProcessNextOrIdle).unwrap();
+                sender.send(ServerCommand::ProcessNextOrIdle).unwrap();
             }
         }
     }
@@ -139,14 +139,14 @@ pub struct JobGenerator {
 impl Source<MyEvent, ServerModel> for JobGenerator {
     fn on_registered(
         &mut self,
-        ctx: &mut dyn UserContext<MyEvent, ServerModel>,
+        csender: &mut dyn UserContext<MyEvent, ServerModel>,
         _model: &ServerModel,
     ) -> Option<Duration> {
         // 最初に一つイベントを登録する
         let job_id = self.next_job_id;
         self.next_job_id += 1;
 
-        ctx.schedule_event(
+        csender.schedule_event(
             Duration::ticks(0),
             EventPriority::minimum(),
             MyEvent::JobArrived { job_id },
@@ -157,7 +157,7 @@ impl Source<MyEvent, ServerModel> for JobGenerator {
 
     fn fire(
         &mut self,
-        ctx: &mut SourceContext<MyEvent, ServerModel>,
+        csender: &mut SourceContext<MyEvent, ServerModel>,
         _model: &ServerModel,
     ) -> Option<Duration> {
         // 非同期処理のありがたみを見るために、多めにイベントを一括登録する。
@@ -165,7 +165,7 @@ impl Source<MyEvent, ServerModel> for JobGenerator {
             let job_id = self.next_job_id;
             self.next_job_id += 1;
 
-            ctx.schedule_event(
+            csender.schedule_event(
                 Duration::ticks(0),
                 EventPriority::minimum(),
                 MyEvent::JobArrived { job_id },
@@ -217,7 +217,7 @@ fn main() {
 
     // すべてのイベントを非同期処理の対象にするため、sync_priority_threshold には EventPriority::maximum() などを設定。
     // (もし特定の重要イベントだけを同期させたい場合は、その優先度を閾値に指定します)
-    let mut runner = ParallelRunner::<ServerCommand, _>::new(true, EventPriority::maximum());
+    let mut runner = ParallelRunner::new(true, EventPriority::maximum());
     let result = runner.run_do_ticks(engine, model, 60, false);
 
     print!("\nSimulation Result: {:?}", result);

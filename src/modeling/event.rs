@@ -30,7 +30,17 @@ impl EventPriority {
 
 #[derive(Clone, Debug)]
 pub struct Event<E> {
-    pub id: EventId,
+    pub event_id: EventId,
     pub priority: EventPriority,
     pub payload: E,
+}
+
+impl<E> Event<E> {
+    pub(crate) fn new(event_id: EventId, priority: EventPriority, payload: E) -> Self {
+        Self {
+            event_id,
+            priority,
+            payload,
+        }
+    }
 }

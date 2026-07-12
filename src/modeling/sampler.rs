@@ -22,7 +22,7 @@ impl Add<Duration> for PendingDuration {
     type Output = PendingDuration;
 
     fn add(self, rhs: Duration) -> Self::Output {
-        PendingDuration::new(self.0 + rhs.as_ticks() as f64)
+        PendingDuration::new(self.0 + rhs.as_time_tick() as f64)
     }
 }
 
@@ -38,7 +38,7 @@ impl Sub<Duration> for PendingDuration {
     type Output = PendingDuration;
 
     fn sub(self, rhs: Duration) -> Self::Output {
-        PendingDuration::new(self.0 - rhs.as_ticks() as f64)
+        PendingDuration::new(self.0 - rhs.as_time_tick() as f64)
     }
 }
 
@@ -57,7 +57,7 @@ impl PendingDuration {
     }
 
     pub fn from_duration(duration: Duration) -> Self {
-        Self::new(duration.as_ticks() as f64)
+        Self::new(duration.as_time_tick() as f64)
     }
 
     pub fn raw_value(&self) -> f64 {
@@ -111,9 +111,39 @@ pub trait DurationSampler {
     fn sample(&mut self, rng: &mut dyn Rng, current_tick: SimTime) -> PendingDuration;
 }
 
+/// 複製可能なトレイトオブジェクトのためのトレイト
+pub trait ClonableDurationSampler: DurationSampler + Send + Sync {
+    fn box_clone(&self) -> Box<dyn ClonableDurationSampler>;
+}
+
+// Cloneを実装しているすべてのDurationSamplerに対して自動実装
+impl<S> ClonableDurationSampler for S
+where
+    S: DurationSampler + Clone + Send + Sync + 'static,
+{
+    fn box_clone(&self) -> Box<dyn ClonableDurationSampler> {
+        Box::new(self.clone())
+    }
+}
+
+// これにより、Box<dyn ClonableDurationSampler> 自体に Clone トレイトを直接実装できる
+impl Clone for Box<dyn ClonableDurationSampler> {
+    fn clone(&self) -> Self {
+        self.box_clone()
+    }
+}
+
 pub trait CombinatorExt: DurationSampler + Sized + 'static {
     /// コンビネータを作るたびに Box::new() を書く手間を省くだけのヘルパー
     fn boxed(self) -> Box<dyn DurationSampler> {
+        Box::new(self)
+    }
+
+    /// 複製可能なSamplerとしてBoxで包む処理を書く手間を省くだけのヘルパー
+    fn boxed_clonable(self) -> Box<dyn ClonableDurationSampler>
+    where
+        Self: Clone + Send + Sync,
+    {
         Box::new(self)
     }
 
@@ -173,3 +203,274 @@ pub trait CombinatorExt: DurationSampler + Sized + 'static {
     }
 }
 impl<T: DurationSampler + Sized + 'static> CombinatorExt for T {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rand::SeedableRng;
+    use rand::prelude::SmallRng;
+
+    #[test]
+    fn test_pending_duration_new() {
+        let pd = PendingDuration::new(10.5);
+        assert_eq!(pd.raw_value(), 10.5);
+    }
+
+    #[test]
+    fn test_pending_duration_from_duration() {
+        let d = Duration::ticks(100);
+        let pd = PendingDuration::from_duration(d);
+        assert_eq!(pd.raw_value(), 100.0);
+    }
+
+    #[test]
+    fn test_pending_duration_from_trait() {
+        let d = Duration::ticks(200);
+        let pd: PendingDuration = d.into();
+        assert_eq!(pd.raw_value(), 200.0);
+    }
+
+    #[test]
+    fn test_pending_duration_to_duration() {
+        let pd = PendingDuration::new(10.5);
+        let d = pd.to_duration();
+        assert_eq!(d, Duration::ticks(11)); // Rounds up
+    }
+
+    #[test]
+    fn test_pending_duration_to_duration_round_down() {
+        let pd = PendingDuration::new(10.4);
+        let d = pd.to_duration();
+        assert_eq!(d, Duration::ticks(10)); // Rounds down
+    }
+
+    #[test]
+    fn test_pending_duration_to_duration_negative_panics() {
+        let pd = PendingDuration::new(-5.0);
+        let result = std::panic::catch_unwind(|| pd.to_duration());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_pending_duration_to_duration_with_clamp() {
+        let pd = PendingDuration::new(10.5);
+        let d = pd.to_duration_with_clamp(100);
+        assert_eq!(d, Duration::ticks(11));
+
+        let pd_large = PendingDuration::new(150.0);
+        let d_clamped = pd_large.to_duration_with_clamp(100);
+        assert_eq!(d_clamped, Duration::ticks(100));
+
+        let pd_negative = PendingDuration::new(-5.0);
+        let d_clamped_negative = pd_negative.to_duration_with_clamp(100);
+        assert_eq!(d_clamped_negative, Duration::ticks(0));
+    }
+
+    #[test]
+    fn test_pending_duration_to_duration_or_else() {
+        let pd_positive = PendingDuration::new(5.5);
+        let d = pd_positive.to_duration_or_else(|| Duration::ticks(0));
+        assert_eq!(d, Duration::ticks(6));
+
+        let pd_negative = PendingDuration::new(-5.5);
+        let d_else = pd_negative.to_duration_or_else(|| Duration::ticks(10));
+        assert_eq!(d_else, Duration::ticks(10));
+    }
+
+    #[test]
+    fn test_pending_duration_try_duration() {
+        let pd_positive = PendingDuration::new(5.5);
+        assert_eq!(pd_positive.try_duration(), Some(Duration::ticks(6)));
+
+        let pd_negative = PendingDuration::new(-5.5);
+        assert_eq!(pd_negative.try_duration(), None);
+    }
+
+    #[test]
+    fn test_pending_duration_add_duration() {
+        let pd = PendingDuration::new(10.0);
+        let d = Duration::ticks(5);
+        let result = pd + d;
+        assert_eq!(result.raw_value(), 15.0);
+    }
+
+    #[test]
+    fn test_pending_duration_add_pending_duration() {
+        let pd1 = PendingDuration::new(10.0);
+        let pd2 = PendingDuration::new(7.5);
+        let result = pd1 + pd2;
+        assert_eq!(result.raw_value(), 17.5);
+    }
+
+    #[test]
+    fn test_pending_duration_sub_duration() {
+        let pd = PendingDuration::new(10.0);
+        let d = Duration::ticks(3);
+        let result = pd - d;
+        assert_eq!(result.raw_value(), 7.0);
+    }
+
+    #[test]
+    fn test_pending_duration_sub_pending_duration() {
+        let pd1 = PendingDuration::new(10.0);
+        let pd2 = PendingDuration::new(2.5);
+        let result = pd1 - pd2;
+        assert_eq!(result.raw_value(), 7.5);
+    }
+
+    #[test]
+    fn test_pending_duration_apply() {
+        let mut pd = PendingDuration::new(10.0);
+        let result = pd.apply(|v| v * 2.0);
+        assert_eq!(result.raw_value(), 20.0);
+        assert_eq!(pd.raw_value(), 10.0); // Original should not change
+    }
+
+    // Mock Sampler for testing CombinatorExt
+    struct MockSampler {
+        value: f64,
+    }
+
+    impl DurationSampler for MockSampler {
+        fn sample(&mut self, _rng: &mut dyn Rng, _current_tick: SimTime) -> PendingDuration {
+            PendingDuration::new(self.value)
+        }
+    }
+
+    #[test]
+    fn test_combinator_ext_boxed() {
+        let mut sampler = MockSampler { value: 10.0 };
+        let mut rng = SmallRng::seed_from_u64(2);
+        let current_tick = SimTime::from_ticks(0);
+        assert_eq!(sampler.sample(&mut rng, current_tick).raw_value(), 10.0);
+    }
+
+    #[test]
+    fn test_combinator_ext_map() {
+        let sampler = MockSampler { value: 10.0 };
+        let mut map_sampler = sampler.map(|_rng, _tick, v| v * 2.0);
+        let mut rng = SmallRng::seed_from_u64(2);
+        let current_tick = SimTime::from_ticks(0);
+        assert_eq!(map_sampler.sample(&mut rng, current_tick).raw_value(), 20.0);
+    }
+
+    #[test]
+    fn test_combinator_ext_delay() {
+        let base_sampler = MockSampler { value: 10.0 };
+        let delay_sampler_impl = MockSampler { value: 5.0 };
+        let mut delay_sampler = base_sampler.delay(delay_sampler_impl.boxed());
+        let mut rng = SmallRng::seed_from_u64(2);
+        let current_tick = SimTime::from_ticks(0);
+        assert_eq!(
+            delay_sampler.sample(&mut rng, current_tick).raw_value(),
+            15.0
+        ); // base + delay
+    }
+
+    #[test]
+    fn test_combinator_ext_jitter() {
+        let base_sampler = MockSampler { value: 10.0 };
+        let jitter_sampler_impl = MockSampler { value: 2.0 };
+        let mut jitter_sampler = base_sampler.jitter(jitter_sampler_impl.boxed());
+        let mut rng = SmallRng::seed_from_u64(2);
+        let current_tick = SimTime::from_ticks(0);
+        // Jitter adds or subtracts, so we expect a range. For a fixed mock, it will be base + jitter
+        assert_eq!(
+            jitter_sampler.sample(&mut rng, current_tick).raw_value(),
+            12.0
+        );
+    }
+
+    #[test]
+    fn test_combinator_ext_chain() {
+        let s1 = MockSampler { value: 10.0 };
+        let s2 = MockSampler { value: 5.0 };
+        let mut chain_sampler = s1.chain(s2.boxed(), |_rng, _tick, v1, v2| v1 + v2 * 2.0);
+        let mut rng = SmallRng::seed_from_u64(2);
+        let current_tick = SimTime::from_ticks(0);
+        assert_eq!(
+            chain_sampler.sample(&mut rng, current_tick).raw_value(),
+            20.0
+        ); // 10.0 + 5.0 * 2.0
+    }
+
+    #[test]
+    fn test_combinator_ext_aggregate() {
+        let s1 = MockSampler { value: 10.0 };
+        let s2 = MockSampler { value: 5.0 };
+        let s3 = MockSampler { value: 2.0 };
+        let others = vec![s2.boxed(), s3.boxed()];
+        let mut aggregate_sampler =
+            s1.aggregate(others, |_rng, _tick, values| values.iter().sum::<f64>());
+        let mut rng = SmallRng::seed_from_u64(2);
+        let current_tick = SimTime::from_ticks(0);
+        assert_eq!(
+            aggregate_sampler.sample(&mut rng, current_tick).raw_value(),
+            17.0
+        ); // 10.0 + 5.0 + 2.0
+    }
+
+    #[test]
+    fn test_combinator_ext_clamp() {
+        let sampler = MockSampler { value: 10.0 };
+        let mut clamp_sampler = sampler.clamp(5.0, 8.0);
+        let mut rng = SmallRng::seed_from_u64(2);
+        let current_tick = SimTime::from_ticks(0);
+        assert_eq!(
+            clamp_sampler.sample(&mut rng, current_tick).raw_value(),
+            8.0
+        ); // Clamped to max
+
+        let sampler_low = MockSampler { value: 3.0 };
+        let mut clamp_sampler_low = sampler_low.clamp(5.0, 8.0);
+        assert_eq!(
+            clamp_sampler_low.sample(&mut rng, current_tick).raw_value(),
+            5.0
+        ); // Clamped to min
+
+        let sampler_in_range = MockSampler { value: 6.0 };
+        let mut clamp_sampler_in_range = sampler_in_range.clamp(5.0, 8.0);
+        assert_eq!(
+            clamp_sampler_in_range
+                .sample(&mut rng, current_tick)
+                .raw_value(),
+            6.0
+        ); // In range
+    }
+
+    #[test]
+    fn test_combinator_ext_ensure_non_negative() {
+        struct NegativeSampler;
+        impl DurationSampler for NegativeSampler {
+            fn sample(&mut self, _rng: &mut dyn Rng, _current_tick: SimTime) -> PendingDuration {
+                PendingDuration::new(-5.0)
+            }
+        }
+
+        let sampler = NegativeSampler;
+        let mut ensure_sampler = sampler.ensure_non_negative(3, |_rng, _tick| Duration::ticks(10));
+        let mut rng = SmallRng::seed_from_u64(2);
+        let current_tick = SimTime::from_ticks(0);
+        // Should fall back to the provided duration
+        assert_eq!(
+            ensure_sampler.sample(&mut rng, current_tick).raw_value(),
+            10.0
+        );
+
+        struct PositiveSampler;
+        impl DurationSampler for PositiveSampler {
+            fn sample(&mut self, _rng: &mut dyn Rng, _current_tick: SimTime) -> PendingDuration {
+                PendingDuration::new(5.0)
+            }
+        }
+        let sampler_pos = PositiveSampler;
+        let mut ensure_sampler_pos =
+            sampler_pos.ensure_non_negative(3, |_rng, _tick| Duration::ticks(10));
+        assert_eq!(
+            ensure_sampler_pos
+                .sample(&mut rng, current_tick)
+                .raw_value(),
+            5.0
+        );
+    }
+}

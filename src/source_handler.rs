@@ -215,8 +215,7 @@ impl<E, M: Model<E>> SourceHandler<E, M> {
     }
 
     #[cfg(test)]
-    #[allow(dead_code)]
-    pub(crate) fn ready_queue_len(&self) -> usize {
+    pub fn ready_queue_len(&self) -> usize {
         self.ready_queue.len()
     }
 
@@ -257,7 +256,7 @@ mod tests {
 
     impl<E, M: Model<E>> UserContext<E, M> for UserContextImpl {
         fn current_tick(&self) -> SimTime {
-            SimTime::new(0)
+            SimTime::from_ticks(0)
         }
 
         fn current_micro_step(&self) -> MicroStep {
@@ -818,7 +817,7 @@ mod tests {
     #[test]
     fn cancel_single_source_from_pending_queue() {
         let mut handler: SourceHandler<TestEvent, TestModel> = SourceHandler::new();
-        let now = SimTime::new(0);
+        let now = SimTime::from_ticks(0);
 
         handler.add_source_for_before_simulation(
             "source_to_cancel",
@@ -872,7 +871,7 @@ mod tests {
     #[test]
     fn cancel_single_source_from_ready_queue() {
         let mut handler: SourceHandler<TestEvent, TestModel> = SourceHandler::new();
-        let now = SimTime::new(0);
+        let now = SimTime::from_ticks(0);
 
         handler.add_source_for_before_simulation(
             "source_to_keep_1",
@@ -924,7 +923,7 @@ mod tests {
     #[test]
     fn cancel_multiple_sources() {
         let mut handler: SourceHandler<TestEvent, TestModel> = SourceHandler::new();
-        let now = SimTime::new(0);
+        let now = SimTime::from_ticks(0);
 
         handler.add_source_for_before_simulation(
             "cancel_me_1",
@@ -982,7 +981,7 @@ mod tests {
     #[test]
     fn cancel_no_sources() {
         let mut handler: SourceHandler<TestEvent, TestModel> = SourceHandler::new();
-        let now = SimTime::new(0);
+        let now = SimTime::from_ticks(0);
 
         handler.add_source_for_before_simulation(
             "source_1",
@@ -1026,7 +1025,7 @@ mod tests {
     #[test]
     fn cancel_all_sources() {
         let mut handler: SourceHandler<TestEvent, TestModel> = SourceHandler::new();
-        let now = SimTime::new(0);
+        let now = SimTime::from_ticks(0);
 
         handler.add_source_for_before_simulation(
             "source_1",
@@ -1070,7 +1069,7 @@ mod tests {
     #[test]
     fn cancel_source_with_mixed_queues() {
         let mut handler: SourceHandler<TestEvent, TestModel> = SourceHandler::new();
-        let now = SimTime::new(0);
+        let now = SimTime::from_ticks(0);
 
         // Events in pending_queue initially
 
@@ -1144,7 +1143,7 @@ mod tests {
     #[test]
     fn cancel_source_by_id() {
         let mut handler: SourceHandler<TestEvent, TestModel> = SourceHandler::new();
-        let now = SimTime::new(0);
+        let now = SimTime::from_ticks(0);
 
         handler.add_source_for_before_simulation(
             "source_1",
@@ -1194,5 +1193,120 @@ mod tests {
         assert_eq!(ready_at_30.len(), 1);
         assert_eq!(ready_at_30[0].name(), "source_3");
         assert_eq!(ready_at_30[0].source_id(), SourceId::new(2));
+    }
+
+    #[test]
+    fn test_deterministic_ordering_for_same_sim_time() {
+        let mut handler: SourceHandler<TestEvent, TestModel> = SourceHandler::new();
+
+        // 異なる登録順、異なる SourceId で同一時刻（SimTime: 10）にスケジュールされるソースを登録
+        handler.add_source_for_before_simulation(
+            "source_0",
+            TestSource {
+                id: 0,
+                initial_delay: Duration::ticks(10),
+            },
+        );
+        handler.add_source_for_before_simulation(
+            "source_1",
+            TestSource {
+                id: 1,
+                initial_delay: Duration::ticks(10),
+            },
+        );
+
+        let mut dummy_context = UserContextImpl;
+        let dummy_model = TestModel;
+        handler.initialize_sources(|entry| {
+            entry.source.on_registered(&mut dummy_context, &dummy_model)
+        });
+
+        // pending_queue から ready_queue へフラッシュ
+        handler.flush_pending();
+
+        // 同一時刻の要素を取得
+        let mut ready_sources = handler.drain_ready(SimTime::from_ticks(10));
+        assert_eq!(ready_sources.len(), 2);
+
+        // BinaryHeap と Reverse(ScheduledSource) の実装により、
+        // 時刻が同じ場合は `SourceId` が小さい方が必ず先に Pop される（決定論性の担保）
+        let first = ready_sources.pop_front().unwrap();
+        let second = ready_sources.pop_front().unwrap();
+
+        assert_eq!(first.source_id(), SourceId::new(0));
+        assert_eq!(first.name(), "source_0");
+
+        assert_eq!(second.source_id(), SourceId::new(1));
+        assert_eq!(second.name(), "source_1");
+    }
+
+    #[test]
+    fn test_cascading_registration_during_simulation_flow() {
+        let mut handler: SourceHandler<TestEvent, TestModel> = SourceHandler::new();
+        let now = SimTime::from_ticks(0);
+
+        // 1. 最初のソース（トリガー役）を登録
+        handler.add_source_for_before_simulation(
+            "trigger_source",
+            TestSource {
+                id: 0,
+                initial_delay: Duration::ticks(10),
+            },
+        );
+
+        let mut dummy_context = UserContextImpl;
+        let dummy_model = TestModel;
+        handler.initialize_sources(|entry| {
+            entry.source.on_registered(&mut dummy_context, &dummy_model)
+        });
+        handler.flush_pending();
+
+        // 2. 「現在時刻 10」のイベントを処理している最中に、新しく動的にソースが連鎖登録されるケースをシミュレート
+        let ready_at_10 = handler.drain_ready(now + Duration::ticks(10));
+        assert_eq!(ready_at_10.len(), 1);
+
+        // 動的な追加処理 (add_source_after_registered_action)
+        // この時点では pending_queue にのみ蓄積され、ready_queue の処理順を汚染しない（バッファリング）
+        handler.add_source_after_registered_action(
+            "cascaded_source_immediate",
+            now + Duration::ticks(10),
+            Some(Duration::zero()), // 遅延ゼロで同等時刻に差し込み
+            TestSource {
+                id: 1,
+                initial_delay: Duration::zero(),
+            },
+        );
+        handler.add_source_after_registered_action(
+            "cascaded_source_delayed",
+            now + Duration::ticks(10),
+            Some(Duration::ticks(5)), // 未来の時刻に差し込み
+            TestSource {
+                id: 2,
+                initial_delay: Duration::zero(),
+            },
+        );
+
+        // まだ flush していないので、同一時刻(10)で再度 drain しても、動的追加されたものは取れない
+        let ready_at_10_retry = handler.drain_ready(now + Duration::ticks(10));
+        assert!(ready_at_10_retry.is_empty());
+
+        // 3. 処理サイクルの隙間で flush_pending が呼ばれることで、初めて次のマイクロステップ/処理フェーズとして反映される
+        handler.flush_pending();
+
+        // 同一時刻(10)にスケジュールした即時連鎖ソースがここで取得できる
+        let mut ready_at_10_post_flush = handler.drain_ready(now + Duration::ticks(10));
+        assert_eq!(ready_at_10_post_flush.len(), 1);
+        assert_eq!(
+            ready_at_10_post_flush.pop_front().unwrap().name(),
+            "cascaded_source_immediate"
+        );
+
+        // 遅延させたものは時刻 15 で正しく取得できる
+        let mut ready_at_15 = handler.drain_ready(now + Duration::ticks(15));
+        assert_eq!(ready_at_15.len(), 1);
+        assert_eq!(
+            ready_at_15.pop_front().unwrap().name(),
+            "cascaded_source_delayed"
+        );
     }
 }

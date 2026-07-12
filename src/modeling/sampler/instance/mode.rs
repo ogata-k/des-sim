@@ -45,3 +45,71 @@ impl<T: TimeTrigger> ModeSampler<T> {
         Self { trigger, samplers }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::modeling::sampler::CombinatorExt;
+    use crate::modeling::sampler::instance::ConstantSampler;
+    use rand::SeedableRng;
+    use rand::rngs::SmallRng;
+
+    // Mock TimeTrigger for testing ModeSampler
+    struct MockTimeTrigger {
+        active_index: usize,
+        max_index_hint: usize,
+    }
+
+    impl TimeTrigger for MockTimeTrigger {
+        fn get_active_index(&self, _now: SimTime) -> usize {
+            self.active_index
+        }
+
+        fn max_possible_index_hint(&self) -> usize {
+            self.max_index_hint
+        }
+    }
+
+    #[test]
+    fn test_mode_sampler_valid_index() {
+        let mut rng = SmallRng::seed_from_u64(2);
+        let s1 = ConstantSampler::new(10.0);
+        let s2 = ConstantSampler::new(20.0);
+        let s3 = ConstantSampler::new(30.0);
+
+        let trigger = MockTimeTrigger {
+            active_index: 1,
+            max_index_hint: 2,
+        };
+        let mut sampler = ModeSampler::new(trigger, vec![s1.boxed(), s2.boxed(), s3.boxed()]);
+
+        let sample = sampler.sample(&mut rng, SimTime::from_ticks(0));
+        assert_eq!(sample.raw_value(), 20.0); // Should sample from s2
+    }
+
+    #[test]
+    fn test_mode_sampler_out_of_bounds_fallback() {
+        let mut rng = SmallRng::seed_from_u64(2);
+        let s1 = ConstantSampler::new(10.0);
+        let s2 = ConstantSampler::new(20.0);
+
+        let trigger = MockTimeTrigger {
+            active_index: 5, // Out of bounds
+            max_index_hint: 1,
+        };
+        let mut sampler = ModeSampler::new(trigger, vec![s1.boxed(), s2.boxed()]);
+
+        let sample = sampler.sample(&mut rng, SimTime::from_ticks(0));
+        assert_eq!(sample.raw_value(), 10.0); // Should fall back to s1
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_mode_sampler_empty_samplers() {
+        let trigger = MockTimeTrigger {
+            active_index: 0,
+            max_index_hint: 0,
+        };
+        let _sampler = ModeSampler::new(trigger, vec![]);
+    }
+}

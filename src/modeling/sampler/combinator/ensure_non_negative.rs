@@ -47,3 +47,65 @@ where
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::modeling::sampler::instance::ConstantSampler;
+    use crate::primitive::time::Duration;
+    use rand::SeedableRng;
+    use rand::rngs::SmallRng;
+
+    #[test]
+    fn test_ensure_non_negative_sampler_positive_value() {
+        let mut rng = SmallRng::seed_from_u64(2);
+        let base_sampler = ConstantSampler::new(10.0);
+        let mut sampler = EnsureNonNegativeSampler::new(base_sampler, 3, |_, _| Duration::ticks(0));
+
+        let sample = sampler.sample(&mut rng, SimTime::from_ticks(0));
+        assert_eq!(sample.raw_value(), 10.0);
+    }
+
+    #[test]
+    fn test_ensure_non_negative_sampler_negative_then_fallback() {
+        let mut rng = SmallRng::seed_from_u64(2);
+        // This mock sampler will always return -1.0
+        struct NegativeSampler;
+        impl DurationSampler for NegativeSampler {
+            fn sample(&mut self, _rng: &mut dyn Rng, _current_tick: SimTime) -> PendingDuration {
+                PendingDuration::new(-1.0)
+            }
+        }
+
+        let base_sampler = NegativeSampler;
+        let mut sampler = EnsureNonNegativeSampler::new(base_sampler, 1, |_, _| Duration::ticks(5));
+
+        let sample = sampler.sample(&mut rng, SimTime::from_ticks(0));
+        assert_eq!(sample.raw_value(), 5.0); // Should fall back to 5.0
+    }
+
+    #[test]
+    fn test_ensure_non_negative_sampler_multiple_tries_then_positive() {
+        let mut rng = SmallRng::seed_from_u64(2);
+        struct MixedSampler {
+            call_count: usize,
+        }
+        impl DurationSampler for MixedSampler {
+            fn sample(&mut self, _rng: &mut dyn Rng, _current_tick: SimTime) -> PendingDuration {
+                self.call_count += 1;
+                if self.call_count < 3 {
+                    PendingDuration::new(-1.0)
+                } else {
+                    PendingDuration::new(10.0)
+                }
+            }
+        }
+
+        let base_sampler = MixedSampler { call_count: 0 };
+        let mut sampler = EnsureNonNegativeSampler::new(base_sampler, 5, |_, _| Duration::ticks(0));
+
+        let sample = sampler.sample(&mut rng, SimTime::from_ticks(0));
+        assert_eq!(sample.raw_value(), 10.0);
+        assert_eq!(sampler.sampler.call_count, 3); // Should have tried 3 times
+    }
+}

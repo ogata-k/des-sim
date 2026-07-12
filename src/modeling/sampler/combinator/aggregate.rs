@@ -64,3 +64,48 @@ where
         AggregateSampler { samplers, f }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::modeling::sampler::CombinatorExt;
+    use crate::modeling::sampler::instance::ConstantSampler;
+    use rand::SeedableRng;
+    use rand::rngs::SmallRng;
+
+    #[test]
+    fn test_aggregate_sampler_sum() {
+        let mut rng = SmallRng::seed_from_u64(2);
+        let s1 = ConstantSampler::new(10.0);
+        let s2 = ConstantSampler::new(20.0);
+        let s3 = ConstantSampler::new(30.0);
+
+        let mut sampler =
+            AggregateSampler::new(vec![s1.boxed(), s2.boxed(), s3.boxed()], |_, _, samples| {
+                samples.iter().sum()
+            });
+
+        let sample = sampler.sample(&mut rng, SimTime::from_ticks(0));
+        assert_eq!(sample.raw_value(), 60.0);
+    }
+
+    #[test]
+    fn test_aggregate_sampler_builder() {
+        let mut rng = SmallRng::seed_from_u64(2);
+        let s1 = ConstantSampler::new(5.0);
+        let s2 = ConstantSampler::new(15.0);
+
+        let mut sampler = AggregateBuilder::from_sampler(s1)
+            .add_sampler(s2.boxed())
+            .build(|_, _, samples| samples[0] * samples[1]);
+
+        let sample = sampler.sample(&mut rng, SimTime::from_ticks(0));
+        assert_eq!(sample.raw_value(), 75.0); // 5.0 * 15.0
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_aggregate_sampler_empty_samplers() {
+        let _sampler = AggregateSampler::new(vec![], |_, _, _| 0.0);
+    }
+}

@@ -101,3 +101,386 @@ impl<E, M: Model<E>> EventPhase<E, M> {
         );
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::context::{EventContext, UserContext};
+    use crate::event_scheduler::EventScheduler;
+    use crate::modeling::event::{Event, EventPriority};
+    use crate::modeling::hook::instance::{HookDelegate, SharedHook};
+    use crate::modeling::model::Model;
+    use crate::primitive::id::EventId;
+    use crate::primitive::time::{Duration, MicroStep, MicroStepStatus, SimTime, TickStatus};
+    use crate::source_handler::{SourceHandler, SourceReadyEntry, SourceView};
+    use std::collections::VecDeque;
+    use std::rc::Rc;
+    use std::sync::Mutex;
+
+    #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+    enum TestEvent {
+        A,
+        B,
+        C,
+    }
+
+    struct TestModel {
+        handled_events: Vec<TestEvent>,
+    }
+
+    impl Model<TestEvent> for TestModel {
+        fn handle_event(
+            &mut self,
+            _context: &mut EventContext<TestEvent, Self>,
+            event: &Event<TestEvent>,
+        ) {
+            self.handled_events.push(event.payload);
+        }
+    }
+
+    struct DiscardHook {
+        discarded_events: Rc<Mutex<Vec<TestEvent>>>,
+    }
+
+    impl Hook<TestEvent, TestModel> for DiscardHook {
+        fn before_simulation(&self, _model: &TestModel) {
+            // none
+        }
+
+        fn after_simulation(&self, _model: &TestModel, _end_tick: SimTime) {
+            // none
+        }
+
+        fn before_tick(
+            &self,
+            _model: &TestModel,
+            _current_tick: SimTime,
+            _skipped_duration: Duration,
+        ) {
+            // none
+        }
+
+        fn after_tick(
+            &self,
+            _model: &TestModel,
+            _current_tick: SimTime,
+            _last_micro_step: MicroStep,
+        ) {
+            // none
+        }
+
+        fn before_micro_step(
+            &self,
+            _model: &TestModel,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+        ) {
+            // none
+        }
+
+        fn after_micro_step(
+            &self,
+            _model: &TestModel,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+        ) {
+            // none
+        }
+
+        fn on_discard_remain_micro_step(
+            &self,
+            _model: &TestModel,
+            _current_tick: SimTime,
+            _first_discarded_micro_step: MicroStep,
+            _discarded_sources: &[SourceReadyEntry],
+            _discarded_events: &[Event<TestEvent>],
+        ) {
+            // none
+        }
+
+        fn before_register_source(&self, _model: &TestModel, _name: &str) {
+            // none
+        }
+
+        fn after_register_source(&self, _model: &TestModel, _name: &str) {
+            // none
+        }
+
+        fn before_source_phase(
+            &self,
+            _model: &TestModel,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+        ) {
+            // none
+        }
+
+        fn before_source(
+            &self,
+            _model: &TestModel,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+            _source_view: &SourceView,
+        ) {
+            // none
+        }
+
+        fn after_source(
+            &self,
+            _model: &TestModel,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+            _source_view: &SourceView,
+            _computed_next_fire: Option<SimTime>,
+        ) {
+            // none
+        }
+
+        fn cancel_source(
+            &self,
+            _model: &TestModel,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+            _scheduled_at: SimTime,
+            _source_view: &SourceView,
+        ) {
+            // none
+        }
+
+        fn discard_source(
+            &self,
+            _model: &TestModel,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+            _source_view: &SourceView,
+        ) {
+            // none
+        }
+
+        fn after_source_phase(
+            &self,
+            _model: &TestModel,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+        ) {
+            // none
+        }
+
+        fn before_event_phase(
+            &self,
+            _model: &TestModel,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+        ) {
+            // none
+        }
+
+        fn before_event(
+            &self,
+            _model: &TestModel,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+            _event: &Event<TestEvent>,
+        ) {
+            // none
+        }
+
+        fn after_event(
+            &self,
+            _model: &TestModel,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+            _event: &Event<TestEvent>,
+        ) {
+            // none
+        }
+
+        fn cancel_event(
+            &self,
+            _model: &TestModel,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+            _scheduled_at: SimTime,
+            _event: &Event<TestEvent>,
+        ) {
+            // none
+        }
+
+        fn discard_event(
+            &self,
+            _model: &TestModel,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+            event: &Event<TestEvent>,
+        ) {
+            self.discarded_events.lock().unwrap().push(event.payload);
+        }
+
+        fn after_event_phase(
+            &self,
+            _model: &TestModel,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+        ) {
+            // none
+        }
+    }
+
+    fn setup_event_phase() -> (EventPhase<TestEvent, TestModel>, TestModel) {
+        let model = TestModel {
+            handled_events: Vec::new(),
+        };
+        let event_context = EventContext {
+            current_tick_status: TickStatus::initialize(),
+            current_micro_step_status: MicroStepStatus::initialize(),
+            hook_delegate: HookDelegate::new(),
+            source_handler: SourceHandler::new(),
+            event_scheduler: EventScheduler::new(),
+        };
+        let mut ready_events = VecDeque::new();
+        ready_events.push_back(Event::new(
+            EventId::new(0),
+            EventPriority::minimum(),
+            TestEvent::A,
+        ));
+        ready_events.push_back(Event::new(
+            EventId::new(1),
+            EventPriority::minimum(),
+            TestEvent::B,
+        ));
+        ready_events.push_back(Event::new(
+            EventId::new(2),
+            EventPriority::minimum(),
+            TestEvent::C,
+        ));
+
+        (EventPhase::new(event_context, ready_events), model)
+    }
+
+    #[test]
+    fn test_new() {
+        let (event_phase, _model) = setup_event_phase();
+        assert_eq!(event_phase.ready_events.len(), 3);
+    }
+
+    #[test]
+    fn test_get_context() {
+        let (mut event_phase, _model) = setup_event_phase();
+        let context = event_phase.get_context();
+        assert_eq!(context.current_tick(), SimTime::zero());
+    }
+
+    #[test]
+    fn test_take_one() {
+        let (mut event_phase, _model) = setup_event_phase();
+        let event = event_phase.take_one().unwrap();
+        assert_eq!(event.payload, TestEvent::A);
+        assert_eq!(event_phase.ready_events.len(), 2);
+    }
+
+    #[test]
+    fn test_take_one_if() {
+        // Original test logic (assuming pop_front_if behaves like take_front_if):
+        let (mut event_phase_a, _model_a) = setup_event_phase();
+        let event_a = event_phase_a
+            .take_one_if(|e| e.payload == TestEvent::A)
+            .unwrap();
+        assert_eq!(event_a.payload, TestEvent::A);
+        assert_eq!(event_phase_a.ready_events.len(), 2);
+        assert_eq!(
+            event_phase_a.ready_events.front().unwrap().payload,
+            TestEvent::B
+        );
+
+        let (mut event_phase_b, _model_b) = setup_event_phase();
+        let event_b = event_phase_b.take_one_if(|_| false);
+        assert!(event_b.is_none());
+        assert_eq!(event_phase_b.ready_events.len(), 3);
+    }
+
+    #[test]
+    fn test_take_front_if() {
+        let (mut event_phase, _model) = setup_event_phase();
+        let event_a = event_phase
+            .take_front_if(|e| e.payload == TestEvent::A)
+            .unwrap();
+        assert_eq!(event_a.payload, TestEvent::A);
+        assert_eq!(event_phase.ready_events.len(), 2);
+
+        let event_b = event_phase.take_front_if(|e| e.payload == TestEvent::A);
+        assert!(event_b.is_none());
+        assert_eq!(event_phase.ready_events.len(), 2);
+    }
+
+    #[test]
+    fn test_take_all() {
+        let (mut event_phase, _model) = setup_event_phase();
+        let all_events = event_phase.take_all();
+        assert_eq!(all_events.len(), 3);
+        assert_eq!(event_phase.ready_events.len(), 0);
+    }
+
+    #[test]
+    fn test_take_all_if() {
+        let (mut event_phase, _model) = setup_event_phase();
+        event_phase.ready_events.push_back(Event::new(
+            EventId::new(3),
+            EventPriority::minimum(),
+            TestEvent::A,
+        ));
+
+        let taken_events = event_phase.take_all_if(|e| e.payload == TestEvent::A);
+        assert_eq!(taken_events.len(), 2); // Original A + added A
+        assert_eq!(taken_events.front().unwrap().payload, TestEvent::A);
+        assert_eq!(taken_events.get(1).unwrap().payload, TestEvent::A);
+
+        assert_eq!(event_phase.ready_events.len(), 2);
+        assert_eq!(
+            event_phase.ready_events.front().unwrap().payload,
+            TestEvent::B
+        );
+        assert_eq!(
+            event_phase.ready_events.get(1).unwrap().payload,
+            TestEvent::C
+        );
+    }
+
+    #[test]
+    fn test_handle_event() {
+        let (mut event_phase, mut model) = setup_event_phase();
+        let event = Event::new(EventId::new(3), EventPriority::minimum(), TestEvent::A);
+        event_phase.handle_event(&mut model, event);
+        assert_eq!(model.handled_events.len(), 1);
+        assert_eq!(model.handled_events[0], TestEvent::A);
+    }
+
+    #[test]
+    fn test_discard() {
+        let (mut event_phase, model) = setup_event_phase();
+        let hook = SharedHook::new(DiscardHook {
+            discarded_events: Rc::new(Mutex::new(Vec::new())),
+        });
+        event_phase
+            .get_context()
+            .hook_delegate
+            .add_shared_hook(hook.clone());
+
+        let event = Event::new(EventId::new(3), EventPriority::minimum(), TestEvent::A);
+        event_phase.discard(&model, event);
+        assert_eq!(hook.get_ref().discarded_events.lock().unwrap().len(), 1);
+        assert_eq!(
+            hook.get_ref().discarded_events.lock().unwrap()[0],
+            TestEvent::A
+        );
+    }
+
+    #[test]
+    fn test_complete_event_phase() {
+        let (event_phase, model) = setup_event_phase();
+        let micro_step_handler = event_phase.complete_event_phase(&model);
+        assert_eq!(
+            micro_step_handler.ref_context().current_tick(),
+            SimTime::zero()
+        );
+    }
+}

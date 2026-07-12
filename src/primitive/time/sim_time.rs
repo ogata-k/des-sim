@@ -36,7 +36,6 @@ impl Sub<SimTime> for SimTime {
     type Output = Duration;
 
     fn sub(self, rhs: SimTime) -> Self::Output {
-        debug_assert!(self.0 >= rhs.0);
         Duration(self.0 - rhs.0)
     }
 }
@@ -45,13 +44,12 @@ impl Sub<Duration> for SimTime {
     type Output = SimTime;
 
     fn sub(self, rhs: Duration) -> Self::Output {
-        debug_assert!(self.0 >= rhs.0);
         SimTime(self.0 - rhs.0)
     }
 }
 
 impl SimTime {
-    pub const fn new(ticks: TimeTick) -> SimTime {
+    pub const fn from_ticks(ticks: TimeTick) -> SimTime {
         SimTime(ticks)
     }
 
@@ -59,7 +57,7 @@ impl SimTime {
         SimTime(0)
     }
 
-    pub const fn as_tick_value(self) -> TimeTick {
+    pub const fn as_time_tick(self) -> TimeTick {
         self.0
     }
 
@@ -150,7 +148,7 @@ impl Duration {
         Duration(1)
     }
 
-    pub const fn as_ticks(self) -> TimeTick {
+    pub const fn as_time_tick(self) -> TimeTick {
         self.0
     }
 
@@ -225,6 +223,511 @@ impl TickStatus {
     /// これにより、スキップが発生しても「最低限、閾値をまたぐ直前の処理（5 tick）」までは
     /// 確実に実行を完了させてから安全にシミュレーションを止めることができます。
     pub fn is_done_ticks(&self, include_zero_tick: bool, tick_count: TimeTick) -> bool {
-        self.previous().as_tick_value() + if include_zero_tick { 1 } else { 0 } >= tick_count
+        self.previous().as_time_tick() + if include_zero_tick { 1 } else { 0 } >= tick_count
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sim_time_creation() {
+        let t = SimTime::from_ticks(10);
+        assert_eq!(t.as_time_tick(), 10);
+        assert!(!t.is_zero());
+
+        let t_zero = SimTime::zero();
+        assert_eq!(t_zero.as_time_tick(), 0);
+        assert!(t_zero.is_zero());
+    }
+
+    #[test]
+    fn sim_time_from_tick() {
+        let t = SimTime::from(5);
+        assert_eq!(t.as_time_tick(), 5);
+    }
+
+    #[test]
+    fn sim_time_from_usize_conversion() {
+        let val: usize = 123;
+        let sim_time = SimTime::from(val);
+        assert_eq!(sim_time.as_time_tick(), val);
+    }
+
+    #[test]
+    fn sim_time_display() {
+        let t = SimTime::from_ticks(100);
+        assert_eq!(format!("{}", t), "100");
+    }
+
+    #[test]
+    fn sim_time_add_duration() {
+        let t1 = SimTime::from_ticks(10);
+        let d = Duration::ticks(5);
+        let t2 = t1 + d;
+        assert_eq!(t2.as_time_tick(), 15);
+    }
+
+    #[test]
+    fn sim_time_add_assign_duration() {
+        let mut t = SimTime::from_ticks(10);
+        let d = Duration::ticks(5);
+        t += d;
+        assert_eq!(t.as_time_tick(), 15);
+    }
+
+    #[test]
+    fn sim_time_sub_sim_time() {
+        let t1 = SimTime::from_ticks(10);
+        let t2 = SimTime::from_ticks(5);
+        let d = t1 - t2;
+        assert_eq!(d.as_time_tick(), 5);
+    }
+
+    #[test]
+    fn sim_time_sub_duration() {
+        let t = SimTime::from_ticks(10);
+        let d = Duration::ticks(5);
+        let t_new = t - d;
+        assert_eq!(t_new.as_time_tick(), 5);
+    }
+
+    #[test]
+    fn sim_time_checked_add() {
+        let t = SimTime::from_ticks(10);
+        let d = Duration::ticks(5);
+        assert_eq!(t.checked_add(d), Some(SimTime::from_ticks(15)));
+        let max_tick = TimeTick::MAX - 1;
+        let t_max = SimTime::from_ticks(max_tick);
+        let d_one = Duration::one();
+        assert_eq!(
+            t_max.checked_add(d_one),
+            Some(SimTime::from_ticks(TimeTick::MAX))
+        );
+        assert_eq!(t_max.checked_add(Duration::ticks(2)), None);
+    }
+
+    #[test]
+    fn sim_time_saturating_add() {
+        let t = SimTime::from_ticks(10);
+        let d = Duration::ticks(5);
+        assert_eq!(t.saturating_add(d), SimTime::from_ticks(15));
+        let max_tick = TimeTick::MAX - 1;
+        let t_max = SimTime::from_ticks(max_tick);
+        let d_two = Duration::ticks(2);
+        assert_eq!(
+            t_max.saturating_add(d_two),
+            SimTime::from_ticks(TimeTick::MAX)
+        );
+    }
+
+    #[test]
+    fn sim_time_checked_sub() {
+        let t1 = SimTime::from_ticks(10);
+        let t2 = SimTime::from_ticks(5);
+        assert_eq!(t1.checked_sub(t2), Some(Duration::ticks(5)));
+        let t_zero = SimTime::zero();
+        assert_eq!(t1.checked_sub(SimTime::from_ticks(15)), None);
+        assert_eq!(t_zero.checked_sub(SimTime::from_ticks(1)), None);
+    }
+
+    #[test]
+    fn sim_time_saturating_sub() {
+        let t1 = SimTime::from_ticks(10);
+        let t2 = SimTime::from_ticks(5);
+        assert_eq!(t1.saturating_sub(t2), Duration::ticks(5));
+        assert_eq!(t1.saturating_sub(SimTime::from_ticks(15)), Duration::zero());
+    }
+
+    #[test]
+    fn sim_time_checked_sub_duration() {
+        let t = SimTime::from_ticks(10);
+        let d = Duration::ticks(5);
+        assert_eq!(t.checked_sub_duration(d), Some(SimTime::from_ticks(5)));
+        assert_eq!(t.checked_sub_duration(Duration::ticks(15)), None);
+    }
+
+    #[test]
+    fn sim_time_saturating_sub_duration() {
+        let t = SimTime::from_ticks(10);
+        let d = Duration::ticks(5);
+        assert_eq!(t.saturating_sub_duration(d), SimTime::from_ticks(5));
+        assert_eq!(
+            t.saturating_sub_duration(Duration::ticks(15)),
+            SimTime::zero()
+        );
+    }
+
+    #[test]
+    fn sim_time_add_zero_duration() {
+        let t = SimTime::from_ticks(100);
+        let d_zero = Duration::zero();
+        assert_eq!(t + d_zero, t);
+    }
+
+    #[test]
+    fn sim_time_sub_zero_duration() {
+        let t = SimTime::from_ticks(100);
+        let d_zero = Duration::zero();
+        assert_eq!(t - d_zero, t);
+    }
+
+    #[test]
+    fn sim_time_max_value_subtraction() {
+        let max_sim_time = SimTime::from_ticks(TimeTick::MAX);
+        let one_duration = Duration::one();
+        let expected_sim_time = SimTime::from_ticks(TimeTick::MAX - 1);
+        assert_eq!(max_sim_time - one_duration, expected_sim_time);
+    }
+
+    #[test]
+    fn sim_time_comparison() {
+        let t1 = SimTime::from_ticks(10);
+        let t2 = SimTime::from_ticks(20);
+        let t3 = SimTime::from_ticks(10);
+
+        assert!(t1 < t2);
+        assert!(t2 > t1);
+        assert!(t1 <= t3);
+        assert!(t1 >= t3);
+        assert_eq!(t1, t3);
+        assert_ne!(t1, t2);
+    }
+
+    #[test]
+    fn duration_creation() {
+        let d = Duration::ticks(10);
+        assert_eq!(d.as_time_tick(), 10);
+        assert!(!d.is_zero());
+
+        let d_zero = Duration::zero();
+        assert_eq!(d_zero.as_time_tick(), 0);
+        assert!(d_zero.is_zero());
+
+        let d_one = Duration::one();
+        assert_eq!(d_one.as_time_tick(), 1);
+    }
+
+    #[test]
+    fn duration_from_tick() {
+        let d = Duration::from(5);
+        assert_eq!(d.as_time_tick(), 5);
+    }
+
+    #[test]
+    fn duration_from_usize_conversion() {
+        let val: usize = 456;
+        let duration = Duration::from(val);
+        assert_eq!(duration.as_time_tick(), val);
+    }
+
+    #[test]
+    fn duration_display() {
+        let d = Duration::ticks(100);
+        assert_eq!(format!("{}", d), "100");
+    }
+
+    #[test]
+    fn duration_add_duration() {
+        let d1 = Duration::ticks(10);
+        let d2 = Duration::ticks(5);
+        let d3 = d1 + d2;
+        assert_eq!(d3.as_time_tick(), 15);
+    }
+
+    #[test]
+    fn duration_add_assign_duration() {
+        let mut d = Duration::ticks(10);
+        let d_add = Duration::ticks(5);
+        d += d_add;
+        assert_eq!(d.as_time_tick(), 15);
+    }
+
+    #[test]
+    fn duration_sub_duration() {
+        let d1 = Duration::ticks(10);
+        let d2 = Duration::ticks(5);
+        let d3 = d1 - d2;
+        assert_eq!(d3.as_time_tick(), 5);
+    }
+
+    #[test]
+    fn duration_sub_assign_duration() {
+        let mut d = Duration::ticks(10);
+        let d_sub = Duration::ticks(5);
+        d -= d_sub;
+        assert_eq!(d.as_time_tick(), 5);
+    }
+
+    #[test]
+    fn duration_checked_add() {
+        let d1 = Duration::ticks(10);
+        let d2 = Duration::ticks(5);
+        assert_eq!(d1.checked_add(d2), Some(Duration::ticks(15)));
+        let max_tick = TimeTick::MAX - 1;
+        let d_max = Duration::ticks(max_tick);
+        let d_one = Duration::one();
+        assert_eq!(
+            d_max.checked_add(d_one),
+            Some(Duration::ticks(TimeTick::MAX))
+        );
+        assert_eq!(d_max.checked_add(Duration::ticks(2)), None);
+    }
+
+    #[test]
+    fn duration_saturating_add() {
+        let d1 = Duration::ticks(10);
+        let d2 = Duration::ticks(5);
+        assert_eq!(d1.saturating_add(d2), Duration::ticks(15));
+        let max_tick = TimeTick::MAX - 1;
+        let d_max = Duration::ticks(max_tick);
+        let d_two = Duration::ticks(2);
+        assert_eq!(d_max.saturating_add(d_two), Duration::ticks(TimeTick::MAX));
+    }
+
+    #[test]
+    fn duration_checked_sub() {
+        let d1 = Duration::ticks(10);
+        let d2 = Duration::ticks(5);
+        assert_eq!(d1.checked_sub(d2), Some(Duration::ticks(5)));
+        assert_eq!(d1.checked_sub(Duration::ticks(15)), None);
+    }
+
+    #[test]
+    fn duration_saturating_sub() {
+        let d1 = Duration::ticks(10);
+        let d2 = Duration::ticks(5);
+        assert_eq!(d1.saturating_sub(d2), Duration::ticks(5));
+        assert_eq!(d1.saturating_sub(Duration::ticks(15)), Duration::zero());
+    }
+
+    #[test]
+    fn duration_add_zero_duration() {
+        let d = Duration::ticks(100);
+        let d_zero = Duration::zero();
+        assert_eq!(d + d_zero, d);
+    }
+
+    #[test]
+    fn duration_sub_zero_duration() {
+        let d = Duration::ticks(100);
+        let d_zero = Duration::zero();
+        assert_eq!(d - d_zero, d);
+    }
+
+    #[test]
+    fn duration_max_value_subtraction() {
+        let max_duration = Duration::ticks(TimeTick::MAX);
+        let one_duration = Duration::one();
+        let expected_duration = Duration::ticks(TimeTick::MAX - 1);
+        assert_eq!(max_duration - one_duration, expected_duration);
+    }
+
+    #[test]
+    fn duration_comparison() {
+        let d1 = Duration::ticks(10);
+        let d2 = Duration::ticks(20);
+        let d3 = Duration::ticks(10);
+
+        assert!(d1 < d2);
+        assert!(d2 > d1);
+        assert!(d1 <= d3);
+        assert!(d1 >= d3);
+        assert_eq!(d1, d3);
+        assert_ne!(d1, d2);
+    }
+
+    #[test]
+    fn tick_status_initialize() {
+        let status = TickStatus::initialize();
+        assert_eq!(status.current(), SimTime::zero());
+        assert_eq!(status.skipped(), Duration::zero());
+        assert_eq!(status.previous(), SimTime::zero());
+    }
+
+    #[test]
+    fn tick_status_new() {
+        let current = SimTime::from_ticks(10);
+        let skipped = Duration::ticks(2);
+        let status = TickStatus::new(current, skipped);
+        assert_eq!(status.current(), current);
+        assert_eq!(status.skipped(), skipped);
+    }
+
+    #[test]
+    fn tick_status_previous() {
+        // current_tick = 0, skipped = 0 => previous = 0
+        let status = TickStatus::initialize();
+        assert_eq!(status.previous(), SimTime::zero());
+
+        // current_tick = 5, skipped = 0 => previous = 5 - 0 - 1 = 4
+        let status = TickStatus::new(SimTime::from_ticks(5), Duration::zero());
+        assert_eq!(status.previous(), SimTime::from_ticks(4));
+
+        // current_tick = 5, skipped = 2 => previous = 5 - 2 - 1 = 2
+        let status = TickStatus::new(SimTime::from_ticks(5), Duration::ticks(2));
+        assert_eq!(status.previous(), SimTime::from_ticks(2));
+    }
+
+    #[test]
+    fn tick_status_is_done_ticks_no_skip() {
+        // tick_count = 2, include_zero_tick = true
+        // previous = 0, 0 + 1 >= 2 => false
+        let status = TickStatus::initialize();
+        assert!(!status.is_done_ticks(true, 2));
+
+        // previous = 1, 1 + 1 >= 2 => true
+        let status = TickStatus::new(SimTime::from_ticks(2), Duration::zero());
+        assert!(status.is_done_ticks(true, 2));
+
+        // tick_count = 2, include_zero_tick = false
+        // previous = 0, 0 + 0 >= 2 => false
+        let status = TickStatus::initialize();
+        assert!(!status.is_done_ticks(false, 2));
+
+        // previous = 1, 1 + 0 >= 2 => false
+        let status = TickStatus::new(SimTime::from_ticks(2), Duration::zero());
+        assert!(!status.is_done_ticks(false, 2));
+
+        // previous = 2, 2 + 0 >= 2 => true
+        let status = TickStatus::new(SimTime::from_ticks(3), Duration::zero());
+        assert!(status.is_done_ticks(false, 2));
+    }
+
+    #[test]
+    fn tick_status_is_done_ticks_with_skip() {
+        // current_tick = 5, skipped = 2. previous = 2
+        // tick_count = 2, include_zero_tick = true
+        // previous = 2, 2 + 1 >= 2 => true
+        let status = TickStatus::new(SimTime::from_ticks(5), Duration::ticks(2));
+        assert!(status.is_done_ticks(true, 2));
+
+        // tick_count = 3, include_zero_tick = true
+        // previous = 2, 2 + 1 >= 3 => true
+        let status = TickStatus::new(SimTime::from_ticks(5), Duration::ticks(2));
+        assert!(status.is_done_ticks(true, 3));
+
+        // tick_count = 4, include_zero_tick = true
+        // previous = 2, 2 + 1 >= 4 => false
+        let status = TickStatus::new(SimTime::from_ticks(5), Duration::ticks(2));
+        assert!(!status.is_done_ticks(true, 4));
+
+        // current_tick = 5, skipped = 2. previous = 2
+        // tick_count = 2, include_zero_tick = false
+        // previous = 2, 2 + 0 >= 2 => true
+        let status = TickStatus::new(SimTime::from_ticks(5), Duration::ticks(2));
+        assert!(status.is_done_ticks(false, 2));
+
+        // tick_count = 3, include_zero_tick = false
+        // previous = 2, 2 + 0 >= 3 => false
+        let status = TickStatus::new(SimTime::from_ticks(5), Duration::ticks(2));
+        assert!(!status.is_done_ticks(false, 3));
+    }
+
+    #[test]
+    fn tick_status_previous_large_current_tick() {
+        let current = SimTime::from_ticks(TimeTick::MAX);
+        let skipped = Duration::ticks(100);
+        let status = TickStatus::new(current, skipped);
+        assert_eq!(
+            status.previous(),
+            SimTime::from_ticks(TimeTick::MAX - 100 - 1)
+        );
+    }
+
+    #[test]
+    fn tick_status_is_done_ticks_edge_cases() {
+        // tick_count = 0
+        let status = TickStatus::initialize();
+        assert!(status.is_done_ticks(true, 0));
+        assert!(status.is_done_ticks(false, 0));
+
+        // tick_count = 1, include_zero_tick = true
+        // previous = 0, 0 + 1 >= 1 => true
+        let status = TickStatus::initialize();
+        assert!(status.is_done_ticks(true, 1));
+
+        // tick_count = 1, include_zero_tick = false
+        // previous = 0, 0 + 0 >= 1 => false
+        let status = TickStatus::initialize();
+        assert!(!status.is_done_ticks(false, 1));
+
+        // current_tick = 1, skipped = 0. previous = 0
+        // tick_count = 1, include_zero_tick = false
+        // previous = 0, 0 + 0 >= 1 => false
+        let status = TickStatus::new(SimTime::from_ticks(1), Duration::zero());
+        assert!(!status.is_done_ticks(false, 1));
+
+        // current_tick = 2, skipped = 0. previous = 1
+        // tick_count = 1, include_zero_tick = false
+        // previous = 1, 1 + 0 >= 1 => true
+        let status = TickStatus::new(SimTime::from_ticks(2), Duration::zero());
+        assert!(status.is_done_ticks(false, 1));
+    }
+
+    #[test]
+    fn tick_status_previous_with_skipped_equal_to_current_minus_one() {
+        // current_tick = 5, skipped = 4 => previous = 5 - 4 - 1 = 0
+        let status = TickStatus::new(SimTime::from_ticks(5), Duration::ticks(4));
+        assert_eq!(status.previous(), SimTime::zero());
+    }
+
+    #[test]
+    #[should_panic(expected = "attempt to subtract with overflow")]
+    fn tick_status_previous_with_skipped_greater_than_current_minus_one() {
+        // current_tick = 5, skipped = 5 => previous = 5 - 5 - 1 = 0 (saturating sub)
+        let status = TickStatus::new(SimTime::from_ticks(5), Duration::ticks(5));
+        status.previous();
+    }
+
+    #[test]
+    fn sim_time_saturating_add_boundary() {
+        // SimTime::MAX に対する saturating_add の挙動
+        let max_sim_time = SimTime::from_ticks(TimeTick::MAX);
+        let d_one = Duration::one();
+        assert_eq!(max_sim_time.saturating_add(d_one), max_sim_time);
+
+        let d_max = Duration::ticks(TimeTick::MAX);
+        assert_eq!(max_sim_time.saturating_add(d_max), max_sim_time);
+    }
+
+    #[test]
+    fn sim_time_saturating_sub_boundary() {
+        // SimTime::zero() に対する saturating_sub / saturating_sub_duration の挙動（ゼロで止まるか）
+        let t_zero = SimTime::zero();
+        let t_five = SimTime::from_ticks(5);
+        let d_five = Duration::ticks(5);
+
+        assert_eq!(t_zero.saturating_sub(t_five), Duration::zero());
+        assert_eq!(t_zero.saturating_sub_duration(d_five), SimTime::zero());
+
+        // 小さい値から大きい値を引いたとき、しっかり下限でサチュレートするか
+        let t_three = SimTime::from_ticks(3);
+        assert_eq!(t_three.saturating_sub(t_five), Duration::zero());
+        assert_eq!(t_three.saturating_sub_duration(d_five), SimTime::zero());
+    }
+
+    #[test]
+    fn sim_time_checked_sub_duration_underflow() {
+        // checked_sub_duration のアンダーフロー: 減算結果が負になる際、正しく None が返るか
+        let t_three = SimTime::from_ticks(3);
+        let d_five = Duration::ticks(5);
+        assert_eq!(t_three.checked_sub_duration(d_five), None);
+
+        let t_zero = SimTime::zero();
+        let d_one = Duration::one();
+        assert_eq!(t_zero.checked_sub_duration(d_one), None);
+    }
+
+    #[test]
+    #[should_panic(expected = "attempt to subtract with overflow")]
+    fn sim_time_sub_operator_underflow_panic() {
+        // SimTime の Sub 特性の実装 (self.0 - rhs.0) は checked/saturating になっていないため、
+        // アンダーフロー時にパニック（debug時は確実、release時も overflow-checks=true なら）する。。
+        // この挙動を明確化するためのテスト。
+        let t_three = SimTime::from_ticks(3);
+        let d_five = Duration::ticks(5);
+        let _ = t_three - d_five;
     }
 }

@@ -37,3 +37,36 @@ where
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::modeling::sampler::CombinatorExt;
+    use crate::modeling::sampler::instance::ConstantSampler;
+    use rand::SeedableRng;
+    use rand::rngs::SmallRng;
+
+    #[test]
+    fn test_chain_sampler_add() {
+        let mut rng = SmallRng::seed_from_u64(2);
+        let s1 = ConstantSampler::new(10.0);
+        let s2 = ConstantSampler::new(20.0);
+
+        let mut sampler = ChainSampler::new(s1, s2.boxed(), |_, _, val1, val2| val1 + val2);
+
+        let sample = sampler.sample(&mut rng, SimTime::from_ticks(0));
+        assert_eq!(sample.raw_value(), 30.0);
+    }
+
+    #[test]
+    fn test_chain_sampler_multiply() {
+        let mut rng = SmallRng::seed_from_u64(2);
+        let s1 = ConstantSampler::new(5.0);
+        let s2 = ConstantSampler::new(4.0);
+
+        let mut sampler = ChainSampler::new(s1, s2.boxed(), |_, _, val1, val2| val1 * val2);
+
+        let sample = sampler.sample(&mut rng, SimTime::from_ticks(0));
+        assert_eq!(sample.raw_value(), 20.0);
+    }
+}

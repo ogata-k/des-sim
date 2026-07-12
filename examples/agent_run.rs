@@ -276,7 +276,7 @@ fn dispatch_smooth_approach(
             println!(
                 "  ⏳ 車 {} は交差点を物理的に渡るため、ここから {} tick 分、時間を消費します",
                 car_id,
-                duration.as_ticks()
+                duration.as_time_tick()
             );
             next_tag = "passing_execution";
             duration
@@ -454,7 +454,7 @@ impl Hook<MyEvent, TrafficModel> for LaneStateCollector {
     ) {
         let mut collector = self.collector.lock().unwrap();
 
-        let skip_count = skipped_duration.as_ticks();
+        let skip_count = skipped_duration.as_time_tick();
 
         if skip_count == 0 {
             return;
@@ -670,7 +670,7 @@ fn main() {
     for i in 0..CAR_COUNT {
         // １秒遅れで到着するとする
         engine.schedule_event_at(
-            SimTime::new(i),
+            SimTime::from_ticks(i),
             EventPriority::minimum(),
             // 車のIDは1-origin
             MyEvent::SpawnCar {

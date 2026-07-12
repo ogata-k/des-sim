@@ -58,3 +58,73 @@ impl RotateSampler {
         self.item_count
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::primitive::time::Duration;
+    use rand::SeedableRng;
+    use rand::rngs::SmallRng;
+
+    #[test]
+    fn test_rotate_sampler() {
+        let mut rng = SmallRng::seed_from_u64(2);
+        let durations = vec![Duration::ticks(1), Duration::ticks(2), Duration::ticks(3)];
+        let mut sampler = RotateSampler::new(durations.clone());
+
+        assert_eq!(sampler.peek_next_index(), 0);
+        assert_eq!(sampler.item_count(), 3);
+
+        assert_eq!(
+            sampler.sample(&mut rng, SimTime::from_ticks(0)).raw_value(),
+            1.0
+        );
+        assert_eq!(sampler.peek_next_index(), 1);
+
+        assert_eq!(
+            sampler.sample(&mut rng, SimTime::from_ticks(0)).raw_value(),
+            2.0
+        );
+        assert_eq!(sampler.peek_next_index(), 2);
+
+        assert_eq!(
+            sampler.sample(&mut rng, SimTime::from_ticks(0)).raw_value(),
+            3.0
+        );
+        assert_eq!(sampler.peek_next_index(), 0); // Rotates back to start
+
+        assert_eq!(
+            sampler.sample(&mut rng, SimTime::from_ticks(0)).raw_value(),
+            1.0
+        );
+        assert_eq!(sampler.peek_next_index(), 1);
+    }
+
+    #[test]
+    fn test_rotate_sampler_with_initial_index() {
+        let mut rng = SmallRng::seed_from_u64(2);
+        let durations = vec![Duration::ticks(1), Duration::ticks(2), Duration::ticks(3)];
+        let mut sampler = RotateSampler::new_with_index(durations.clone(), 1);
+
+        assert_eq!(sampler.peek_next_index(), 1);
+
+        assert_eq!(
+            sampler.sample(&mut rng, SimTime::from_ticks(0)).raw_value(),
+            2.0
+        );
+        assert_eq!(sampler.peek_next_index(), 2);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_rotate_sampler_empty_list() {
+        let _sampler = RotateSampler::new(vec![]);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_rotate_sampler_invalid_initial_index() {
+        let durations = vec![Duration::ticks(1)];
+        let _sampler = RotateSampler::new_with_index(durations, 1); // Index out of bounds
+    }
+}

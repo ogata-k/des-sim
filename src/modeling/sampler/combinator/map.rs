@@ -33,3 +33,41 @@ where
         MapSampler { sampler, f }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::modeling::sampler::instance::ConstantSampler;
+    use rand::SeedableRng;
+    use rand::rngs::SmallRng;
+
+    #[test]
+    fn test_map_sampler_double_value() {
+        let mut rng = SmallRng::seed_from_u64(2);
+        let base_sampler = ConstantSampler::new(10.0);
+        let mut sampler = MapSampler::new(base_sampler, |_, _, value| value * 2.0);
+
+        let sample = sampler.sample(&mut rng, SimTime::from_ticks(0));
+        assert_eq!(sample.raw_value(), 20.0);
+    }
+
+    #[test]
+    fn test_map_sampler_add_offset() {
+        let mut rng = SmallRng::seed_from_u64(2);
+        let base_sampler = ConstantSampler::new(10.0);
+        let mut sampler = MapSampler::new(base_sampler, |_, _, value| value + 5.0);
+
+        let sample = sampler.sample(&mut rng, SimTime::from_ticks(0));
+        assert_eq!(sample.raw_value(), 15.0);
+    }
+
+    #[test]
+    fn test_map_sampler_negate_value() {
+        let mut rng = SmallRng::seed_from_u64(2);
+        let base_sampler = ConstantSampler::new(10.0);
+        let mut sampler = MapSampler::new(base_sampler, |_, _, value| -value);
+
+        let sample = sampler.sample(&mut rng, SimTime::from_ticks(0));
+        assert_eq!(sample.raw_value(), -10.0);
+    }
+}

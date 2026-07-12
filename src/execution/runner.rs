@@ -40,52 +40,6 @@ pub trait Runner<E, M: Model<E>, CS: ContinueStrategy<E, M, Self::Err>> {
             TickStatus,     /* next handle tick status */
         ) -> bool;
 
-    /// 1 Tick進めるごとにユーザーの Enter キー入力を待機するデバッグ用メソッド。
-    ///
-    /// コンソール上で現在のシミュレーション時刻やエグゼキュータの状態を、
-    /// 人間が目で追いながらステップ実行（紙芝居進行）することができます。
-    fn interactive_debug_run<F>(
-        &mut self,
-        engine: Engine<E, M>,
-        model: M,
-        mut should_stop: F,
-    ) -> SimulationResult<M, CS::Err>
-    where
-        F: FnMut(&M, ExecutorStatus, TickStatus) -> bool,
-    {
-        use std::io::{self, Write};
-
-        // 元の `run` メソッドに、Enter待機ロジックをインジェクションしたクロージャを流し込むだけ
-        self.run(engine, model, |model, executor_status, tick_status| {
-            // 1. 本来の終了判定をチェック（本来の条件で終わるならデバッグもここで終了）
-            if should_stop(model, executor_status, tick_status) {
-                println!("\n [Debug] シミュレーションが終了条件に達したため、停止します。");
-                return true;
-            }
-
-            // 2. 終了しないで次のTickに進む場合、情報をコンソールに表示して待機
-            println!("\n================ [Interactive Debug] ================");
-            println!(
-                "  直前に完了した時刻 (previous) : {:?}",
-                tick_status.previous()
-            );
-            println!(
-                "  これから処理する時刻 (current) : {:?}",
-                tick_status.current()
-            );
-            println!("  エグゼキュータの状態 (status)  : {:?}", executor_status);
-            println!("--------------------------------------------------------");
-            print!(" [Enter] を押すと次のTickの処理（フェーズ実行）を開始します... ");
-            let _ = io::stdout().flush(); // プロンプトを確実に表示させる
-
-            // 3. ユーザーがEnterを押すまでスレッドをブロック（待機）
-            let mut input = String::new();
-            let _ = io::stdin().read_line(&mut input);
-
-            false // falseを返すことで、次のTickの処理への突入を許可
-        })
-    }
-
     /// 指定した時間間隔（ウェイト）を挟みながら自動進行する再生用メソッド。
     ///
     /// CUI/GUIでのリアルタイムなアニメーション描画や、
@@ -178,12 +132,11 @@ pub trait Runner<E, M: Model<E>, CS: ContinueStrategy<E, M, Self::Err>> {
     where
         Self: Clone + Sync,
         // 並列スレッドから同時に何回でも安全に呼び出せるよう、FnMut ではなく不変の Fn に制限
-        EF: Fn(usize) -> Engine<E, M> + Send + Sync,
-        M: Send + Sync,
+        EF: Fn(usize) -> Engine<E, M> + Sync,
+        M: Send,
         // 並列スレッドから同時に何回でも安全に呼び出せるよう、FnMut ではなく不変の Fn に制限
-        MF: Fn(usize) -> M + Send + Sync,
-        F: FnMut(&M, ExecutorStatus, TickStatus) -> bool + Clone + Send + Sync,
-        Self::Err: Send,
+        MF: Fn(usize) -> M + Sync,
+        F: FnMut(&M, ExecutorStatus, TickStatus) -> bool + Clone + Sync,
         CS::Err: Send,
     {
         use rayon::prelude::*;
