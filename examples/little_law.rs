@@ -14,7 +14,7 @@ use std::sync::Arc;
 
 #[cfg(test)]
 mod tests {
-    // 最後までサンプルが走りきることをテスト
+    // Verifies that the sample simulation completes execution successfully.
     #[test]
     fn example_runs() {
         super::main();
@@ -22,7 +22,7 @@ mod tests {
 }
 
 // =========================================================================
-// 1. M/M/1 待ち行列シミュレーション ドメインロジック
+// 1. M/M/1 Queueing Simulation Domain Logic
 // =========================================================================
 
 #[derive(Debug, Clone, Copy)]
@@ -38,8 +38,8 @@ struct Customer {
 
 #[derive(Debug, Clone)]
 pub enum RngMode {
-    Fixed(u64), // シード値を保持
-    Random,     // ランダム生成であることを示すフラグ
+    Fixed(u64), // Holds the seed value
+    Random,     // Indicates random generation
 }
 
 #[derive(Debug)]
@@ -142,7 +142,7 @@ impl Model<QueueEvent> for QueueModel {
 }
 
 // =========================================================================
-// 2. メイン関数 (並列バッチの実行とテーブル集計)
+// 2. Main Function (Parallel Batch Execution and Tabular Reporting)
 // =========================================================================
 
 #[allow(unused)]
@@ -156,7 +156,7 @@ struct SimulationReport {
     l_sim: f64,
     w_theoretical: f64,
     w_sim: f64,
-    calculated_l_via_little: f64, // λ_sim × W_sim から計算したL
+    calculated_l_via_little: f64, // L calculated via λ_sim × W_sim
     l_error_percent: f64,
 }
 
@@ -190,7 +190,7 @@ fn main() {
 
     let runner = StandardRunner::new(true);
 
-    println!("⚡ {} 件の待ち行列シナリオを並列で実行中...", count);
+    println!("⚡ Executing {} queueing scenarios in parallel...", count);
 
     let batch_results =
         runner.run_batch_parallel(count, engine_builder, model_builder, should_stop);
@@ -213,25 +213,25 @@ fn main() {
             let lambda_theoretical = arrival_rates_arc[index];
             let rho_theoretical = lambda_theoretical / service_rate;
 
-            // キューに残っている仕掛品の滞在時間を end_time 時点で足し合わせる
+            // Aggregate stay duration for remaining customers at end_time
             let mut total_stay_ticks = final_model.total_stay_duration.as_time_tick() as f64;
             for customer in &final_model.queue {
                 total_stay_ticks += (end_time - customer.arrival_time).as_time_tick() as f64;
             }
 
-            // 総客数 ＝ 退去済みの人数 ＋ 現在残っている人数
+            // Total customers = Served + Remaining in queue
             let total_customers = final_model.total_served_customers + final_model.queue.len();
 
-            // 実測値 (Simulation) の計算
+            // Calculated Simulation Values
             let l_sim = final_model.time_weighted_queue_length / total_ticks;
             let lambda_sim = total_customers as f64 / total_ticks;
             let w_sim = total_stay_ticks / total_customers as f64;
 
-            // リトルの法則検証用: λ_sim × W_sim
+            // Verification using Little's Law: λ_sim × W_sim
             let calculated_l_via_little = lambda_sim * w_sim;
             assert!((l_sim - calculated_l_via_little).abs() < 0.0001);
 
-            // 理論値 (Theoretical) の M/M/1 公式計算
+            // M/M/1 Theoretical Calculations
             let l_theoretical = rho_theoretical / (1.0 - rho_theoretical);
             let w_theoretical = l_theoretical / lambda_theoretical;
             let l_error_percent = ((l_sim - l_theoretical).abs() / l_theoretical) * 100.0;
@@ -252,24 +252,24 @@ fn main() {
         })
         .collect();
 
-    // 5. テーブルテキスト形式でのコンソール出力
+    // Table Output
     println!(
         "\n========================================================================================================================"
     );
-    println!(" 📊 M/M/1 待ち行列 並列バッチシミュレーション結果一覧表 (リトルの法則の検証)");
+    println!(" 📊 M/M/1 Queueing Parallel Batch Simulation Results (Verification of Little's Law)");
     println!(
         "========================================================================================================================"
     );
     println!(
         "{:<4} | {:<7} | {:<21} | {:<21} | {:<7} : {:<7} | {:<13} | {:<7}",
         "No",
-        "ρ(理論)",
-        "λ(理論) : λ(実測)",
-        "W(理論) : W(実測)",
-        "L(理論)",
-        "L(実測)",
+        "ρ(Theo)",
+        "λ(Theo) : λ(Sim)",
+        "W(Theo) : W(Sim)",
+        "L(Theo)",
+        "L(Sim)",
         "λ_sim×W_sim",
-        "誤差"
+        "Error"
     );
     println!(
         "------------------------------------------------------------------------------------------------------------------------"
@@ -293,9 +293,9 @@ fn main() {
         "========================================================================================================================\n"
     );
     println!(
-        "💡 結論: 「L(実測)」列と、そのすぐ右隣の「λ_sim×W_sim」列の数値が100%完全に一致していることが分かります。"
+        "💡 Conclusion: The \"L(Sim)\" column and the adjacent \"λ_sim × W_sim\" column are identical."
     );
     println!(
-        "         これにより、今回の有限時間サンプリングにおいてリトルの法則 ($L = \\lambda W$) が完璧に成立することが実証されました。"
+        "              This confirms that Little's Law ($L = \\lambda W$) holds perfectly in this finite-time sampling simulation."
     );
 }

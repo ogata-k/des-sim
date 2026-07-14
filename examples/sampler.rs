@@ -6,7 +6,7 @@ use std::rc::Rc;
 
 #[cfg(test)]
 mod tests {
-    // 最後までサンプルが走りきることをテスト
+    // Verifies that the sample simulation completes execution successfully.
     #[test]
     fn example_runs() {
         super::main();
@@ -14,27 +14,28 @@ mod tests {
 }
 
 fn main() {
-    // 1. 個別のサンプラーコンポーネントを定義
+    // Define individual sampler components.
     let jitter1 = UniformSampler::new(-5.0, 2.0).unwrap();
     let jitter2 = UniformSampler::new(-2.0, 2.0).unwrap();
     let jitter3 = NormalSampler::new(-2.0, 2.0).unwrap();
 
+    // Helper to create a server model with specific jitter characteristics.
     fn create_server(jitter: Box<dyn DurationSampler>) -> impl DurationSampler {
         NormalSampler::new(3.0, 2.0)
             .unwrap()
-            // λ=0.05
+            // Lambda = 0.05
             .delay(ExponentialSampler::new(0.05).unwrap().boxed())
             .map(|_, _, d| d * 1.05)
-            // 各サーバーの違いは受付開始までの揺らぎだけ
+            // Server differentiation based on start-up jitter.
             .jitter(jitter)
     }
 
-    // 2. 冗長構成（Aggregate）の構築
-    // 共有可能な状態を作って記録するためにクローン
+    // Build the redundant configuration (Aggregate).
+    // Shared state used to track which server provided the fastest response.
     let selected_index = Rc::new(Cell::new(None::<usize>));
-    let index_ref = Rc::clone(&selected_index); // クロージャ用にクローン
+    let index_ref = Rc::clone(&selected_index);
 
-    // 3つのサーバーを並列で受付開始し、一番早い（min）結果を採用
+    // Aggregate three servers in parallel, selecting the minimum duration result.
     let redundant_service = create_server(jitter1.boxed())
         .aggregate_builder()
         .add_sampler(create_server(jitter2.boxed()).boxed())
@@ -49,17 +50,16 @@ fn main() {
             val
         });
 
-    // 3. 最終的な実行用サンプラー
-    // 最後に非負チェックを挟む安全なパイプラインの完成
+    // Final execution sampler: ensures non-negative results with a fallback floor of 5 ticks.
     let mut final_sampler =
         redundant_service.ensure_non_negative(3, |_rng, _now| Duration::ticks(5));
 
-    // 4. 実行
+    // Execution loop.
     let mut rng = rand::rng();
     for i in 0..100 {
         let duration = final_sampler.sample(&mut rng, SimTime::zero());
         println!(
-            " {:<3}: Final duration: {:?} with use server {}",
+            " {:<3}: Final duration: {:?} | Selected server index: {}",
             i + 1,
             duration.to_duration(),
             selected_index.get().unwrap()
