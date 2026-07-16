@@ -11,13 +11,20 @@ use crate::source_handler::{SourceHandler, SourceReadyEntry};
 use std::cmp::min;
 use std::collections::VecDeque;
 
+/// Represents the current status of the execution engine.
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub enum ExecutorStatus {
+    /// No further events are scheduled.
     NoMoreEvent,
+    /// More events are scheduled for execution.
     ExistsMoreEvent,
 }
 
-// Runner開発者向けのContextなのでUserContextは実装していない
+/// Manages the simulation state at the execution engine level.
+///
+/// This structure is used by the runner to control the simulation's progression.
+/// Unlike the user-facing context, this provides a low-level interface for
+/// controlling internal simulation steps and hook processing.
 pub struct ExecutorContext<E, M: Model<E>> {
     pub(crate) next_tick_status: TickStatus,
     pub(crate) current_tick: SimTime,
@@ -27,10 +34,15 @@ pub struct ExecutorContext<E, M: Model<E>> {
 }
 
 impl<E, M: Model<E>> ExecutorContext<E, M> {
+    /// Retrieves the hooks associated with the current process.
     pub(crate) fn hook(&self) -> &impl Hook<E, M> {
         &self.hook_delegate
     }
 
+    /// Previews the status of the next tick.
+    ///
+    /// # Returns
+    /// An `ExecutorStatus` indicating if events exist, and the next tick information.
     pub fn peek_next_tick(&self) -> (ExecutorStatus, TickStatus) {
         let next_event_fired_at = self.event_scheduler.peek_next_time();
         let executor_status = if next_event_fired_at.is_some() {
@@ -42,6 +54,9 @@ impl<E, M: Model<E>> ExecutorContext<E, M> {
         (executor_status, self.next_tick_status)
     }
 
+    /// Initiates processing for the current tick and transitions to an active context.
+    ///
+    /// Invokes the `before_tick` hook and updates the simulation state.
     pub fn begin_tick(self, model: &M) -> ActiveExecutorContext<E, M> {
         self.hook_delegate.before_tick(
             model,
@@ -50,7 +65,7 @@ impl<E, M: Model<E>> ExecutorContext<E, M> {
         );
 
         ActiveExecutorContext {
-            // ここからは現在のTickStatus
+            // From here, the current TickStatus
             current_tick_status: self.next_tick_status,
             next_micro_step_status: MicroStepStatus::initialize(),
             hook_delegate: self.hook_delegate,
@@ -59,21 +74,23 @@ impl<E, M: Model<E>> ExecutorContext<E, M> {
         }
     }
 
+    /// Terminates the simulation successfully and returns the result.
     pub fn end_simulation_as_ok<Err>(self, model: M) -> SimulationResult<M, Err> {
         self.hook().after_simulation(&model, self.current_tick);
         Ok(SimulationOutput::new(self.current_tick, model))
     }
 
+    /// Terminates the simulation with an error and returns the result.
     pub fn end_simulation_as_error<Err>(self, model: M, error: Err) -> SimulationResult<M, Err> {
         self.hook().after_simulation(&model, self.current_tick);
         Err(SimulationError::new(self.current_tick, model, error))
     }
 }
 
+/// Context for tick processing where micro-steps can be executed.
 pub struct ActiveExecutorContext<E, M: Model<E>> {
     pub(crate) current_tick_status: TickStatus,
-    // 現在時刻が確定しているタイミングなのでTickStatusは現在の状態を表すものだが、
-    // まだMicroStepは始まっていないのでMicroStepStatusは未来の状態。
+    /// Holds the state of the future micro-step, as none have started yet.
     pub(crate) next_micro_step_status: MicroStepStatus,
     pub(crate) hook_delegate: HookDelegate<E, M>,
     pub(crate) source_handler: SourceHandler<E, M>,
@@ -85,6 +102,7 @@ impl<E, M: Model<E>> ActiveExecutorContext<E, M> {
         &self.hook_delegate
     }
 
+    /// Initiates micro-step processing.
     pub fn begin_micro_step(self, model: &M) -> MicroStepHandler<ActiveExecutorContext<E, M>> {
         self.hook().before_micro_step(
             model,
@@ -95,10 +113,12 @@ impl<E, M: Model<E>> ActiveExecutorContext<E, M> {
         MicroStepHandler::new(self)
     }
 
+    /// Ends the current tick and advances to the next tick by incrementing by 1.
     pub fn end_tick_with_increment_tick(self, model: &M) -> ExecutorContext<E, M> {
         let current_tick = self.current_tick_status.current();
         self.hook()
             .after_tick(model, current_tick, self.next_micro_step_status.current());
+
         let next_tick = current_tick + Duration::one();
         let next_tick_status = TickStatus::new(next_tick, Duration::zero());
 
@@ -111,11 +131,14 @@ impl<E, M: Model<E>> ActiveExecutorContext<E, M> {
         }
     }
 
+    /// Ends the current tick and jumps to the next tick based on scheduled events or sources.
+    /// If no further scheduled times are found, defaults to incrementing by 1.
     pub fn end_tick_with_jump_to_next_tick(self, model: &M) -> ExecutorContext<E, M> {
         let current_tick = self.current_tick_status.current();
         self.hook()
             .after_tick(model, current_tick, self.next_micro_step_status.current());
 
+        // Calculate the next event time and the duration of the skipped period.
         let (skipped, next_tick) = match (
             self.source_handler.peek_next_time(),
             self.event_scheduler.peek_next_time(),
@@ -132,7 +155,7 @@ impl<E, M: Model<E>> ActiveExecutorContext<E, M> {
                 )
             }
             (_, _) => {
-                // 次に発火させるべきものがないので次へ順番に進めておく
+                // Nothing else is scheduled; proceed to the immediate next tick.
                 (Duration::zero(), current_tick + Duration::one())
             }
         };
@@ -147,6 +170,10 @@ impl<E, M: Model<E>> ActiveExecutorContext<E, M> {
         }
     }
 
+    /// Discards any remaining micro-steps in the current tick.
+    ///
+    /// # Returns
+    /// A pair containing the discarded sources and events.
     pub fn discard_remain_micro_step(
         &mut self,
         model: &M,
@@ -179,10 +206,11 @@ mod tests {
     use std::cell::RefCell;
     use std::rc::Rc;
 
-    // Mock Event and Source for testing
+    /// Represents a simple event payload for testing.
     #[derive(Debug, PartialEq, Eq, Copy, Clone)]
     struct TestEvent;
 
+    /// Represents a source that triggers at a fixed tick duration.
     #[derive(Debug, PartialEq, Eq, Copy, Clone)]
     struct TestSource {
         tick: Duration,
@@ -206,6 +234,7 @@ mod tests {
         }
     }
 
+    /// A simple model implementation for testing context interactions.
     #[derive(Debug)]
     struct TestModel;
 
@@ -215,10 +244,11 @@ mod tests {
             _context: &mut EventContext<TestEvent, Self>,
             _event: &Event<TestEvent>,
         ) {
-            // none
+            // No-op
         }
     }
 
+    /// A mock hook that tracks method invocations for verification.
     #[derive(Default)]
     struct MockHook {
         before_tick_called: Rc<RefCell<Vec<(SimTime, Duration)>>>,
@@ -237,7 +267,6 @@ mod tests {
 
     impl<E, M: Model<E>> Hook<E, M> for MockHook {
         fn before_simulation(&self, _model: &M) {
-            // 呼ばれないことを確認する
             unreachable!();
         }
 
@@ -265,7 +294,6 @@ mod tests {
             _current_tick: SimTime,
             _current_micro_step: MicroStep,
         ) {
-            // 呼ばれないことを確認する
             unreachable!();
         }
 
@@ -286,12 +314,10 @@ mod tests {
         }
 
         fn before_register_source(&self, _model: &M, _name: &str) {
-            // 呼ばれないことを確認する
             unreachable!();
         }
 
         fn after_register_source(&self, _model: &M, _name: &str) {
-            // 呼ばれないことを確認する
             unreachable!();
         }
 
@@ -301,7 +327,6 @@ mod tests {
             _current_tick: SimTime,
             _current_micro_step: MicroStep,
         ) {
-            // 呼ばれないことを確認する
             unreachable!();
         }
 
@@ -312,7 +337,6 @@ mod tests {
             _current_micro_step: MicroStep,
             _source_view: &SourceView,
         ) {
-            // 呼ばれないことを確認する
             unreachable!();
         }
 
@@ -324,7 +348,6 @@ mod tests {
             _source_view: &SourceView,
             _computed_next_fire: Option<SimTime>,
         ) {
-            // 呼ばれないことを確認する
             unreachable!();
         }
 
@@ -336,7 +359,6 @@ mod tests {
             _scheduled_at: SimTime,
             _source_view: &SourceView,
         ) {
-            // 呼ばれないことを確認する
             unreachable!();
         }
 
@@ -347,7 +369,6 @@ mod tests {
             _current_micro_step: MicroStep,
             _source_view: &SourceView,
         ) {
-            // 呼ばれないことを確認する
             unreachable!();
         }
 
@@ -357,7 +378,6 @@ mod tests {
             _current_tick: SimTime,
             _current_micro_step: MicroStep,
         ) {
-            // 呼ばれないことを確認する
             unreachable!();
         }
 
@@ -367,7 +387,6 @@ mod tests {
             _current_tick: SimTime,
             _current_micro_step: MicroStep,
         ) {
-            // 呼ばれないことを確認する
             unreachable!();
         }
 
@@ -465,6 +484,7 @@ mod tests {
         let current_tick = SimTime::from_ticks(0);
         let next_tick_status = TickStatus::new(SimTime::from_ticks(1), Duration::zero());
         let (mut context, _) = create_mock_executor_context(current_tick, next_tick_status);
+
         context.event_scheduler.schedule(
             SimTime::from_ticks(5),
             Duration::ticks(0),
@@ -637,6 +657,7 @@ mod tests {
         let next_micro_step_status = MicroStepStatus::new(micro_step_ten);
         let (mut context, shared_hook) =
             create_mock_active_executor_context(current_tick_status, next_micro_step_status);
+
         context.source_handler.add_source_after_registered_action(
             "test source",
             current_tick_status.current(),
@@ -777,6 +798,7 @@ mod tests {
         let next_micro_step_status = MicroStepStatus::new(micro_step_ten);
         let (mut context, shared_hook) =
             create_mock_active_executor_context(current_tick_status, next_micro_step_status);
+
         context.source_handler.add_source_after_registered_action(
             "test source",
             current_tick_status.current(),
@@ -802,6 +824,7 @@ mod tests {
 
         let model = TestModel;
         let (discarded_sources, discarded_events) = context.discard_remain_micro_step(&model);
+
         assert_eq!(discarded_sources.len(), 1);
         assert_eq!(discarded_sources[0].name(), "test source");
 
