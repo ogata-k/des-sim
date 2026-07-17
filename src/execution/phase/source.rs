@@ -6,15 +6,22 @@ use crate::source_handler::SourceHandler;
 use crate::source_handler::{SourceReadyEntry, SourceView};
 use std::collections::VecDeque;
 
+/// Manages the source execution phase in the simulation.
+///
+/// This structure holds the queue of sources executable in the current micro-step,
+/// and oversees source firing, scheduling, and discarding processes.
 pub struct SourcePhase<E, M: Model<E>> {
     context: SourceContext<E, M>,
-    // SourceContextはSourceを詰めなおすときに発火させてから詰めなおす都合上、SourceContextを持っているとライフタイムの問題が発生する。
-    // そのため、MicroStepHandlerに渡す時だけSourceContextをSourcePhaseから奪い取る形で実装されている。
+    /// ### Internal Design Note
+    /// The `source_handler` is temporarily owned by this structure to manage lifetimes
+    /// between phases. Upon completion of the phase, it is safely returned to
+    /// the `SourceContext` via `complete_source_phase`.
     pub(crate) source_handler: Option<SourceHandler<E, M>>,
     ready_sources: VecDeque<SourceReadyEntry>,
 }
 
 impl<E, M: Model<E>> SourcePhase<E, M> {
+    /// Creates a new source execution phase.
     pub(crate) fn new(
         context: SourceContext<E, M>,
         source_handler: SourceHandler<E, M>,
@@ -27,14 +34,20 @@ impl<E, M: Model<E>> SourcePhase<E, M> {
         }
     }
 
+    /// Returns a mutable reference to the source context used in the current phase.
     pub fn get_context(&mut self) -> &mut SourceContext<E, M> {
         &mut self.context
     }
 
+    /// Generates a view from the specified source entry.
     pub fn get_source_view(&self, ready_entry: &SourceReadyEntry) -> SourceView {
         SourceView::new(ready_entry.source_id(), ready_entry.clone_name_arc())
     }
 
+    /// Terminates the source phase, returns the `source_handler` to the context,
+    /// and transitions to the next micro-step handler.
+    ///
+    /// Invokes the `after_source_phase` hook to update the simulation state.
     pub fn complete_source_phase(self, model: &M) -> MicroStepHandler<SourceContext<E, M>> {
         self.context.hook().after_source_phase(
             model,
@@ -42,17 +55,17 @@ impl<E, M: Model<E>> SourcePhase<E, M> {
             self.context.current_micro_step(),
         );
 
-        // SourcePhaseが持っているsource_handlerをMicroStepHandler内で次のフェーズに行くためにSourceContextに渡す。
         let mut context = self.context;
         context.source_handler = self.source_handler;
         MicroStepHandler::new(context)
     }
 
+    /// Pops one source from the front of the queue.
     pub fn take_one(&mut self) -> Option<SourceReadyEntry> {
         self.ready_sources.pop_front()
     }
 
-    /// 全体から条件を満たす一件を取得して取り出す。
+    /// Searches for and pops the first source in the queue that satisfies the given predicate.
     pub fn take_one_if<F>(&mut self, predicate: F) -> Option<SourceReadyEntry>
     where
         F: FnOnce(&SourceReadyEntry) -> bool,
@@ -60,12 +73,11 @@ impl<E, M: Model<E>> SourcePhase<E, M> {
         self.ready_sources.pop_front_if(|e| predicate(e))
     }
 
-    /// 先頭が条件を満たす時だけ取り出す。
+    /// Pops a source from the front of the queue only if it satisfies the given predicate.
     pub fn take_front_if<F>(&mut self, predicate: F) -> Option<SourceReadyEntry>
     where
         F: FnOnce(&SourceReadyEntry) -> bool,
     {
-        // 先頭要素を覗いて、条件に合致するか判定
         if self.ready_sources.front().is_some_and(predicate) {
             self.ready_sources.pop_front()
         } else {
@@ -73,15 +85,18 @@ impl<E, M: Model<E>> SourcePhase<E, M> {
         }
     }
 
+    /// Takes all sources currently in the queue.
     pub fn take_all(&mut self) -> VecDeque<SourceReadyEntry> {
         std::mem::take(&mut self.ready_sources)
     }
 
+    /// Extracts and returns all sources from the queue that satisfy the given predicate.
+    ///
+    /// Sources that do not satisfy the predicate remain in the queue.
     pub fn take_all_if<F>(&mut self, predicate: F) -> VecDeque<SourceReadyEntry>
     where
         F: FnMut(&SourceReadyEntry) -> bool,
     {
-        // 一時的にすべて取得して抽出して差し替える
         let all_sources = std::mem::take(&mut self.ready_sources);
 
         let (taken, remaining): (VecDeque<_>, VecDeque<_>) =
@@ -92,6 +107,9 @@ impl<E, M: Model<E>> SourcePhase<E, M> {
         taken
     }
 
+    /// Fires the source and schedules it if a next firing time exists.
+    ///
+    /// Invokes the `before_source` and `after_source` hooks surrounding the fire process.
     pub fn fire_and_schedule(&mut self, model: &M, entry: SourceReadyEntry) {
         let now = self.context.current_tick();
         let current_microstep = self.context.current_micro_step();
@@ -104,11 +122,12 @@ impl<E, M: Model<E>> SourcePhase<E, M> {
         let source_handler = self
             .source_handler
             .as_mut()
-            .expect("Fail impl keep source_handler in SourcePhase.");
+            .expect("SourcePhase: source_handler is not properly initialized.");
 
         let source_id = entry.source_id();
         let entry = source_handler.get_by_source_id(source_id);
         let next_fire_delay_optional = entry.source.fire(&mut self.context, model);
+
         if let Some(next_fire_delay) = next_fire_delay_optional {
             source_handler.schedule_next(now, next_fire_delay, source_id);
         }
@@ -124,6 +143,9 @@ impl<E, M: Model<E>> SourcePhase<E, M> {
         );
     }
 
+    /// Discards the specified source.
+    ///
+    /// Invokes the `discard_source` hook during the discard process.
     pub fn discard(&mut self, model: &M, entry: SourceReadyEntry) {
         let view = self.get_source_view(&entry);
 
@@ -168,6 +190,7 @@ mod tests {
         }
     }
 
+    /// A hook implementation that tracks discarded events and sources.
     struct DiscardHook {
         discarded_events: Rc<Mutex<Vec<TestEvent>>>,
         discarded_sources: Rc<Mutex<Vec<SourceId>>>,
@@ -341,12 +364,13 @@ mod tests {
         }
     }
 
+    /// Sets up the initial state for a source phase test.
     fn setup_source_phase() -> (SourcePhase<TestEvent, TestModel>, TestModel) {
         let model = TestModel {
             handled_events: Vec::new(),
         };
 
-        // SourceContext 生存中は source_handler は常に None
+        // Note: source_handler is None while residing in SourceContext
         let source_context = SourceContext {
             current_tick_status: TickStatus::initialize(),
             current_micro_step_status: MicroStepStatus::initialize(),
@@ -355,7 +379,6 @@ mod tests {
             event_scheduler: EventScheduler::new(),
         };
 
-        // クローン不可のハンドラ実体を1つだけ生成
         let source_handler = SourceHandler::new();
 
         let mut ready_sources = VecDeque::new();
@@ -379,21 +402,21 @@ mod tests {
 
     #[test]
     fn test_new() {
-        let (source_phase, _model) = setup_source_phase();
+        let (source_phase, _) = setup_source_phase();
         assert_eq!(source_phase.ready_sources.len(), 3);
         assert!(source_phase.source_handler.is_some());
     }
 
     #[test]
     fn test_get_context() {
-        let (mut source_phase, _model) = setup_source_phase();
+        let (mut source_phase, _) = setup_source_phase();
         let context = source_phase.get_context();
         assert_eq!(context.current_tick(), SimTime::zero());
     }
 
     #[test]
     fn test_get_source_view() {
-        let (source_phase, _model) = setup_source_phase();
+        let (source_phase, _) = setup_source_phase();
         let entry = SourceReadyEntry::new(SourceId::new(1), Arc::from("SourceA"));
         let view = source_phase.get_source_view(&entry);
         assert_eq!(view.source_id(), SourceId::new(1));
@@ -402,7 +425,7 @@ mod tests {
 
     #[test]
     fn test_take_one() {
-        let (mut source_phase, _model) = setup_source_phase();
+        let (mut source_phase, _) = setup_source_phase();
         let entry = source_phase.take_one().unwrap();
         assert_eq!(entry.source_id(), SourceId::new(1));
         assert_eq!(source_phase.ready_sources.len(), 2);
@@ -410,7 +433,7 @@ mod tests {
 
     #[test]
     fn test_take_front_if() {
-        let (mut source_phase, _model) = setup_source_phase();
+        let (mut source_phase, _) = setup_source_phase();
         let entry_a = source_phase
             .take_front_if(|e| e.source_id() == SourceId::new(1))
             .unwrap();
@@ -424,7 +447,7 @@ mod tests {
 
     #[test]
     fn test_take_all() {
-        let (mut source_phase, _model) = setup_source_phase();
+        let (mut source_phase, _) = setup_source_phase();
         let all_entries = source_phase.take_all();
         assert_eq!(all_entries.len(), 3);
         assert_eq!(source_phase.ready_sources.len(), 0);
@@ -432,7 +455,7 @@ mod tests {
 
     #[test]
     fn test_take_all_if() {
-        let (mut source_phase, _model) = setup_source_phase();
+        let (mut source_phase, _) = setup_source_phase();
         source_phase.ready_sources.push_back(SourceReadyEntry::new(
             SourceId::new(1),
             Arc::from("SourceA_again"),
@@ -456,7 +479,7 @@ mod tests {
 
     #[test]
     fn test_fire_and_schedule() {
-        let (source_phase, _model) = setup_source_phase();
+        let (source_phase, _) = setup_source_phase();
         assert!(source_phase.source_handler.is_some());
     }
 
@@ -464,7 +487,6 @@ mod tests {
     fn test_discard() {
         let (mut source_phase, model) = setup_source_phase();
 
-        // EventPhaseのお手本通り、SharedHook を作成して動的に add_shared_hook する
         let hook = SharedHook::new(DiscardHook {
             discarded_events: Rc::new(Mutex::new(Vec::new())),
             discarded_sources: Rc::new(Mutex::new(Vec::new())),
@@ -478,7 +500,6 @@ mod tests {
         let source_a_entry = source_phase.take_one().unwrap();
         source_phase.discard(&model, source_a_entry);
 
-        // hook.get_ref() から内部状態を美しく検証
         assert_eq!(hook.get_ref().discarded_sources.lock().unwrap().len(), 1);
         assert_eq!(
             hook.get_ref().discarded_sources.lock().unwrap()[0],
