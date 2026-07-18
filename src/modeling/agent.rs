@@ -7,11 +7,22 @@ use std::collections::VecDeque;
 use std::fmt;
 use std::rc::Rc;
 
+/// Represents a single step in an agent's workflow.
+///
+/// This structure holds the logic and scheduling parameters for a specific
+/// action within the simulation.
 pub struct AgentStep<E, M: Model<E>> {
-    /// このステップが「シミュレーション上、何をする段階か」を表すメタデータ。キャンセル時に利用を想定。
+    /// A descriptive tag for the step, used for logging and debugging purposes.
     pub tag: &'static str,
+    /// The time delay before this step is executed.
     pub delay: Duration,
+    /// The event priority, determining the order of execution within the same simulation time.
     pub priority: EventPriority,
+    /// The logic to be executed for this step.
+    ///
+    /// The closure is provided with the current event context, the model instance,
+    /// and a mutable reference to the queue of subsequent steps, allowing for
+    /// dynamic modification of the remaining workflow.
     #[allow(clippy::type_complexity)]
     pub logic: Box<dyn FnOnce(&mut EventContext<E, M>, &mut M, &mut VecDeque<AgentStep<E, M>>)>,
 }
@@ -22,7 +33,7 @@ impl<E, M: Model<E>> fmt::Debug for AgentStep<E, M> {
             .field("tag", &self.tag)
             .field("delay", &self.delay)
             .field("priority", &self.priority)
-            // トレイトオブジェクトは中身が見えないため、型名と関数ポインタのアドレスを出力
+            // Since trait objects are opaque, output the type name and the function pointer address.
             .field("logic", &format_args!("Box<dyn FnOnce>({:p})", self.logic))
             .finish()
     }
@@ -37,7 +48,7 @@ impl<E, M: Model<E>> fmt::Debug for AgentContinuation<E, M> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("AgentContinuation")
             .field("future_steps", &self.future_steps)
-            // Rc の内部ポインタアドレスを出力して識別できるようにする
+            // Output the internal Rc pointer address for identification.
             .field(
                 "to_event_payload",
                 &format_args!("Rc<dyn Fn>({:p})", Rc::as_ptr(&self.to_event_payload)),
@@ -47,6 +58,12 @@ impl<E, M: Model<E>> fmt::Debug for AgentContinuation<E, M> {
 }
 
 impl<E: 'static, M: Model<E> + 'static> AgentContinuation<E, M> {
+    /// Creates a new `AgentContinuation` instance.
+    ///
+    /// # Arguments
+    ///
+    /// * `to_event_payload` - A closure that defines how to transform the continuation
+    ///   into an event payload for scheduling the next step.
     pub fn new<F>(to_event_payload: F) -> Self
     where
         F: Fn(AgentContinuation<E, M>) -> E + 'static,
@@ -57,6 +74,14 @@ impl<E: 'static, M: Model<E> + 'static> AgentContinuation<E, M> {
         }
     }
 
+    /// Appends a new step to be executed after the specified delay.
+    ///
+    /// # Arguments
+    ///
+    /// * `tag` - A descriptive label for the step, useful for debugging and tracking.
+    /// * `delay` - The time duration to wait before executing this step.
+    /// * `priority` - The priority of the event within the event scheduler.
+    /// * `logic` - The closure containing the logic to be executed for this step.
     pub fn then_after<F>(
         mut self,
         tag: &'static str,
@@ -79,31 +104,35 @@ impl<E: 'static, M: Model<E> + 'static> AgentContinuation<E, M> {
 }
 
 impl<E, M: Model<E>> AgentContinuation<E, M> {
+    /// Returns a reference to the next step scheduled to be executed,
+    /// without consuming it.
     pub fn peek_next_step(&self) -> Option<&AgentStep<E, M>> {
         self.future_steps.front()
     }
 
+    /// Returns the tag of the next scheduled step, if available.
     pub fn peek_next_step_tag(&self) -> Option<&'static str> {
         self.peek_next_step().map(|step| step.tag)
     }
 
+    /// Returns the total number of steps remaining in the continuation.
     pub fn get_remain_step_count(&self) -> usize {
         self.future_steps.len()
     }
 
-    /// 今回のステップを1つ消費して実行し、そのまま次をスケジュールする
-    /// (もし最後のステップだったら、実行だけして綺麗に終了する)
+    /// Consumes and executes the current step, then schedules the next step if one exists.
+    /// If no further steps remain, the continuation concludes gracefully.
     pub fn execute_and_schedule(mut self, context: &mut EventContext<E, M>, model: &mut M) {
-        // 今回のステップを内部で取り出す
+        // Extract the current step.
         if let Some(current_step) = self.future_steps.pop_front() {
-            // 処理できるイベントを処理
-            // このlogic内部でステップが上書きされる可能性がある。
+            // Process the event logic.
+            // Note: Steps may be added/modified by the logic itself.
             (current_step.logic)(context, model, &mut self.future_steps);
 
-            // 次のステップがあることを確認し、次のステップがあるなら次の時刻に記録しておく
+            // Check if there is a subsequent step and schedule it for the future.
             let next_info = self.future_steps.front().map(|s| (s.delay, s.priority));
             if let Some((next_delay, next_priority)) = next_info {
-                // 参照を複製して次に渡す
+                // Clone the reference to the event builder and schedule the remainder.
                 let to_event_payload = Rc::clone(&self.to_event_payload);
                 let next_payload = to_event_payload(self);
 
@@ -381,7 +410,7 @@ mod tests {
                 Some("step2")
             );
         } else {
-            panic!("Expected AgentContinuationEvent");
+            panic!("Expected AgentContinuationEvent payload");
         }
     }
 

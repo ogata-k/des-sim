@@ -8,7 +8,7 @@ use combinator::*;
 use rand::Rng;
 use rand_distr::num_traits::ToPrimitive;
 
-/// A wrapper around a floating-point representation of [Duration] to mitigate rounding errors.
+/// A wrapper for floating-point representations of [Duration] to mitigate rounding errors.
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct PendingDuration(f64);
 
@@ -56,7 +56,7 @@ impl PendingDuration {
         Self(value)
     }
 
-    /// Creates a new `PendingDuration` from a `Duration`.
+    /// Creates a new `PendingDuration` from a [Duration].
     pub fn from_duration(duration: Duration) -> Self {
         Self::new(duration.as_time_tick() as f64)
     }
@@ -66,13 +66,17 @@ impl PendingDuration {
         self.0
     }
 
-    /// Attempts to convert this into a [Duration]. Returns `None` if the value is negative.
+    /// Attempts to convert this instance into a [Duration].
+    /// Returns `None` if the value is negative.
     pub fn try_to_duration(&self) -> Option<Duration> {
         // Rounding and integer conversion occur here.
         Some(Duration::ticks(self.raw_value().round().to_usize()?))
     }
 
-    /// Converts this into a [Duration].
+    /// Converts this instance into a [Duration].
+    ///
+    /// # Panics
+    ///
     /// Panics if the value is negative.
     pub fn to_duration(&self) -> Duration {
         self.try_to_duration().unwrap_or_else(|| {
@@ -101,7 +105,7 @@ impl PendingDuration {
         }
     }
 
-    /// Converts to a [Duration], executing a fallback closure if the conversion fails.
+    /// Converts to a [Duration], invoking the provided closure if the conversion fails.
     pub fn to_duration_or_else<F>(&self, f: F) -> Duration
     where
         F: FnOnce() -> Duration,
@@ -109,7 +113,7 @@ impl PendingDuration {
         self.try_to_duration().unwrap_or_else(f)
     }
 
-    /// Applies a function to the internal value.
+    /// Applies a function to the internal value and returns a new `PendingDuration`.
     pub fn apply<F>(&mut self, f: F) -> PendingDuration
     where
         F: Fn(f64) -> f64,
@@ -120,6 +124,7 @@ impl PendingDuration {
 
 /// A trait for generating [Duration] samples.
 pub trait DurationSampler {
+    /// Generates a sample given a random number generator and the current simulation time.
     fn sample(&mut self, rng: &mut dyn Rng, current_tick: SimTime) -> PendingDuration;
 }
 
@@ -144,6 +149,7 @@ impl Clone for Box<dyn ClonableDurationSampler> {
         self.box_clone()
     }
 }
+
 /// An extension trait for [DurationSampler] that provides fluent combinator methods
 /// for creating and composing complex duration sampling logic.
 pub trait CombinatorExt: DurationSampler + Sized + 'static {
@@ -152,7 +158,7 @@ pub trait CombinatorExt: DurationSampler + Sized + 'static {
         Box::new(self)
     }
 
-    /// Boxes the sampler as a cloneable trait object (`Box<dyn ClonableDurationSampler>`).
+    /// Boxes the sampler as a cloneable trait object.
     /// Requires the underlying sampler to be `Clone`, `Send`, and `Sync`.
     fn boxed_clonable(self) -> Box<dyn ClonableDurationSampler>
     where
@@ -169,12 +175,12 @@ pub trait CombinatorExt: DurationSampler + Sized + 'static {
         MapSampler::new(self, f)
     }
 
-    /// Adds a fixed or dynamic delay to the result of this sampler.
+    /// Adds a delay to the result of this sampler using another sampler for the duration.
     fn delay(self, delay: Box<dyn DurationSampler>) -> DelaySampler<Self> {
         DelaySampler::new(self, delay)
     }
 
-    /// Adds a jitter (noise) value to the result of this sampler.
+    /// Adds a jitter (noise) to the result of this sampler using another sampler for the variation.
     fn jitter(self, jitter: Box<dyn DurationSampler>) -> JitterSampler<Self> {
         JitterSampler::new(self, jitter)
     }
@@ -214,8 +220,9 @@ pub trait CombinatorExt: DurationSampler + Sized + 'static {
         ClampSampler::new(self, min, max)
     }
 
-    /// Ensures the sampled duration is non-negative. If it remains negative after
-    /// `limit_try_count` attempts, the `fallback` closure is invoked.
+    /// Ensures the sampled duration is non-negative.
+    ///
+    /// If the value remains negative after `limit_try_count` attempts, the `fallback` closure is invoked.
     fn ensure_non_negative<F>(
         self,
         limit_try_count: u8,
@@ -349,10 +356,10 @@ mod tests {
         let mut pd = PendingDuration::new(10.0);
         let result = pd.apply(|v| v * 2.0);
         assert_eq!(result.raw_value(), 20.0);
-        assert_eq!(pd.raw_value(), 10.0); // Original should not change
+        assert_eq!(pd.raw_value(), 10.0); // Original value remains unchanged
     }
 
-    // Mock Sampler for testing CombinatorExt
+    /// Mock sampler for testing `CombinatorExt` functionality.
     struct MockSampler {
         value: f64,
     }
@@ -400,7 +407,7 @@ mod tests {
         let mut jitter_sampler = base_sampler.jitter(jitter_sampler_impl.boxed());
         let mut rng = SmallRng::seed_from_u64(2);
         let current_tick = SimTime::from_ticks(0);
-        // Jitter adds or subtracts, so we expect a range. For a fixed mock, it will be base + jitter
+        // Jitter adds or subtracts; for a fixed mock value, we expect base + jitter.
         assert_eq!(
             jitter_sampler.sample(&mut rng, current_tick).raw_value(),
             12.0
@@ -442,26 +449,29 @@ mod tests {
         let mut clamp_sampler = sampler.clamp(5.0, 8.0);
         let mut rng = SmallRng::seed_from_u64(2);
         let current_tick = SimTime::from_ticks(0);
+        // Clamped to max
         assert_eq!(
             clamp_sampler.sample(&mut rng, current_tick).raw_value(),
             8.0
-        ); // Clamped to max
+        );
 
         let sampler_low = MockSampler { value: 3.0 };
         let mut clamp_sampler_low = sampler_low.clamp(5.0, 8.0);
+        // Clamped to min
         assert_eq!(
             clamp_sampler_low.sample(&mut rng, current_tick).raw_value(),
             5.0
-        ); // Clamped to min
+        );
 
         let sampler_in_range = MockSampler { value: 6.0 };
         let mut clamp_sampler_in_range = sampler_in_range.clamp(5.0, 8.0);
+        // In range
         assert_eq!(
             clamp_sampler_in_range
                 .sample(&mut rng, current_tick)
                 .raw_value(),
             6.0
-        ); // In range
+        );
     }
 
     #[test]

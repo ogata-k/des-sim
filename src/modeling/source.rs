@@ -2,19 +2,33 @@ use crate::context::{SourceContext, UserContext};
 use crate::modeling::model::Model;
 use crate::primitive::time::Duration;
 
-// source_handlerのまま公開するのは名前が悪い上に漏らしたくない情報だらけなので、
-// modeling用のSourceと一緒に公開させる。
+// Re-exporting these types to keep the internal `source_handler` module private
+// while exposing a clean API for modeling.
 pub use crate::source_handler::{SourceReadyEntry, SourceView};
 
+/// Defines the interface for a simulation source.
+///
+/// Sources are responsible for scheduling events or influencing the simulation
+/// based on their internal logic.
 pub trait Source<E, M: Model<E>>: Send {
-    /// [Source]を登録したときに実行する初期化処理。
-    /// シミュレーション開始時・シミュレーション実行中にかかわらず登録したときに実行される。
-    /// シミュレーション開始時は[SourceContext]がcontextに、シミュレーション中は[EventContext](crate::context::EventContext)が利用されoる。
+    /// Callback executed when the source is registered.
     ///
-    /// この中で[Duration::zero()]のイベントを登録し、そのイベントでこのSourceを登録するようになっている場合、マイクロステップが無限に続いてしまうので注意が必要。
+    /// This is invoked regardless of whether the simulation has started or is currently running.
+    /// The `context` provides access to either [SourceContext] (at startup) or
+    /// [EventContext](crate::context::EventContext) (during runtime).
+    ///
+    /// # Warning
+    ///
+    /// If this method schedules an event with [Duration::zero()] that re-registers this
+    /// source, it may result in an infinite micro-step loop.
     fn on_registered(&mut self, context: &mut dyn UserContext<E, M>, model: &M)
     -> Option<Duration>;
 
-    /// 発火したときの処理。戻り値は次の発火時刻。
+    /// Executes the source's primary logic when triggered.
+    ///
+    /// # Returns
+    ///
+    /// The [Duration] until the next scheduled fire event, or `None` if no
+    /// further events should be scheduled.
     fn fire(&mut self, context: &mut SourceContext<E, M>, model: &M) -> Option<Duration>;
 }
