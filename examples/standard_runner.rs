@@ -12,21 +12,19 @@ use std::fmt;
 
 #[cfg(test)]
 mod tests {
-    // 最後までサンプルが走りきることをテスト
+    // Verifies that the sample simulation completes execution successfully.
     #[test]
     fn example_runs() {
         super::main();
     }
 }
 
-// --- [1. イベントの定義] ---
 #[derive(Debug, Clone)]
 pub enum MyEvent {
     JobArrived { job_id: u32 },
     JobProcessed { job_id: u32 },
 }
 
-// --- [2. モデルの定義] ---
 #[derive(Debug)]
 pub struct ServerModel {
     pub name: &'static str,
@@ -34,16 +32,16 @@ pub struct ServerModel {
     pub is_busy: bool,
 }
 
-// 前提となる Model トレイトの実装
+// Implementation of the Model trait for event processing logic.
 impl Model<MyEvent> for ServerModel {
     fn handle_event(&mut self, context: &mut EventContext<MyEvent, Self>, event: &Event<MyEvent>) {
         match event.payload {
             MyEvent::JobArrived { job_id } => {
                 if self.is_busy {
-                    // サーバーが処理中ならキューに積む
+                    // Enqueue the job if the server is currently busy.
                     self.queue.push_back(job_id);
                 } else {
-                    // 空いていれば即座に処理を開始し、5 tick後に完了イベントをセット
+                    // Start processing immediately and schedule completion after 5 ticks.
                     self.is_busy = true;
                     context.schedule_event(
                         Duration::ticks(5),
@@ -53,7 +51,7 @@ impl Model<MyEvent> for ServerModel {
                 }
             }
             MyEvent::JobProcessed { job_id: _ } => {
-                // キューに次のジョブがあれば処理、なければアイドルへ
+                // If there are queued jobs, process the next one; otherwise, set server to idle.
                 if let Some(next_id) = self.queue.pop_front() {
                     context.schedule_event(
                         Duration::ticks(5),
@@ -68,7 +66,7 @@ impl Model<MyEvent> for ServerModel {
     }
 }
 
-// ログ視認性を高めるために作った ModelSummary の実装
+// Implementation of ModelSummary for clear logging output.
 impl ModelSummary for ServerModel {
     fn summary(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ServerModel")
@@ -79,7 +77,6 @@ impl ModelSummary for ServerModel {
     }
 }
 
-// --- [3. ソースの定義 (定期的なジョブ生成)] ---
 #[derive(Debug)]
 pub struct JobGenerator {
     next_job_id: u32,
@@ -92,7 +89,7 @@ impl Source<MyEvent, ServerModel> for JobGenerator {
         ctx: &mut dyn UserContext<MyEvent, ServerModel>,
         _model: &ServerModel,
     ) -> Option<Duration> {
-        // 最初に一つイベントを登録する
+        // Register the initial event.
         let job_id = self.next_job_id;
         self.next_job_id += 1;
 
@@ -105,7 +102,7 @@ impl Source<MyEvent, ServerModel> for JobGenerator {
         Some(self.interval)
     }
 
-    // ソースが発火したときの挙動
+    // Behavior when the source fires.
     fn fire(
         &mut self,
         ctx: &mut SourceContext<MyEvent, ServerModel>,
@@ -114,14 +111,14 @@ impl Source<MyEvent, ServerModel> for JobGenerator {
         let job_id = self.next_job_id;
         self.next_job_id += 1;
 
-        // ジョブが到着したというイベントを今すぐ（あるいはディレイで）スケジュール
+        // Schedule the job arrival event.
         ctx.schedule_event(
             Duration::ticks(0),
             EventPriority::minimum(),
             MyEvent::JobArrived { job_id },
         );
 
-        // 次の発火タイミングを設定（Periodic Combinatorのような動きを自前で表現）
+        // Schedule the next fire event.
         Some(self.interval)
     }
 }
@@ -164,7 +161,9 @@ fn main() {
         is_busy: false,
     };
 
+    // Run the simulation with standard runner.
     let mut runner = StandardRunner::new(false);
     let result = runner.run_do_ticks(engine, model, 60, false);
-    print!("\nSimulation Result: {:?}", result);
+
+    println!("\nSimulation Result: {:?}", result);
 }

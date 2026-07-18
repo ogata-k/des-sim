@@ -4,7 +4,7 @@ use rand::Rng;
 use rand::distr::Distribution;
 use rand_distr::{Poisson, PoissonError};
 
-/// 指定されたポアソン分布からサンプリングを行う。
+/// A sampler that draws from a Poisson distribution with a specified lambda (rate).
 #[derive(Debug, Clone)]
 pub struct PoissonSampler {
     dist: Poisson<f64>,
@@ -12,11 +12,14 @@ pub struct PoissonSampler {
 
 impl DurationSampler for PoissonSampler {
     fn sample(&mut self, rng: &mut dyn Rng, _current_tick: SimTime) -> PendingDuration {
+        // The Poisson distribution returns discrete integer values represented as f64.
         PendingDuration::new(self.dist.sample(rng))
     }
 }
 
 impl PoissonSampler {
+    /// Creates a new `PoissonSampler` with the given lambda.
+    /// Returns an error if the lambda is invalid (e.g., non-finite, too small, or too large).
     pub fn new(lambda: f64) -> Result<Self, PoissonError> {
         Poisson::new(lambda).map(|dist| PoissonSampler { dist })
     }
@@ -46,7 +49,7 @@ mod tests {
             .sum::<f64>()
             / samples.len() as f64;
 
-        // Check if the sampled mean and variance are close to the expected values (lambda)
+        // Check if the sampled mean and variance are close to the expected value (lambda)
         assert!(
             (sample_mean - lambda).abs() < 0.1,
             "Mean: {}, Expected: {}",
@@ -60,9 +63,10 @@ mod tests {
             lambda
         );
 
-        // Check if all samples are non-negative integers (as f64)
+        // Verify that all samples are non-negative and integer-valued
         assert!(samples.iter().all(|&x| x >= 0.0 && x.fract() == 0.0));
     }
+
     #[test]
     fn test_poisson_sampler_invalid_zero_lambda() {
         let sampler = PoissonSampler::new(0.0);
@@ -81,6 +85,7 @@ mod tests {
 
     #[test]
     fn test_poisson_sampler_invalid_lambda() {
+        // Too large lambda
         let sampler = PoissonSampler::new(Poisson::<f64>::MAX_LAMBDA * 2.0);
         assert_eq!(sampler.err(), Some(PoissonError::ShapeTooLarge));
     }

@@ -2,7 +2,11 @@ use crate::execution::phase::UncheckedActiveExecutor;
 use crate::execution::strategy::{ContinueStrategy, ContinuousStrategyResult};
 use crate::modeling::model::Model;
 
-/// [Runner](crate::execution::runner::Runner)のデフォルトの挙動のままの継続戦略
+/// A default strategy that unconditionally allows simulation continuation.
+///
+/// Since this strategy imposes no termination criteria, the simulation proceeds
+/// until the global stop condition (`should_stop`) is met or the model's
+/// internal logic completes naturally.
 #[derive(Clone)]
 pub struct AlwaysContinueStrategy;
 
@@ -15,6 +19,8 @@ impl Default for AlwaysContinueStrategy {
 impl<E, M: Model<E>, RunnerError> ContinueStrategy<E, M, RunnerError> for AlwaysContinueStrategy {
     type Err = RunnerError;
 
+    /// Always returns `Ok`, authorizing the execution engine to proceed to the
+    /// next micro-step.
     fn handle_micro_step_continue(
         &mut self,
         _model: &M,
@@ -25,6 +31,7 @@ impl<E, M: Model<E>, RunnerError> ContinueStrategy<E, M, RunnerError> for Always
 }
 
 impl AlwaysContinueStrategy {
+    /// Creates a new `AlwaysContinueStrategy`.
     pub fn new() -> Self {
         Self
     }
@@ -40,9 +47,11 @@ mod tests {
     use crate::primitive::time::{MicroStep, MicroStepStatus, TickStatus};
     use crate::source_handler::SourceHandler;
 
+    /// Dummy event for testing.
     #[derive(Debug, PartialEq, Eq, Clone, Copy)]
     enum TestEvent {}
 
+    /// Dummy model for testing.
     #[derive(Debug, Clone)]
     struct TestModel;
 
@@ -52,14 +61,12 @@ mod tests {
             _context: &mut EventContext<TestEvent, Self>,
             _event: &Event<TestEvent>,
         ) {
-            // none
         }
     }
 
     #[test]
     #[allow(clippy::default_constructed_unit_structs)]
     fn test_always_continue_strategy_default_and_new() {
-        // new と default でインスタンス化できることを確認
         let _strategy_new = AlwaysContinueStrategy::new();
         let _strategy_default = AlwaysContinueStrategy::default();
     }
@@ -68,7 +75,7 @@ mod tests {
     fn test_always_continue_strategy_handle_continue() {
         let model = TestModel;
 
-        // UncheckedActiveExecutor を構築するための ActiveExecutorContext の準備
+        // Prepare the simulation context.
         let active_context = ActiveExecutorContext {
             current_tick_status: TickStatus::initialize(),
             next_micro_step_status: MicroStepStatus::initialize(),
@@ -77,21 +84,21 @@ mod tests {
             event_scheduler: EventScheduler::new(),
         };
 
-        // テスト用の UncheckedActiveExecutor を生成
+        // Create the execution state.
         let current_micro_step = MicroStep::zero();
         let unchecked_executor = UncheckedActiveExecutor::new(active_context, current_micro_step);
 
         let mut strategy = AlwaysContinueStrategy::new();
 
-        // ダミーのエラー型として()を指定して戦略を実行
+        // Validate strategy execution.
         let result: ContinuousStrategyResult<TestEvent, TestModel, ()> =
             strategy.handle_micro_step_continue(&model, unchecked_executor);
 
-        // AlwaysContinueStrategy は常に Ok(ActiveExecutorContext) を返すことを検証
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Continuation strategy failed unexpectedly.");
 
         let returned_context = result.map_err(|e| e.1).unwrap();
-        // 内部のコンテキストが維持されていることを確認
+
+        // Verify that the context information is correctly preserved.
         assert_eq!(
             returned_context.current_tick_status.current(),
             crate::primitive::time::SimTime::zero()

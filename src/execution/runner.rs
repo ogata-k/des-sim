@@ -7,26 +7,24 @@ use crate::execution::strategy::ContinueStrategy;
 use crate::modeling::model::Model;
 use crate::primitive::time::{TickStatus, TimeTick};
 
-/// シミュレーションの実行制御を司るトレイト。
+/// A trait defining the execution policy for simulation engines.
 ///
-/// このトレイトの核となる `run` メソッドを実装することで、
-/// さまざまな実行モード（デバッグ、再生ウェイト、並列バッチなど）を実現できます。
+/// The `Runner` orchestrates the interaction between a `Model` and an `Engine`.
+/// It provides a standardized interface for different execution strategies—such
+/// as synchronous execution, playback, or parallel batch processing—allowing
+/// the user to control how the simulation proceeds over time.
 pub trait Runner<E, M: Model<E>, CS: ContinueStrategy<E, M, Self::Err>> {
-    /// シミュレーション実行中に発生し得る、実装固有のエラー型
+    /// Implementation-specific error type that may occur during simulation.
     type Err: std::fmt::Debug;
 
-    /// 0-originで時刻を刻みながらシミュレーションを回す、コアとなる基本実行メソッド。
-    /// 0 tickは必ず最初に呼び出されます。
+    /// The core, low-level method for driving the simulation.
     ///
     /// # Arguments
-    ///
-    /// * `engine` - シミュレーションエンジン（イベントキューやコンテキストの管理者）
-    /// * `model` - 初期のモデル状態
-    /// * `should_stop` - 毎Tickの処理開始前に呼び出される停止条件クロージャ。
-    ///   内部で特定のエラーが複数回起きたら終了する、といった状態管理を可能にするため `FnMut` となっています。
-    ///   * `&M` - 今処理を開始しようとしているTickの時点でのモデル状態
-    ///   * `ExecutorStatus` - 今処理を開始しようとしているTickの時点でのエグゼキュータの実行状態
-    ///   * `TickStatus` - 今処理を開始しようとしているTickの時刻状態
+    /// * `engine` - The engine managing the event scheduler and context.
+    /// * `model` - The initial model state.
+    /// * `should_stop` - A closure invoked before each tick to evaluate termination
+    ///   conditions. As an `FnMut`, it can track internal state like retry counts
+    ///   or cumulative errors to trigger dynamic stops.
     fn run<F>(
         &mut self,
         engine: Engine<E, M>,
@@ -34,16 +32,12 @@ pub trait Runner<E, M: Model<E>, CS: ContinueStrategy<E, M, Self::Err>> {
         should_stop: F,
     ) -> SimulationResult<M, CS::Err>
     where
-        F: FnMut(
-            &M,             /* current model on the tick */
-            ExecutorStatus, /* status of scheduled on executor on the tick */
-            TickStatus,     /* next handle tick status */
-        ) -> bool;
+        F: FnMut(&M, ExecutorStatus, TickStatus) -> bool;
 
-    /// 指定した時間間隔（ウェイト）を挟みながら自動進行する再生用メソッド。
+    /// Advances the simulation while inserting a specified delay between ticks.
     ///
-    /// CUI/GUIでのリアルタイムなアニメーション描画や、
-    /// 人間がログを監視しやすい速度でシミュレーションを「眺める」際に最適です。
+    /// Ideal for GUI/CUI visualizations or debugging where the simulation
+    /// progress needs to be observable by a human.
     fn run_playback<F>(
         &mut self,
         engine: Engine<E, M>,
@@ -58,16 +52,16 @@ pub trait Runner<E, M: Model<E>, CS: ContinueStrategy<E, M, Self::Err>> {
             if should_stop(model, exec_status, tick_status) {
                 return true;
             }
-            // 1 Tick の処理が終わるごとに、指定時間だけスレッドをスリープさせる
             std::thread::sleep(duration);
             false
         })
     }
 
-    /// 指定されたTick数が経過するまでシミュレーションを進行して終了するメソッド。
+    /// Advances the simulation until a specific tick count is reached.
     ///
-    /// 高速化のために `Runner` が時間をスキップ（ジャンプ）させることがあるため、
-    /// ジャンプ発生時は、指定された閾値をまたいだ最初の実処理を終えたタイミングで安全に終了します。
+    /// If the `Runner` implementation optimizes by skipping time periods, this
+    /// method ensures a safe exit at the first appropriate processing step
+    /// exceeding the specified threshold.
     fn run_do_ticks(
         &mut self,
         engine: Engine<E, M>,
@@ -84,17 +78,17 @@ pub trait Runner<E, M: Model<E>, CS: ContinueStrategy<E, M, Self::Err>> {
         )
     }
 
-    /// 処理すべきイベント（キュー）が完全に空になったら自動で終了するメソッド。
+    /// Automatically advances the simulation until the event queue is exhausted (idle).
     fn run_until_idle(&mut self, engine: Engine<E, M>, model: M) -> SimulationResult<M, CS::Err> {
         self.run(engine, model, |_, executor_status: ExecutorStatus, _| {
             executor_status == ExecutorStatus::NoMoreEvent
         })
     }
 
-    /// モデルの状態（ドメインロジック）が特定の条件を満たしたら終了するメソッド。
+    /// Advances the simulation until the model's internal state satisfies a condition.
     ///
-    /// 「特定のキューがパンクした」「目標の生産数に達した」など、
-    /// モデル内部の数値をトリガーにした終了判定をシンプルに記述できます。
+    /// Allows for domain-specific termination criteria, such as reaching a production
+    /// target or a specific KPI threshold.
     fn run_until_model_condition<F>(
         &mut self,
         engine: Engine<E, M>,
@@ -109,19 +103,10 @@ pub trait Runner<E, M: Model<E>, CS: ContinueStrategy<E, M, Self::Err>> {
         })
     }
 
-    /// 【マルチスレッド版】
-    /// 条件を変えたシミュレーションを指定回数並列実行することができるメソッド。
-    /// 必要であれば、初期モデルを微調整して初期化することもできます。
-    /// 全CPUコアをフル稼働させてモンテカルロ法やパラメトリックスタディを爆速で実行します。
+    /// Executes multiple simulation trials in parallel across multiple CPU cores.
     ///
-    /// # Arguments
-    ///
-    /// * `count` - 実行するシミュレーションの総試行回数。
-    /// * `engine_builder` - 各スレッドで独立した `Engine` を量産するためのファクトリ関数（不変クロージャ）。
-    ///   引数として現在の「実行インデックス（0〜count-1）」が渡されるため、インデックスに応じた
-    ///   異なる乱数シードや設定を持つ Engine をスレッドセーフに動的生成できます。
-    /// * `model_builder` - 初期のモデル状態
-    /// * `should_stop` - 毎Tick呼び出される停止条件クロージャ。
+    /// Useful for Monte Carlo simulations or parametric studies. Each thread
+    /// constructs its own independent instance using the provided builders.
     fn run_batch_parallel<MF, EF, F>(
         &self,
         count: usize,
@@ -131,17 +116,18 @@ pub trait Runner<E, M: Model<E>, CS: ContinueStrategy<E, M, Self::Err>> {
     ) -> Vec<SimulationResult<M, CS::Err>>
     where
         Self: Clone + Sync,
-        // 並列スレッドから同時に何回でも安全に呼び出せるよう、FnMut ではなく不変の Fn に制限
+        // Restricted to immutable Fn instead of FnMut so that it can be safely called many times
+        // at the same time from parallel threads
         EF: Fn(usize) -> Engine<E, M> + Sync,
         M: Send,
-        // 並列スレッドから同時に何回でも安全に呼び出せるよう、FnMut ではなく不変の Fn に制限
+        // Restricted to immutable Fn instead of FnMut so that it can be safely called many times
+        // at the same time from parallel threads
         MF: Fn(usize) -> M + Sync,
         F: FnMut(&M, ExecutorStatus, TickStatus) -> bool + Clone + Sync,
         CS::Err: Send,
     {
         use rayon::prelude::*;
 
-        // 結果のインデックスをengine_builderに入れるため、インデックス配列をイテレートしてあつめる。
         (0..count)
             .into_par_iter()
             .map(|index| {

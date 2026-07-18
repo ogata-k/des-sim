@@ -4,7 +4,7 @@ use rand::Rng;
 use rand::distr::Distribution;
 use rand_distr::{Exp, ExpError};
 
-/// 指定された指数分布からサンプリングを行う。
+/// A sampler that draws from an exponential distribution with a specified lambda (rate).
 #[derive(Debug, Clone)]
 pub struct ExponentialSampler {
     dist: Exp<f64>,
@@ -17,6 +17,8 @@ impl DurationSampler for ExponentialSampler {
 }
 
 impl ExponentialSampler {
+    /// Creates a new `ExponentialSampler` with the given lambda (rate parameter).
+    /// Returns an error if the lambda is invalid (e.g., negative or NaN).
     pub fn new(lambda: f64) -> Result<Self, ExpError> {
         Exp::new(lambda).map(|dist| ExponentialSampler { dist })
     }
@@ -61,7 +63,7 @@ mod tests {
 
     #[test]
     fn test_sample_with_different_lambda() {
-        let lambda_high = 10.0; // Shorter average duration
+        let lambda_high = 10.0; // Mean = 1/lambda = 0.1
         let mut sampler_high = ExponentialSampler::new(lambda_high).unwrap();
         let mut rng_high = SmallRng::seed_from_u64(2);
         let current_tick = SimTime::from_ticks(0);
@@ -74,7 +76,7 @@ mod tests {
         // For Exp(lambda), mean is 1/lambda. So for lambda=10, mean should be 0.1
         assert!(avg_high > 0.05 && avg_high < 0.2); // Check if it's in a reasonable range
 
-        let lambda_low = 0.1; // Longer average duration
+        let lambda_low = 0.1; // Mean = 1/lambda = 10.0
         let mut sampler_low = ExponentialSampler::new(lambda_low).unwrap();
         let mut rng_low = SmallRng::seed_from_u64(2);
 

@@ -2,9 +2,10 @@ use crate::modeling::sampler::{DurationSampler, PendingDuration};
 use crate::primitive::time::SimTime;
 use rand::Rng;
 
-/// ベースとなったサンプラーで得られた値に対して、揺らぎ用のサンプラーで得られた値だけ増加させて遅らせる。
-/// ただし、揺らぎ用のサンプラーが負の値を返しても加算される。
-/// 加算してほしくないときは[WithDelaySampler](crate::modeling::sampler::DelaySampler)を使うこと。
+/// A sampler that applies "jitter" (noise) to the output of a base sampler.
+///
+/// The jitter value is added directly to the base sampler's output. Negative jitter
+/// values will decrease the total duration (unlike [DelaySampler](crate::modeling::sampler::DelaySampler)).
 pub struct JitterSampler<S>
 where
     S: DurationSampler,
@@ -29,6 +30,7 @@ impl<S> JitterSampler<S>
 where
     S: DurationSampler,
 {
+    /// Creates a new `JitterSampler`.
     pub fn new(sampler: S, jitter_sampler: Box<dyn DurationSampler>) -> Self {
         Self {
             sampler,

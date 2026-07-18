@@ -4,8 +4,11 @@ use rand::Rng;
 use rand::distr::Distribution;
 use rand_distr::{Normal, NormalError};
 
-/// 指定された平均値と標準偏差をもとに正規分布からサンプリングを行う。
-/// ただし、正の値がでるまでサンプリングするので指定されるパラメータによっては実行時間に注意。
+/// A sampler that draws from a normal (Gaussian) distribution.
+///
+/// Note: This sampler can produce negative values depending on the provided
+/// mean and standard deviation. Ensure parameters are appropriate for the
+/// expected domain of the simulation.
 #[derive(Debug, Clone)]
 pub struct NormalSampler {
     dist: Normal<f64>,
@@ -18,6 +21,8 @@ impl DurationSampler for NormalSampler {
 }
 
 impl NormalSampler {
+    /// Creates a new `NormalSampler` with the given mean and standard deviation.
+    /// Returns an error if the standard deviation is non-positive or invalid.
     pub fn new(mean: f64, std_dev: f64) -> Result<Self, NormalError> {
         Normal::new(mean, std_dev).map(|dist| NormalSampler { dist })
     }
@@ -49,7 +54,7 @@ mod tests {
             / samples.len() as f64;
         let sample_std_dev = variance.sqrt();
 
-        // Check if the sampled mean and std_dev are close to the expected values
+        // Check if the sampled mean and standard deviation are close to the expected values
         assert!(
             (sample_mean - mean).abs() < 0.1,
             "Mean: {}, Expected: {}",
@@ -65,7 +70,7 @@ mod tests {
     }
 
     #[test]
-    fn test_normal_sampler_invalid_std_dev() {
+    fn test_normal_sampler_infinite_std_dev() {
         let sampler = NormalSampler::new(0.0, f64::INFINITY);
         assert_eq!(sampler.err(), Some(NormalError::BadVariance));
     }

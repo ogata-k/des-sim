@@ -5,12 +5,18 @@ use crate::modeling::hook::Hook;
 use crate::modeling::model::Model;
 use std::collections::VecDeque;
 
+/// Manages the event execution phase in the simulation.
+///
+/// This structure holds the queue of events to be processed in the current micro-step,
+/// manages the execution of event handling by the model, handles event discarding,
+/// and performs phase-end procedures.
 pub struct EventPhase<E, M: Model<E>> {
     context: EventContext<E, M>,
     ready_events: VecDeque<Event<E>>,
 }
 
 impl<E, M: Model<E>> EventPhase<E, M> {
+    /// Creates a new event phase.
     pub(crate) fn new(context: EventContext<E, M>, ready_events: VecDeque<Event<E>>) -> Self {
         EventPhase {
             context,
@@ -18,10 +24,14 @@ impl<E, M: Model<E>> EventPhase<E, M> {
         }
     }
 
+    /// Returns a mutable reference to the event context used in the current phase.
     pub fn get_context(&mut self) -> &mut EventContext<E, M> {
         &mut self.context
     }
 
+    /// Completes the event phase and transitions to the next micro-step handler.
+    ///
+    /// This invokes the `after_event_phase` hook to update the simulation state.
     pub fn complete_event_phase(self, model: &M) -> MicroStepHandler<EventContext<E, M>> {
         self.context.hook().after_event_phase(
             model,
@@ -32,24 +42,26 @@ impl<E, M: Model<E>> EventPhase<E, M> {
         MicroStepHandler::new(self.context)
     }
 
+    /// Pops one event from the front of the queue.
     pub fn take_one(&mut self) -> Option<Event<E>> {
         self.ready_events.pop_front()
     }
 
-    /// 全体から条件を満たす一件を取得して取り出す。
+    /// Searches for and pops the first event in the queue that satisfies the given predicate.
     pub fn take_one_if<F>(&mut self, predicate: F) -> Option<Event<E>>
     where
         F: FnOnce(&Event<E>) -> bool,
     {
+        // Note: VecDeque::pop_front_if is nightly. If using stable,
+        // a custom implementation or drain_filter equivalent may be needed.
         self.ready_events.pop_front_if(|e| predicate(e))
     }
 
-    /// 先頭が条件を満たす時だけ取り出す。
+    /// Pops an event from the front of the queue only if it satisfies the given predicate.
     pub fn take_front_if<F>(&mut self, predicate: F) -> Option<Event<E>>
     where
         F: FnOnce(&Event<E>) -> bool,
     {
-        // 先頭要素を覗いて、条件に合致するか判定
         if self.ready_events.front().is_some_and(predicate) {
             self.ready_events.pop_front()
         } else {
@@ -57,25 +69,31 @@ impl<E, M: Model<E>> EventPhase<E, M> {
         }
     }
 
+    /// Takes all events currently in the queue.
     pub fn take_all(&mut self) -> VecDeque<Event<E>> {
         std::mem::take(&mut self.ready_events)
     }
 
+    /// Extracts and returns all events from the queue that satisfy the given predicate.
+    ///
+    /// Events that do not satisfy the predicate remain in the queue.
     pub fn take_all_if<F>(&mut self, predicate: F) -> VecDeque<Event<E>>
     where
         F: FnMut(&Event<E>) -> bool,
     {
-        // 一時的にすべて取得して抽出して差し替える
-        let all_sources = std::mem::take(&mut self.ready_events);
+        let all_events = std::mem::take(&mut self.ready_events);
 
         let (taken, remaining): (VecDeque<_>, VecDeque<_>) =
-            all_sources.into_iter().partition(predicate);
+            all_events.into_iter().partition(predicate);
 
         self.ready_events = remaining;
 
         taken
     }
 
+    /// Processes the specified event using the model.
+    ///
+    /// This invokes the `before_event` and `after_event` hooks surrounding the event processing.
     pub fn handle_event(&mut self, model: &mut M, event: Event<E>) {
         self.context.hook().before_event(
             model,
@@ -92,6 +110,9 @@ impl<E, M: Model<E>> EventPhase<E, M> {
         );
     }
 
+    /// Discards the specified event.
+    ///
+    /// This invokes the `discard_event` hook during the discard process.
     pub fn discard(&mut self, model: &M, event: Event<E>) {
         self.context.hook().discard_event(
             model,
@@ -138,6 +159,7 @@ mod tests {
         }
     }
 
+    /// A hook implementation that tracks discarded events.
     struct DiscardHook {
         discarded_events: Rc<Mutex<Vec<TestEvent>>>,
     }
@@ -326,6 +348,7 @@ mod tests {
         }
     }
 
+    /// Sets up the initial state for an event phase test.
     fn setup_event_phase() -> (EventPhase<TestEvent, TestModel>, TestModel) {
         let model = TestModel {
             handled_events: Vec::new(),
@@ -337,6 +360,7 @@ mod tests {
             source_handler: SourceHandler::new(),
             event_scheduler: EventScheduler::new(),
         };
+
         let mut ready_events = VecDeque::new();
         ready_events.push_back(Event::new(
             EventId::new(0),
@@ -359,20 +383,20 @@ mod tests {
 
     #[test]
     fn test_new() {
-        let (event_phase, _model) = setup_event_phase();
+        let (event_phase, _) = setup_event_phase();
         assert_eq!(event_phase.ready_events.len(), 3);
     }
 
     #[test]
     fn test_get_context() {
-        let (mut event_phase, _model) = setup_event_phase();
+        let (mut event_phase, _) = setup_event_phase();
         let context = event_phase.get_context();
         assert_eq!(context.current_tick(), SimTime::zero());
     }
 
     #[test]
     fn test_take_one() {
-        let (mut event_phase, _model) = setup_event_phase();
+        let (mut event_phase, _) = setup_event_phase();
         let event = event_phase.take_one().unwrap();
         assert_eq!(event.payload, TestEvent::A);
         assert_eq!(event_phase.ready_events.len(), 2);
@@ -380,8 +404,8 @@ mod tests {
 
     #[test]
     fn test_take_one_if() {
-        // Original test logic (assuming pop_front_if behaves like take_front_if):
-        let (mut event_phase_a, _model_a) = setup_event_phase();
+        // Test successful predicate match
+        let (mut event_phase_a, _) = setup_event_phase();
         let event_a = event_phase_a
             .take_one_if(|e| e.payload == TestEvent::A)
             .unwrap();
@@ -392,7 +416,8 @@ mod tests {
             TestEvent::B
         );
 
-        let (mut event_phase_b, _model_b) = setup_event_phase();
+        // Test failed predicate match
+        let (mut event_phase_b, _) = setup_event_phase();
         let event_b = event_phase_b.take_one_if(|_| false);
         assert!(event_b.is_none());
         assert_eq!(event_phase_b.ready_events.len(), 3);
@@ -400,7 +425,7 @@ mod tests {
 
     #[test]
     fn test_take_front_if() {
-        let (mut event_phase, _model) = setup_event_phase();
+        let (mut event_phase, _) = setup_event_phase();
         let event_a = event_phase
             .take_front_if(|e| e.payload == TestEvent::A)
             .unwrap();
@@ -414,7 +439,7 @@ mod tests {
 
     #[test]
     fn test_take_all() {
-        let (mut event_phase, _model) = setup_event_phase();
+        let (mut event_phase, _) = setup_event_phase();
         let all_events = event_phase.take_all();
         assert_eq!(all_events.len(), 3);
         assert_eq!(event_phase.ready_events.len(), 0);
@@ -422,7 +447,7 @@ mod tests {
 
     #[test]
     fn test_take_all_if() {
-        let (mut event_phase, _model) = setup_event_phase();
+        let (mut event_phase, _) = setup_event_phase();
         event_phase.ready_events.push_back(Event::new(
             EventId::new(3),
             EventPriority::minimum(),

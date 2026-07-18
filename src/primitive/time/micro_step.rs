@@ -1,5 +1,6 @@
 use std::fmt::{Display, Formatter};
 
+/// Represents the sequence of micro-steps within a single simulation tick.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct MicroStep(u64);
 
@@ -10,43 +11,55 @@ impl Display for MicroStep {
 }
 
 impl MicroStep {
+    /// Returns a `MicroStep` initialized to zero.
     #[must_use]
     pub const fn zero() -> Self {
         Self(0)
     }
 
+    /// Creates a new `MicroStep` with the specified value.
     #[cfg(test)]
     #[allow(dead_code)]
     pub const fn new(value: u64) -> Self {
         Self(value)
     }
 
+    /// Returns the next `MicroStep` in the sequence.
+    ///
+    /// # Panics
+    ///
+    /// Panics if incrementing would cause an overflow.
     #[must_use]
     pub const fn next(self) -> Self {
         Self(self.0 + 1)
     }
 
+    /// Returns the raw numerical value of the micro-step.
     pub const fn value(&self) -> u64 {
         self.0
     }
 }
 
+/// Tracks the current state of micro-steps within a simulation tick.
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub struct MicroStepStatus {
     current_micro_step: MicroStep,
 }
 
 impl MicroStepStatus {
+    /// Creates a new `MicroStepStatus` at the specified micro-step.
     pub(crate) fn new(current_micro_step: MicroStep) -> Self {
         MicroStepStatus { current_micro_step }
     }
 
+    /// Initializes `MicroStepStatus` to the starting step.
     pub(crate) fn initialize() -> Self {
         MicroStepStatus {
             current_micro_step: MicroStep::zero(),
         }
     }
 
+    /// Returns the current `MicroStep`.
     pub fn current(&self) -> MicroStep {
         self.current_micro_step
     }
@@ -87,8 +100,9 @@ mod tests {
     #[test]
     #[should_panic(expected = "attempt to add with overflow")]
     fn micro_step_next_overflow_panic() {
-        // u64::MAX の状態で next() を呼ぶと、const fn 内であっても
-        // 実行時（または評価時）に正しくオーバーフローパニックを起こすか検証
+        // Verify that if you call next() in the state of u64::MAX,
+        // an overflow panic will occur correctly at runtime (or evaluation time)
+        // even if it is within a const fn.
         let max_step = MicroStep::new(u64::MAX);
         let _ = max_step.next();
     }
@@ -122,8 +136,6 @@ mod tests {
 
     #[test]
     fn micro_step_status_mutation_via_recreation() {
-        // MicroStepStatus はイミュータブルな設計だが、
-        // 状態を次に進める際の一連のライフサイクルをシミュレート
         let status_initial = MicroStepStatus::initialize();
         assert_eq!(status_initial.current().value(), 0);
 
@@ -131,7 +143,7 @@ mod tests {
         let status_next = MicroStepStatus::new(next_step);
 
         assert_eq!(status_next.current().value(), 1);
-        // 元の状態が破壊されていないことの検証
+        // Ensure the original state remains unchanged.
         assert_eq!(status_initial.current().value(), 0);
     }
 }

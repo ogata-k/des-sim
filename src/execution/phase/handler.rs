@@ -4,26 +4,36 @@ use crate::modeling::hook::Hook;
 use crate::modeling::model::Model;
 use crate::primitive::time::MicroStepStatus;
 
-// 1回限りの使い捨て入場券構造体（Cloneは絶対に実装しない）
+/// Controls the micro-step execution phases of the simulation.
+///
+/// This structure owns the simulation state (context) and guarantees phase transitions
+/// in a one-way (disposable) manner. By not implementing `Clone`, it ensures the safety
+/// of the execution flow at the type-system level.
 pub struct MicroStepHandler<CTX> {
     context: CTX,
 }
 
 impl<CTX> MicroStepHandler<CTX> {
+    /// Creates a new handler.
     pub(crate) fn new(context: CTX) -> MicroStepHandler<CTX> {
         MicroStepHandler { context }
     }
 
+    /// Returns an immutable reference to the context.
     pub fn ref_context(&self) -> &CTX {
         &self.context
     }
 
+    /// Returns a mutable reference to the context.
     pub fn ref_mut_context(&mut self) -> &mut CTX {
         &mut self.context
     }
 }
 
 impl<E, M: Model<E>> MicroStepHandler<ActiveExecutorContext<E, M>> {
+    /// Starts the source execution phase.
+    ///
+    /// Generates a `SourcePhase` from the current context and invokes the `before_source_phase` hook.
     pub fn start_source_phase(self, model: &M) -> SourcePhase<E, M> {
         let mut context = self.context;
         context.hook().before_source_phase(
@@ -35,6 +45,7 @@ impl<E, M: Model<E>> MicroStepHandler<ActiveExecutorContext<E, M>> {
         let ready_sources = context
             .source_handler
             .drain_ready(context.current_tick_status.current());
+
         SourcePhase::new(
             SourceContext {
                 current_tick_status: context.current_tick_status,
@@ -50,6 +61,10 @@ impl<E, M: Model<E>> MicroStepHandler<ActiveExecutorContext<E, M>> {
 }
 
 impl<E, M: Model<E>> MicroStepHandler<SourceContext<E, M>> {
+    /// Transitions to the event execution phase.
+    ///
+    /// Invokes the `before_event_phase` hook, restores the pending `source_handler`,
+    /// and generates an `EventPhase`.
     pub fn to_event_phase(self, model: &M) -> EventPhase<E, M> {
         let mut context = self.context;
         context.hook().before_event_phase(
@@ -61,6 +76,7 @@ impl<E, M: Model<E>> MicroStepHandler<SourceContext<E, M>> {
         let ready_events = context
             .event_scheduler
             .drain_ready(context.current_tick_status.current());
+
         EventPhase::new(
             EventContext {
                 current_tick_status: context.current_tick_status,
@@ -68,7 +84,7 @@ impl<E, M: Model<E>> MicroStepHandler<SourceContext<E, M>> {
                 hook_delegate: context.hook_delegate,
                 source_handler: context
                     .source_handler
-                    .expect("Fail impl take source_handler from SourcePhase."),
+                    .expect("Failed to retrieve SourceHandler from SourcePhase."),
                 event_scheduler: context.event_scheduler,
             },
             ready_events,
@@ -77,23 +93,25 @@ impl<E, M: Model<E>> MicroStepHandler<SourceContext<E, M>> {
 }
 
 impl<E, M: Model<E>> MicroStepHandler<EventContext<E, M>> {
+    /// Ends the current micro-step and returns the result (continue or complete).
+    ///
+    /// Checks for remaining executable events or sources within the current tick and
+    /// constructs the context for the next micro-step if necessary.
     pub fn end_micro_step(mut self, model: &M) -> MicroStepResult<E, M> {
-        // 次のイベント登録状況を更新するためにペンディングしているものを反映する。
-        // これがないとここ以後の処理が事故る。
+        // Flush pending handlers to accurately peek at the next scheduled events/sources.
         self.ref_mut_context().source_handler.flush_pending();
         self.ref_mut_context().event_scheduler.flush_pending();
         let current_tick = self.ref_context().current_tick_status.current();
 
-        // Event と Source の両方から「次の予定時間」を覗き見る
+        // Check the next scheduled time for both events and sources.
         let next_event_at = self.ref_context().event_scheduler.peek_next_time();
         let next_source_at = self.ref_context().source_handler.peek_next_time();
 
-        // いずれかが「現在のTickと同じ時間」であれば、まだ同Tick内でやるべきことがあるので Continue
         let has_next_in_current_tick = matches!(next_event_at, Some(t) if t == current_tick)
             || matches!(next_source_at, Some(t) if t == current_tick);
 
         if has_next_in_current_tick {
-            // まだ同tick中に発火可能なイベント/ソースがあるので次のマイクロステップに進める
+            // Still have work to do in the current tick; proceed to the next micro-step.
             let current_micro_step = self.ref_context().current_micro_step_status.current();
             let next_micro_step = current_micro_step.next();
 
@@ -110,12 +128,13 @@ impl<E, M: Model<E>> MicroStepHandler<EventContext<E, M>> {
                 source_handler: self.context.source_handler,
                 event_scheduler: self.context.event_scheduler,
             };
+
             MicroStepResult::Continue(UncheckedActiveExecutor::new(
                 active_context,
                 current_micro_step,
             ))
         } else {
-            // 処理すべきイベント・ソースが未来の時間か、そもそもないので、今のマイクロステップで終了
+            // No more work in the current tick; terminate the micro-step.
             let last_micro_step_status = self.ref_context().current_micro_step_status;
 
             self.context.hook().after_micro_step(
@@ -131,6 +150,7 @@ impl<E, M: Model<E>> MicroStepHandler<EventContext<E, M>> {
                 source_handler: self.context.source_handler,
                 event_scheduler: self.context.event_scheduler,
             };
+
             MicroStepResult::Complete(active_context, last_micro_step_status)
         }
     }
@@ -162,11 +182,11 @@ mod tests {
             _context: &mut EventContext<TestEvent, Self>,
             _event: &Event<TestEvent>,
         ) {
-            // none
+            // No-op
         }
     }
 
-    // 遷移時の各フェーズフック呼び出しを追跡するためのテスト用フック
+    /// Hook used to track phase transition calls during tests.
     struct TransitionTrackerHook {
         called_before_source_phase: Rc<Mutex<bool>>,
         called_before_event_phase: Rc<Mutex<bool>>,
@@ -337,7 +357,6 @@ mod tests {
         }
     }
 
-    // SharedHook の型パラメータに正しく E, M, H をマッピング
     fn setup_tracker_hook() -> SharedHook<TestEvent, TestModel, TransitionTrackerHook> {
         SharedHook::new(TransitionTrackerHook {
             called_before_source_phase: Rc::new(Mutex::new(false)),
@@ -406,7 +425,6 @@ mod tests {
         let mut hook_delegate = HookDelegate::new();
         hook_delegate.add_shared_hook(hook.clone());
 
-        // 現在時間を明確に作成（例: 時間ゼロ）
         let tick_status = TickStatus::initialize();
         let current_time = tick_status.current();
 
@@ -419,7 +437,6 @@ mod tests {
         );
         event_scheduler.flush_pending();
 
-        // 念のため、この時点で正しく現在時間と一致するイベントがスケジュールされているか検証
         assert_eq!(event_scheduler.peek_next_time(), Some(current_time));
 
         let event_context = EventContext {
@@ -435,7 +452,7 @@ mod tests {
 
         match result {
             MicroStepResult::Continue(_) => {
-                // パス
+                // pass
             }
             MicroStepResult::Complete(_, _) => {
                 panic!("Expected MicroStepResult::Continue, but got Complete");
@@ -463,7 +480,9 @@ mod tests {
         let result = handler.end_micro_step(&model);
 
         match result {
-            MicroStepResult::Complete(_, _) => {}
+            MicroStepResult::Complete(_, _) => {
+                // pass
+            }
             MicroStepResult::Continue(_) => {
                 panic!("Expected MicroStepResult::Complete, but got Continue");
             }

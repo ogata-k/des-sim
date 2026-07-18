@@ -7,13 +7,22 @@ use crate::execution::strategy::{AlwaysContinueStrategy, ContinueStrategy};
 use crate::modeling::model::Model;
 use crate::primitive::time::TickStatus;
 
-/// イベントを発火した順番に直列で処理する標準的なRunner。
-/// skippableがtrueであれば、イベントがない時間をスキップすることができる。
+/// A standard runner that processes events sequentially in the order they were fired.
 ///
-/// ※ [`Model`](Model)と[`Source`](crate::modeling::source::Source)と[`Hook`](crate::modeling::hook::Hook)が決定論的に動くとき決定論的に処理を行うことができる。
+/// This runner executes the core simulation cycle (Source phase, Event phase)
+/// in a deterministic, serial fashion. If the `skippable` option is enabled,
+/// the simulation skips time periods where no events occur, ensuring efficient
+/// utilization of computational resources.
+///
+/// ### Deterministic Execution
+/// As long as the implementations of `Model`, `Source`, and `Hook` are deterministic,
+/// simulations executed through this runner will demonstrate reproducible,
+/// deterministic behavior.
 #[derive(Clone)]
 pub struct StandardRunner<CS> {
+    /// If `true`, skips between ticks where no events are scheduled.
     skippable: bool,
+    /// Strategy object that controls micro-step continuation conditions.
     continue_strategy: CS,
 }
 
@@ -30,41 +39,36 @@ impl<E, M: Model<E>, CS: ContinueStrategy<E, M, ()>> Runner<E, M, CS> for Standa
         F: FnMut(&M, ExecutorStatus, TickStatus) -> bool,
     {
         let mut runner_error: Option<CS::Err> = None;
-
-        // 最初に生成されるのは「待機状態」の executor
         let mut executor = engine.begin_simulation(&model);
 
         loop {
             let (executor_status, tick_status) = executor.peek_next_tick();
             if should_stop(&model, executor_status, tick_status) {
-                // ここで抜ける時は、手元に executor の所有権があるので
-                // ループ外のend_simulation(model)に安全に渡せる
                 break;
             }
 
-            // これを呼ばないと、次の行の `active_executor` が作れないため、
-            // 下のMicroStepループやフェーズ処理（シミュレータの本体）が1文字も書けない。
+            // Begin the simulation tick and retrieve the active execution context.
             let mut active_executor = executor.begin_tick(&model);
 
             loop {
-                // 1. マイクロステップ開始
+                // 1. Begin micro-step
                 let micro_step_handler = active_executor.begin_micro_step(&model);
 
-                // 2. Sourceフェーズ
+                // 2. Source phase
                 let mut source_phase = micro_step_handler.start_source_phase(&model);
                 while let Some(source_ready) = source_phase.take_one() {
                     source_phase.fire_and_schedule(&model, source_ready);
                 }
                 let micro_step_handler = source_phase.complete_source_phase(&model);
 
-                // 3. Eventフェーズ
+                // 3. Event phase
                 let mut event_phase = micro_step_handler.to_event_phase(&model);
                 while let Some(event_ready) = event_phase.take_one() {
                     event_phase.handle_event(&mut model, event_ready);
                 }
                 let micro_step_handler = event_phase.complete_event_phase(&model);
 
-                // 4. マイクロステップ終了
+                // 4. End micro-step and determine state transition
                 match micro_step_handler.end_micro_step(&model) {
                     MicroStepResult::Continue(unchecked) => {
                         match self
@@ -72,12 +76,10 @@ impl<E, M: Model<E>, CS: ContinueStrategy<E, M, ()>> Runner<E, M, CS> for Standa
                             .handle_micro_step_continue(&model, unchecked)
                         {
                             Ok(new_active_executor) => {
-                                // 次のループでactive_executorを呼ぶためにしっかり所有権を回収してからcontinueする。
                                 active_executor = new_active_executor;
                                 continue;
                             }
                             Err((new_active_executor, error)) => {
-                                // エラー、つまりこのマイクロステップで終了とする場合は、所有権とエラーを回収してからbreakする。
                                 active_executor = new_active_executor;
                                 runner_error = Some(error);
                                 break;
@@ -85,15 +87,13 @@ impl<E, M: Model<E>, CS: ContinueStrategy<E, M, ()>> Runner<E, M, CS> for Standa
                         }
                     }
                     MicroStepResult::Complete(new_active_executor, _) => {
-                        // 外側のループでend_tick()を呼ぶために、しっかり所有権を回収してからbreakする
                         active_executor = new_active_executor;
                         break;
                     }
                 }
             }
 
-            // active_executorをend_tick()して元の「executor」型に戻して再代入しないと、
-            // ループの先頭に戻ったときに `executor.peek_next_tick()` が実行できず、コンパイルエラーになる。
+            // Finalize the current tick and jump/increment to the next tick as required.
             executor = if self.skippable {
                 active_executor.end_tick_with_jump_to_next_tick(&model)
             } else {
@@ -108,13 +108,13 @@ impl<E, M: Model<E>, CS: ContinueStrategy<E, M, ()>> Runner<E, M, CS> for Standa
         if let Some(error) = runner_error.take() {
             executor.end_simulation_as_error(model, error)
         } else {
-            // 綺麗にすべてのTickが閉じた executorで終了
             executor.end_simulation_as_ok(model)
         }
     }
 }
 
 impl StandardRunner<AlwaysContinueStrategy> {
+    /// Creates a new `StandardRunner` using the default `AlwaysContinueStrategy`.
     pub fn new(skippable: bool) -> Self {
         StandardRunner {
             skippable,
@@ -124,6 +124,7 @@ impl StandardRunner<AlwaysContinueStrategy> {
 }
 
 impl<CS> StandardRunner<CS> {
+    /// Creates a new `StandardRunner` with a custom `ContinueStrategy`.
     pub fn new_with_continue_strategy(skippable: bool, continue_strategy: CS) -> Self {
         StandardRunner {
             skippable,
@@ -180,7 +181,7 @@ mod tests {
         let model = TestModel { event_count: 0 };
         let mut engine = Engine::new();
 
-        // 微妙なタイミングのTickで処理されるイベントを仕込む
+        // Schedule an event at tick 5 to test standard event processing.
         engine.schedule_event_at(
             SimTime::from_ticks(5),
             EventPriority::minimum(),
@@ -189,14 +190,14 @@ mod tests {
 
         let mut runner = StandardRunner::new(true);
 
-        // 10Tick分だけ回し終わったところで、シミュレーションを終了する停止条件
+        // Terminate after 10 ticks.
         let should_stop = |_m: &TestModel, _status: ExecutorStatus, tick: TickStatus| {
             tick.is_done_ticks(false, 10)
         };
 
         let result = runner.run(engine, model, should_stop);
 
-        // シミュレーションが正常終了し、イベントが処理されたことを検証
+        // Verify that the simulation completed successfully and events were processed
         assert!(result.is_ok());
         let output = result.unwrap();
         assert_eq!(output.model().event_count, 1);
@@ -215,7 +216,7 @@ mod tests {
                 _context: &mut dyn UserContext<TestEvent, TestModel>,
                 _model: &TestModel,
             ) -> Option<Duration> {
-                // 最初のマイクロステップ内で確実にループ/継続が発生するようイベントを登録
+                // Register an event to ensure the loop/continuation occurs within the first microstep
                 Some(Duration::zero())
             }
 
@@ -224,19 +225,18 @@ mod tests {
                 context: &mut SourceContext<TestEvent, TestModel>,
                 _model: &TestModel,
             ) -> Option<Duration> {
-                // 同一のマイクロステップ内で確実にループ/継続が発生するようイベントを登録
+                // Register events to ensure loops/continuations occur within the same microstep
                 context.schedule_event(Duration::zero(), EventPriority::minimum(), TestEvent::A);
                 Some(Duration::one())
             }
         }
         engine.add_source("test source", TestSource);
 
-        // マイクロステップ上限を「0」に、許容回数を「0」に設定した LimitAbortStrategy を投入
-        // これにより、最初の Continue 判定で即座にエラーに落とす
+        // LimitAbortStrategy with 0 limit triggers immediate error upon continuation.
         let strategy = LimitAbortStrategy::new(0, 0);
         let mut runner = StandardRunner::new_with_continue_strategy(true, strategy);
 
-        // 無限ループを防ぐためのセーフティ付き停止条件（通常は戦略エラーで先に抜ける）
+        // Stop condition with safety to prevent infinite loop (usually exits first on strategy error)
         let mut loop_count = 0;
         let should_stop = |_m: &TestModel, _status: ExecutorStatus, _tick: TickStatus| {
             loop_count += 1;
@@ -245,7 +245,7 @@ mod tests {
 
         let result = runner.run(engine, model, should_stop);
 
-        // 戦略によってシミュレーションがエラー中断したことを検証
+        // Verify that the strategy aborted the simulation with an error
         assert!(result.is_err());
     }
 
@@ -254,16 +254,15 @@ mod tests {
         let model = TestModel { event_count: 0 };
         let mut engine = Engine::new();
 
-        // エンジンで登録した時刻0のイベントはシミュレーション開始時に時刻0のイベントとして処理されるよう登録されるため、
-        // マイクロステップ上限が0でも上限に引っかからない。
+        // Events at tick 0 are processed during engine initialization.
         engine.schedule_event_at(SimTime::zero(), EventPriority::minimum(), TestEvent::A);
 
-        // マイクロステップ上限を「0」に、許容回数を「0」に設定した LimitAbortStrategy を投入
-        // これにより、最初の Continue 判定で即座にエラーに落とす
+        // Input LimitAbortStrategy with microstep upper limit set to "0" and allowable number of times set to "0"
+        // This causes an error to occur immediately on the first Continue judgment
         let strategy = LimitAbortStrategy::new(0, 0);
         let mut runner = StandardRunner::new_with_continue_strategy(true, strategy);
 
-        // 無限ループを防ぐためのセーフティ付き停止条件（通常は戦略エラーで先に抜ける）
+        // Stop condition with safety to prevent infinite loop (usually exits first on strategy error)
         let mut loop_count = 0;
         let should_stop = |_m: &TestModel, _status: ExecutorStatus, _tick: TickStatus| {
             loop_count += 1;
@@ -272,11 +271,11 @@ mod tests {
 
         let result = runner.run(engine, model, should_stop);
 
-        // 戦略によってシミュレーションがエラー中断しなかったことを検証
+        // Verify that the strategy did not cause the simulation to fail due to errors.
         assert!(result.is_ok());
     }
 
-    // 呼び出し順序を追跡するためのライフサイクルイベント定義
+    // Lifecycle event definition to track call order
     #[derive(Debug, PartialEq, Eq, Clone)]
     enum LifecycleEvent {
         BeforeSimulation,
@@ -289,7 +288,7 @@ mod tests {
         AfterSimulation,
     }
 
-    // テスト用に、各イベントでトレースログを共有・記録するダミーソース
+    // A dummy source that shares and records trace logs for each event for testing purposes.
     struct TraceSource {
         trace: Arc<Mutex<Vec<LifecycleEvent>>>,
         initial_delay: Duration,
@@ -318,7 +317,6 @@ mod tests {
             t.push(LifecycleEvent::BeforeFireSource(context.current_tick()));
             t.push(LifecycleEvent::BeforeScheduleEvent);
 
-            // イベントを発火させる
             context.schedule_event(Duration::zero(), EventPriority::minimum(), TestEvent::A);
 
             t.push(LifecycleEvent::AfterScheduleEvent);
@@ -333,50 +331,43 @@ mod tests {
         let model = TestModel { event_count: 0 };
         let mut engine = Engine::new();
 
-        // 時刻1で単発発火するソースを登録
+        // Register the source that fires once at tick 1
         engine.add_source(
             "trace_source",
             TraceSource {
                 trace: Arc::clone(&trace),
                 initial_delay: Duration::ticks(1),
-                interval_delay: None, // 単発発火
+                interval_delay: None, // single ignition
             },
         );
 
         let mut runner = StandardRunner::new(true);
 
-        // 停止条件：時刻2「になる前（peekした段階）」で止める
+        // Stopping condition: Stop before tick 2 (at the peak stage)
         let should_stop = move |_m: &TestModel, _status: ExecutorStatus, tick: TickStatus| {
-            // run の実装通り、まず should_stop が評価される
-            // 時刻2に到達した時点で停止させる
-            if tick.is_done_ticks(false, 2) {
-                return true;
-            }
-
-            false
+            tick.is_done_ticks(false, 2)
         };
 
         let result = runner.run(engine, model, should_stop);
         assert!(result.is_ok());
 
-        // ループを抜けた後、安全にシミュレーションが終了したため、最後に手動で記録
+        // After exiting the loop, the simulation is safely finished, so we manually record it at the end.
         trace.lock().unwrap().push(LifecycleEvent::AfterSimulation);
 
         let final_trace = trace.lock().unwrap();
 
-        // 実際のコードフローに基づく、正当なライフサイクル順序:
-        // 1. initialize_sources 内での登録時 (BeforeSimulation)
-        // 2. 時刻0のTick開始 (イベントがないため、内部のMicroStepはスキップされるか即座に終わる)
-        // 3. 時刻1のTick開始 -> MicroStepループ突入 -> Source発火 (BeforeMicroStep -> BeforeEvent -> AfterEvent -> AfterMicroStep)
-        // 4. 時刻2のpeek時点で should_stop が true となりループ脱出 -> AfterSimulation
+        // Legal lifecycle order based on actual code flow:
+        // 1. When registering in initialize_sources (BeforeSimulation)
+        // 2. Tick start at time 0 (because there is no event, the internal MicroStep is skipped or ends immediately)
+        // 3. Start Tick at time 1 -> Enter MicroStep loop -> Fire Source (BeforeMicroStep -> BeforeEvent -> AfterEvent -> AfterMicroStep)
+        // 4. Should_stop becomes true at peak time 2 and exits the loop -> AfterSimulation
         let expected = vec![
             LifecycleEvent::BeforeSimulation,
-            // 時刻1のイテレーション（時刻0はイベントがないため、このソースのfireは通らない）
+            // Iteration at time 1 (there is no event at time 0, so fire from this source does not pass)
             LifecycleEvent::BeforeFireSource(SimTime::from_ticks(1)),
             LifecycleEvent::BeforeScheduleEvent,
             LifecycleEvent::AfterScheduleEvent,
             LifecycleEvent::AfterFireSource(SimTime::from_ticks(1)),
-            // ループ脱出後の終了処理
             LifecycleEvent::AfterSimulation,
         ];
 
@@ -389,18 +380,18 @@ mod tests {
         let model = TestModel { event_count: 0 };
         let mut engine = Engine::new();
 
-        // 最初のTick（時刻0）で確実に無限発火するソースを仕込む
+        // Prepare a source that will definitely fire infinitely at the first tick (time 0)
         engine.add_source(
             "loop_source",
             TraceSource {
                 trace: Arc::clone(&trace),
                 initial_delay: Duration::zero(),
-                // 次のMicroStepに再度発火するよう設定
+                // Set to fire again on next MicroStep
                 interval_delay: Some(Duration::zero()),
             },
         );
 
-        // マイクロステップの上限エラーを即座に発生させる戦略
+        // Strategies to instantly generate upper bound errors for microsteps
         let strategy = LimitAbortStrategy::new(0, 0);
         let mut runner = StandardRunner::new_with_continue_strategy(true, strategy);
 
@@ -415,27 +406,25 @@ mod tests {
 
         let result = runner.run(engine, model, should_stop);
 
-        // 戦略エラーで異常終了することを確認
+        // Confirmed abnormal termination due to strategy error
         assert!(result.is_err());
 
         let final_trace = trace.lock().unwrap();
 
-        // エラー中断時であっても、`BeforeMicroStep` など開始されたフックの対となる
-        // `AfterMicroStep` や `AfterTick`、`AfterSimulation` が異常を検知して正しく
-        // 途切れる（またはクリーンアップへ向かう）流れになっているかを検証。
-        // ※このテストにより、途中でパニック/エラー break した際にライフサイクルが
-        // 異常なステートのまま残らないことを保証します。
+        // Verify that even when interrupted due to an error, `AfterMicroStep`, `AfterTick`, and `AfterSimulation`,
+        // which are pairs of hooks started such as `BeforeMicroStep`, detect an abnormality and correctly terminate the flow (or proceed to cleanup).
+        // *This test ensures that the lifecycle does not remain in an abnormal state even if a panic/error break occurs midway.
         assert!(final_trace.contains(&LifecycleEvent::BeforeSimulation));
         assert!(final_trace.contains(&LifecycleEvent::BeforeTick(SimTime::zero())));
         assert!(!final_trace.contains(&LifecycleEvent::BeforeTick(SimTime::from_ticks(1))));
 
-        // エラーが発生したマイクロステップ以降の正常系ライフサイクルイベント（AfterTickなど）は
-        // 実行されずに、安全にループを脱出していることを検証
+        // Verify that the normal lifecycle event (such as AfterTick) after the microstep
+        // where the error occurred is not executed and the loop is safely exited.
         let last_event = final_trace.last().unwrap();
         assert_ne!(last_event, &LifecycleEvent::AfterTick(SimTime::zero()));
     }
 
-    // フックが呼ばれたことを詳細なパラメータと共に記録する列挙型
+    // An enum that records that the hook was called, along with detailed parameters.
     #[derive(Debug, PartialEq, Eq, Clone)]
     enum HookCall {
         BeforeSimulation,
@@ -523,18 +512,17 @@ mod tests {
                 micro: current_micro_step,
             });
         }
-        // 簡略化のため、個別要素のフックは省略（必要に応じて同様に記録可能）
         fn on_discard_remain_micro_step(
             &self,
-            _: &M,
-            _: SimTime,
-            _: MicroStep,
-            _: &[SourceReadyEntry],
-            _: &[Event<E>],
+            _model: &M,
+            _current_tick: SimTime,
+            _first_discarded_micro_step: MicroStep,
+            _discarded_sources: &[SourceReadyEntry],
+            _discarded_events: &[Event<E>],
         ) {
         }
-        fn before_register_source(&self, _: &M, _: &str) {}
-        fn after_register_source(&self, _: &M, _: &str) {}
+        fn before_register_source(&self, _model: &M, _name: &str) {}
+        fn after_register_source(&self, _model: &M, _name: &str) {}
         fn before_source_phase(
             &self,
             _model: &M,
@@ -549,19 +537,40 @@ mod tests {
                     micro: current_micro_step,
                 });
         }
-
-        fn before_source(&self, _: &M, _: SimTime, _: MicroStep, _: &SourceView) {}
-        fn after_source(
+        fn before_source(
             &self,
-            _: &M,
-            _: SimTime,
-            _: MicroStep,
-            _: &SourceView,
-            _: Option<SimTime>,
+            _model: &M,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+            _source_view: &SourceView,
         ) {
         }
-        fn cancel_source(&self, _: &M, _: SimTime, _: MicroStep, _: SimTime, _: &SourceView) {}
-        fn discard_source(&self, _: &M, _: SimTime, _: MicroStep, _: &SourceView) {}
+        fn after_source(
+            &self,
+            _model: &M,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+            _source_view: &SourceView,
+            _computed_next_fire: Option<SimTime>,
+        ) {
+        }
+        fn cancel_source(
+            &self,
+            _model: &M,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+            _scheduled_at: SimTime,
+            _source_view: &SourceView,
+        ) {
+        }
+        fn discard_source(
+            &self,
+            _model: &M,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+            _source_view: &SourceView,
+        ) {
+        }
         fn after_source_phase(
             &self,
             _model: &M,
@@ -584,10 +593,39 @@ mod tests {
                 micro: current_micro_step,
             });
         }
-        fn before_event(&self, _: &M, _: SimTime, _: MicroStep, _: &Event<E>) {}
-        fn after_event(&self, _: &M, _: SimTime, _: MicroStep, _: &Event<E>) {}
-        fn cancel_event(&self, _: &M, _: SimTime, _: MicroStep, _: SimTime, _: &Event<E>) {}
-        fn discard_event(&self, _: &M, _: SimTime, _: MicroStep, _: &Event<E>) {}
+        fn before_event(
+            &self,
+            _model: &M,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+            _event: &Event<E>,
+        ) {
+        }
+        fn after_event(
+            &self,
+            _model: &M,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+            _event: &Event<E>,
+        ) {
+        }
+        fn cancel_event(
+            &self,
+            _model: &M,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+            _scheduled_at: SimTime,
+            _event: &Event<E>,
+        ) {
+        }
+        fn discard_event(
+            &self,
+            _model: &M,
+            _current_tick: SimTime,
+            _current_micro_step: MicroStep,
+            _event: &Event<E>,
+        ) {
+        }
         fn after_event_phase(
             &self,
             _model: &M,
@@ -611,10 +649,10 @@ mod tests {
         let model = TestModel { event_count: 0 };
         let mut engine = Engine::new();
 
-        // MockHookで記録を残すためにHookを登録する。
+        // Register a Hook to record with MockHook.
         engine.add_shared_hook(shared_hook.clone());
 
-        // 時刻1にダミーイベントを1つだけ配置
+        // Schedule only one dummy event at tick 1
         engine.schedule_event_at(
             SimTime::from_ticks(1),
             EventPriority::minimum(),
@@ -623,7 +661,7 @@ mod tests {
 
         let mut runner = StandardRunner::new(true);
 
-        // 停止条件: 時刻 2つ分処理ができたらに終了
+        // Stopping condition: Ends when processing for 2 ticks is completed.
         let should_stop = |_m: &TestModel, _status: ExecutorStatus, tick: TickStatus| {
             // include_zero_tick=trueなので0tick 1tickの二つで終了
             tick.is_done_ticks(true, 2)
@@ -633,15 +671,14 @@ mod tests {
 
         let final_calls = shared_hook.get_ref().calls.lock().unwrap();
 
-        // `run` 内のフェーズ入れ子構造に完全準拠した期待値配列
+        // Expected value array fully compliant with phase nesting within `run`
         let expected = vec![
             HookCall::BeforeSimulation,
-            // --- 時刻 0 の処理フェーズ ---
+            // --- process of tik 0 ---
             HookCall::BeforeTick {
                 current: SimTime::from_ticks(0),
                 skipped: Duration::zero(),
             },
-            // マイクロステップ開始
             HookCall::BeforeMicroStep {
                 current: SimTime::from_ticks(0),
                 micro: MicroStep::zero(),
@@ -670,7 +707,7 @@ mod tests {
                 current: SimTime::from_ticks(0),
                 last_micro: MicroStep::zero(),
             },
-            // --- 時刻 1 の処理フェーズ ---
+            // --- process of tick 1 ---
             HookCall::BeforeTick {
                 current: SimTime::from_ticks(1),
                 skipped: Duration::ticks(0),
@@ -691,7 +728,7 @@ mod tests {
                 current: SimTime::from_ticks(1),
                 micro: MicroStep::zero(),
             },
-            // ※ここでイベント A が実際に処理される
+            // *Event A is actually processed here.
             HookCall::AfterEventPhase {
                 current: SimTime::from_ticks(1),
                 micro: MicroStep::zero(),
@@ -704,7 +741,7 @@ mod tests {
                 current: SimTime::from_ticks(1),
                 last_micro: MicroStep::zero(),
             },
-            // 時刻 2 に到達する直前段階で should_stop が true になりループを抜ける
+            // Just before reaching tick 2, should_stop becomes true and exits the loop.
             HookCall::AfterSimulation(SimTime::from_ticks(1)),
         ];
 
@@ -721,10 +758,10 @@ mod tests {
         let model = TestModel { event_count: 0 };
         let mut engine = Engine::new();
 
-        // MockHookで記録を残すためにHookを登録する。
+        // Register a Hook to record with MockHook。
         engine.add_shared_hook(shared_hook.clone());
 
-        // 時刻1にダミーイベントを1つだけ配置
+        // Schedule only one dummy event at tick 1
         engine.schedule_event_at(
             SimTime::from_ticks(1),
             EventPriority::minimum(),
@@ -733,9 +770,9 @@ mod tests {
 
         let mut runner = StandardRunner::new(true);
 
-        // 停止条件: 時刻 2つ分処理ができたらに終了
+        // Stopping condition: Ends when processing for 2 ticks is completed.
         let should_stop = |_m: &TestModel, _status: ExecutorStatus, tick: TickStatus| {
-            // include_zero_tick=falseなので0tick 1tick 2tickの三つで終了
+            // Since include_zero_tick=false, it ends with 0tick, 1tick, and 2tick.
             tick.is_done_ticks(false, 2)
         };
 
@@ -743,15 +780,14 @@ mod tests {
 
         let final_calls = shared_hook.get_ref().calls.lock().unwrap();
 
-        // `run` 内のフェーズ入れ子構造に完全準拠した期待値配列
+        // Expected value array fully compliant with phase nesting within `run`
         let expected = vec![
             HookCall::BeforeSimulation,
-            // --- 時刻 0 の処理フェーズ ---
+            // --- process of tick 0 ---
             HookCall::BeforeTick {
                 current: SimTime::from_ticks(0),
                 skipped: Duration::zero(),
             },
-            // マイクロステップ開始
             HookCall::BeforeMicroStep {
                 current: SimTime::from_ticks(0),
                 micro: MicroStep::zero(),
@@ -780,7 +816,7 @@ mod tests {
                 current: SimTime::from_ticks(0),
                 last_micro: MicroStep::zero(),
             },
-            // --- 時刻 1 の処理フェーズ ---
+            // --- process of tick 1 ---
             HookCall::BeforeTick {
                 current: SimTime::from_ticks(1),
                 skipped: Duration::ticks(0),
@@ -801,7 +837,7 @@ mod tests {
                 current: SimTime::from_ticks(1),
                 micro: MicroStep::zero(),
             },
-            // ※ここでイベント A が実際に処理される
+            // *Event A is actually processed here.
             HookCall::AfterEventPhase {
                 current: SimTime::from_ticks(1),
                 micro: MicroStep::zero(),
@@ -814,12 +850,11 @@ mod tests {
                 current: SimTime::from_ticks(1),
                 last_micro: MicroStep::zero(),
             },
-            // --- 時刻 2 の処理フェーズ ---
+            // --- process of tick 2 ---
             HookCall::BeforeTick {
                 current: SimTime::from_ticks(2),
                 skipped: Duration::zero(),
             },
-            // マイクロステップ開始
             HookCall::BeforeMicroStep {
                 current: SimTime::from_ticks(2),
                 micro: MicroStep::zero(),
@@ -848,7 +883,7 @@ mod tests {
                 current: SimTime::from_ticks(2),
                 last_micro: MicroStep::zero(),
             },
-            // 時刻 3 に到達する直前段階で should_stop が true になりループを抜ける
+            // Just before reaching tick 3, should_stop becomes true and exits the loop.
             HookCall::AfterSimulation(SimTime::from_ticks(2)),
         ];
 

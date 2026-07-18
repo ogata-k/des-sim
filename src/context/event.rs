@@ -8,6 +8,10 @@ use crate::modeling::source::Source;
 use crate::primitive::time::{Duration, MicroStep, MicroStepStatus, SimTime, TickStatus};
 use crate::source_handler::{SourceHandler, SourceReadyEntry, SourceView};
 
+/// Holds and manages context information during event processing.
+///
+/// This provides access to the current simulation time, micro-step status,
+/// hook management, source handling, and the event scheduler during model execution.
 pub struct EventContext<E, M: Model<E>> {
     pub(crate) current_tick_status: TickStatus,
     pub(crate) current_micro_step_status: MicroStepStatus,
@@ -32,10 +36,17 @@ impl<E, M: Model<E>> UserContext<E, M> for EventContext<E, M> {
 }
 
 impl<E, M: Model<E>> EventContext<E, M> {
+    /// Retrieves the hooks associated with the current event processing.
     pub(crate) fn hook(&self) -> &impl Hook<E, M> {
         &self.hook_delegate
     }
 
+    /// Registers a new source and adds it to the event processing loop.
+    ///
+    /// # Arguments
+    /// * `model` - The model associated with the source.
+    /// * `name` - A unique identifier for the source.
+    /// * `source` - The source implementation to register.
     pub fn add_source<S>(&mut self, model: &M, name: &'static str, mut source: S)
     where
         S: Source<E, M> + 'static,
@@ -51,6 +62,14 @@ impl<E, M: Model<E>> EventContext<E, M> {
         self.hook().after_register_source(model, name);
     }
 
+    /// Cancels scheduled sources that satisfy the provided condition.
+    ///
+    /// # Arguments
+    /// * `model` - The associated model.
+    /// * `pred` - A predicate function to determine if a source should be canceled.
+    ///
+    /// # Returns
+    /// A `Vec` containing information about the canceled sources.
     pub fn cancel_scheduled_sources<S, F>(
         &mut self,
         model: &M,
@@ -64,6 +83,7 @@ impl<E, M: Model<E>> EventContext<E, M> {
         let now = self.current_tick();
         let micro_step = self.current_micro_step();
         let canceled = self.source_handler.drain_cancel_scheduled(pred);
+
         canceled.into_iter().for_each(|(scheduled_at, entry)| {
             self.hook().cancel_source(
                 model,
@@ -78,6 +98,14 @@ impl<E, M: Model<E>> EventContext<E, M> {
         result
     }
 
+    /// Cancels scheduled events that satisfy the provided condition.
+    ///
+    /// # Arguments
+    /// * `model` - The associated model.
+    /// * `pred` - A predicate function to determine if an event should be canceled.
+    ///
+    /// # Returns
+    /// A `Vec` containing information about the canceled events.
     pub fn cancel_scheduled_events<F>(&mut self, model: &M, pred: F) -> Vec<(SimTime, Event<E>)>
     where
         F: FnMut(SimTime, &Event<E>) -> bool,
@@ -86,6 +114,7 @@ impl<E, M: Model<E>> EventContext<E, M> {
         let now = self.current_tick();
         let micro_step = self.current_micro_step();
         let canceled = self.event_scheduler.drain_cancel_scheduled(pred);
+
         canceled.into_iter().for_each(|(scheduled_at, event)| {
             self.hook()
                 .cancel_event(model, now, micro_step, scheduled_at, &event);
@@ -105,9 +134,11 @@ mod tests {
     use std::fmt::Debug;
     use std::rc::Rc;
 
+    /// Event structure for testing purposes.
     #[derive(Debug, Clone, PartialEq)]
     struct TestEvent;
 
+    /// Model definition for testing purposes.
     struct TestModel;
 
     impl Model<TestEvent> for TestModel {
@@ -116,10 +147,11 @@ mod tests {
             _event_context: &mut EventContext<TestEvent, Self>,
             _event: &Event<TestEvent>,
         ) {
-            // Do nothing for test
+            // No-op for test purposes.
         }
     }
 
+    /// Source implementation for testing purposes.
     struct TestSource {
         initial_delay: Duration,
     }
@@ -144,6 +176,9 @@ mod tests {
         }
     }
 
+    /// Mock implementation for tracking hook invocation history.
+    ///
+    /// Used to verify that hook methods are called as expected during tests.
     #[derive(Default)]
     struct MockHook {
         before_register_source_called: Rc<RefCell<Vec<String>>>,
@@ -153,6 +188,7 @@ mod tests {
     }
 
     impl MockHook {
+        /// Creates a new mock hook.
         fn new() -> Self {
             Default::default()
         }
@@ -160,45 +196,33 @@ mod tests {
 
     impl<E: Debug, M: Model<E>> Hook<E, M> for MockHook {
         fn before_simulation(&self, _model: &M) {
-            // 呼ばれないことを確認する
             unreachable!();
         }
-
         fn after_simulation(&self, _model: &M, _end_tick: SimTime) {
-            // 呼ばれないことを確認する
             unreachable!();
         }
-
         fn before_tick(&self, _model: &M, _current_tick: SimTime, _skipped_duration: Duration) {
-            // 呼ばれないことを確認する
             unreachable!();
         }
-
         fn after_tick(&self, _model: &M, _current_tick: SimTime, _last_micro_step: MicroStep) {
-            // 呼ばれないことを確認する
             unreachable!();
         }
-
         fn before_micro_step(
             &self,
             _model: &M,
             _current_tick: SimTime,
             _current_micro_step: MicroStep,
         ) {
-            // 呼ばれないことを確認する
             unreachable!();
         }
-
         fn after_micro_step(
             &self,
             _model: &M,
             _current_tick: SimTime,
             _current_micro_step: MicroStep,
         ) {
-            // 呼ばれないことを確認する
             unreachable!();
         }
-
         fn on_discard_remain_micro_step(
             &self,
             _model: &M,
@@ -207,7 +231,6 @@ mod tests {
             _discarded_sources: &[SourceReadyEntry],
             _discarded_events: &[Event<E>],
         ) {
-            // 呼ばれないことを確認する
             unreachable!();
         }
 
@@ -229,7 +252,6 @@ mod tests {
             _current_tick: SimTime,
             _current_micro_step: MicroStep,
         ) {
-            // 呼ばれないことを確認する
             unreachable!();
         }
 
@@ -240,10 +262,8 @@ mod tests {
             _current_micro_step: MicroStep,
             _source_view: &SourceView,
         ) {
-            // 呼ばれないことを確認する
             unreachable!();
         }
-
         fn after_source(
             &self,
             _model: &M,
@@ -252,7 +272,6 @@ mod tests {
             _source_view: &SourceView,
             _computed_next_fire: Option<SimTime>,
         ) {
-            // 呼ばれないことを確認する
             unreachable!();
         }
 
@@ -276,7 +295,6 @@ mod tests {
             _current_micro_step: MicroStep,
             _source_view: &SourceView,
         ) {
-            // 呼ばれないことを確認する
             unreachable!();
         }
 
@@ -286,20 +304,16 @@ mod tests {
             _current_tick: SimTime,
             _current_micro_step: MicroStep,
         ) {
-            // 呼ばれないことを確認する
             unreachable!();
         }
-
         fn before_event_phase(
             &self,
             _model: &M,
             _current_tick: SimTime,
             _current_micro_step: MicroStep,
         ) {
-            // 呼ばれないことを確認する
             unreachable!();
         }
-
         fn before_event(
             &self,
             _model: &M,
@@ -307,10 +321,8 @@ mod tests {
             _current_micro_step: MicroStep,
             _event: &Event<E>,
         ) {
-            // 呼ばれないことを確認する
             unreachable!();
         }
-
         fn after_event(
             &self,
             _model: &M,
@@ -318,7 +330,6 @@ mod tests {
             _current_micro_step: MicroStep,
             _event: &Event<E>,
         ) {
-            // 呼ばれないことを確認する
             unreachable!();
         }
 
@@ -342,21 +353,19 @@ mod tests {
             _current_micro_step: MicroStep,
             _event: &Event<E>,
         ) {
-            // 呼ばれないことを確認する
             unreachable!();
         }
-
         fn after_event_phase(
             &self,
             _model: &M,
             _current_tick: SimTime,
             _current_micro_step: MicroStep,
         ) {
-            // 呼ばれないことを確認する
             unreachable!();
         }
     }
 
+    /// Sets up the test environment, returning an EventContext and a SharedHook.
     fn setup() -> (
         EventContext<TestEvent, TestModel>,
         SharedHook<TestEvent, TestModel, MockHook>,
@@ -365,6 +374,7 @@ mod tests {
         let shared_hook = SharedHook::new(test_hook);
         let mut hook_delegate = HookDelegate::new();
         hook_delegate.add_shared_hook(shared_hook.clone());
+
         let context = EventContext {
             current_tick_status: TickStatus::initialize(),
             current_micro_step_status: MicroStepStatus::new(MicroStep::zero()),
@@ -394,6 +404,7 @@ mod tests {
         let (mut context, shared_hook) = setup();
         let initial_sources_count = context.source_handler.ready_queue_len();
         let delay = Duration::ticks(10);
+
         context.add_source(
             &model,
             "test_source",
@@ -401,6 +412,7 @@ mod tests {
                 initial_delay: delay,
             },
         );
+
         context.source_handler.flush_pending();
         context.event_scheduler.flush_pending(); // Ensure event scheduler is also flushed if it was used by source initialization
 
@@ -444,6 +456,7 @@ mod tests {
         let model = TestModel;
         let (mut context, shared_hook) = setup();
         let initial_sources_count = context.source_handler.ready_queue_len();
+
         context.add_source(
             &model,
             "test_source_now",
@@ -451,6 +464,7 @@ mod tests {
                 initial_delay: Duration::zero(),
             },
         );
+
         context.source_handler.flush_pending();
         context.event_scheduler.flush_pending(); // Ensure event scheduler is also flushed if it was used by source initialization
 
@@ -492,7 +506,8 @@ mod tests {
     #[test]
     fn test_schedule_event() {
         let (mut context, _) = setup();
-        // 何個かあらかじめイベントを登録しておく
+
+        // Populate existing events
         context.event_scheduler.schedule(
             SimTime::from_ticks(0),
             Duration::one(),
@@ -556,6 +571,7 @@ mod tests {
             "TestEvent"
         );
 
+        // Re-schedule
         context.schedule_event(Duration::ticks(5), EventPriority::minimum(), TestEvent);
         context.schedule_event(Duration::ticks(10), EventPriority::minimum(), TestEvent);
 
@@ -614,6 +630,7 @@ mod tests {
             "source2"
         );
 
+        // Re-schedule
         context.add_source(
             &model,
             "source3",

@@ -2,7 +2,7 @@ use crate::modeling::sampler::{DurationSampler, PendingDuration};
 use crate::primitive::time::SimTime;
 use rand::Rng;
 
-/// 最小最大を指定してその範囲で切り取るサンプラー
+/// A sampler that clamps the sampled value within the specified [min, max] range.
 #[derive(Debug, Clone)]
 pub struct ClampSampler<S: DurationSampler> {
     sampler: S,
@@ -19,6 +19,8 @@ impl<S: DurationSampler> DurationSampler for ClampSampler<S> {
 }
 
 impl<S: DurationSampler> ClampSampler<S> {
+    /// Creates a new `ClampSampler` that constrains the output of `sampler`
+    /// between `min` and `max`.
     pub fn new(sampler: S, min: f64, max: f64) -> Self {
         ClampSampler { sampler, min, max }
     }

@@ -8,12 +8,19 @@ use crate::primitive::time::{Duration, MicroStep, SimTime};
 use crate::primitive::time::{MicroStepStatus, TickStatus};
 use crate::source_handler::SourceHandler;
 
+/// Context information provided during the source execution phase.
+///
+/// This context provides access to the current simulation time and micro-step status
+/// during model execution, as well as functionality for scheduling events.
 pub struct SourceContext<E, M: Model<E>> {
     pub(crate) current_tick_status: TickStatus,
     pub(crate) current_micro_step_status: MicroStepStatus,
     pub(crate) hook_delegate: HookDelegate<E, M>,
-    // SourceContextはSourceを詰めなおすときに発火させてから詰めなおす都合上、SourceContextを持っているとライフタイムの問題が発生する。
-    // そのため、MicroStepHandlerに渡す時だけSourceContextをSourcePhaseから奪い取る形で実装されている。
+    // ### Internal Design Note
+    // The `source_handler` is stored as an `Option`. This is to allow temporary extraction of the
+    // `SourceHandler` when re-registering (re-queuing) sources after they are fired. This design
+    // pattern avoids lifetime issues during the holding period and ensures safe transfer of
+    // ownership to the `MicroStepHandler`.
     pub(crate) source_handler: Option<SourceHandler<E, M>>,
     pub(crate) event_scheduler: EventScheduler<E>,
 }
@@ -34,6 +41,7 @@ impl<E, M: Model<E>> UserContext<E, M> for SourceContext<E, M> {
 }
 
 impl<E, M: Model<E>> SourceContext<E, M> {
+    /// Returns the hook associated with the current execution phase.
     pub(crate) fn hook(&self) -> &impl Hook<E, M> {
         &self.hook_delegate
     }
@@ -63,9 +71,11 @@ mod tests {
             _context: &mut EventContext<TestEvent, Self>,
             _event: &Event<TestEvent>,
         ) {
+            // No-op for testing
         }
     }
 
+    /// Helper to create a default SourceContext for testing.
     fn create_test_source_context() -> SourceContext<TestEvent, TestModel> {
         SourceContext {
             current_tick_status: TickStatus::new(SimTime::from_ticks(0), Duration::zero()),
@@ -91,7 +101,8 @@ mod tests {
     #[test]
     fn test_schedule_event() {
         let mut context = create_test_source_context();
-        // 何個かあらかじめイベントを登録しておく
+
+        // Register a few events in advance
         context.event_scheduler.schedule(
             SimTime::from_ticks(0),
             Duration::one(),
@@ -110,12 +121,13 @@ mod tests {
             EventPriority::minimum(),
             TestEvent::EventA,
         );
-        // イベントを取得可能の待機列に移動
+
+        // Move events into the ready queue
         context.event_scheduler.flush_pending();
         let initial_event_count = context.event_scheduler.ready_queue_len();
 
+        // Schedule a new event and verify the count
         context.schedule_event(Duration::one(), EventPriority::minimum(), TestEvent::EventA);
-        // イベントを取得可能の待機列に移動
         context.event_scheduler.flush_pending();
 
         assert_eq!(

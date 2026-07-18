@@ -8,7 +8,7 @@ use combinator::*;
 use rand::Rng;
 use rand_distr::num_traits::ToPrimitive;
 
-/// 丸目誤差を吸収するために内部で浮動小数点数で持つ[Duration]のラッパー
+/// A wrapper for floating-point representations of [Duration] to mitigate rounding errors.
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct PendingDuration(f64);
 
@@ -51,24 +51,43 @@ impl Sub<PendingDuration> for PendingDuration {
 }
 
 impl PendingDuration {
-    // コンストラクタで正の値を強制する
+    /// Creates a new `PendingDuration` from a raw `f64` value.
     pub fn new(value: f64) -> Self {
         Self(value)
     }
 
+    /// Creates a new `PendingDuration` from a [Duration].
     pub fn from_duration(duration: Duration) -> Self {
         Self::new(duration.as_time_tick() as f64)
     }
 
+    /// Returns the raw floating-point value.
     pub fn raw_value(&self) -> f64 {
         self.0
     }
 
-    pub fn to_duration(&self) -> Duration {
-        self.try_duration()
-            .unwrap_or_else(|| panic!("Duration Not Support negative value: {}", self.raw_value()))
+    /// Attempts to convert this instance into a [Duration].
+    /// Returns `None` if the value is negative.
+    pub fn try_to_duration(&self) -> Option<Duration> {
+        // Rounding and integer conversion occur here.
+        Some(Duration::ticks(self.raw_value().round().to_usize()?))
     }
 
+    /// Converts this instance into a [Duration].
+    ///
+    /// # Panics
+    ///
+    /// Panics if the value is negative.
+    pub fn to_duration(&self) -> Duration {
+        self.try_to_duration().unwrap_or_else(|| {
+            panic!(
+                "Duration does not support negative values: {}",
+                self.raw_value()
+            )
+        })
+    }
+
+    /// Converts to a [Duration], clamping the result between 0 and `max` ticks.
     pub fn to_duration_with_clamp(&self, max: TimeTick) -> Duration {
         let raw_value = self.raw_value();
         if raw_value >= max as f64 {
@@ -77,26 +96,24 @@ impl PendingDuration {
             Duration::ticks(
                 raw_value
                     .round()
-                    // これで制限しているからto_usize()は常に成功するはず
                     .clamp(0.0, max as f64)
                     .to_usize()
-                    .unwrap_or_else(|| panic!("Unexpected clamp handling value: {}", raw_value)),
+                    .unwrap_or_else(|| {
+                        panic!("Unexpected clamping error for value: {}", raw_value)
+                    }),
             )
         }
     }
 
+    /// Converts to a [Duration], invoking the provided closure if the conversion fails.
     pub fn to_duration_or_else<F>(&self, f: F) -> Duration
     where
         F: FnOnce() -> Duration,
     {
-        self.try_duration().unwrap_or_else(f)
+        self.try_to_duration().unwrap_or_else(f)
     }
 
-    pub fn try_duration(&self) -> Option<Duration> {
-        // 変換時に初めて整数化・丸めを行う
-        Some(Duration::ticks(self.raw_value().round().to_usize()?))
-    }
-
+    /// Applies a function to the internal value and returns a new `PendingDuration`.
     pub fn apply<F>(&mut self, f: F) -> PendingDuration
     where
         F: Fn(f64) -> f64,
@@ -105,18 +122,18 @@ impl PendingDuration {
     }
 }
 
-/// [Duration]を取得するためのヘルパートレイト
-// なお、Box<dyn DurationSampler>とかく必要があるところがあるので、各メソッドでジェネリクスは使えない。
+/// A trait for generating [Duration] samples.
 pub trait DurationSampler {
+    /// Generates a sample given a random number generator and the current simulation time.
     fn sample(&mut self, rng: &mut dyn Rng, current_tick: SimTime) -> PendingDuration;
 }
 
-/// 複製可能なトレイトオブジェクトのためのトレイト
+/// A trait for cloning trait objects of [DurationSampler].
 pub trait ClonableDurationSampler: DurationSampler + Send + Sync {
     fn box_clone(&self) -> Box<dyn ClonableDurationSampler>;
 }
 
-// Cloneを実装しているすべてのDurationSamplerに対して自動実装
+// Automatically implement `ClonableDurationSampler` for all compatible types.
 impl<S> ClonableDurationSampler for S
 where
     S: DurationSampler + Clone + Send + Sync + 'static,
@@ -126,20 +143,23 @@ where
     }
 }
 
-// これにより、Box<dyn ClonableDurationSampler> 自体に Clone トレイトを直接実装できる
+// Enable cloning for boxed trait objects.
 impl Clone for Box<dyn ClonableDurationSampler> {
     fn clone(&self) -> Self {
         self.box_clone()
     }
 }
 
+/// An extension trait for [DurationSampler] that provides fluent combinator methods
+/// for creating and composing complex duration sampling logic.
 pub trait CombinatorExt: DurationSampler + Sized + 'static {
-    /// コンビネータを作るたびに Box::new() を書く手間を省くだけのヘルパー
+    /// Boxes the sampler into a `Box<dyn DurationSampler>` to erase its concrete type.
     fn boxed(self) -> Box<dyn DurationSampler> {
         Box::new(self)
     }
 
-    /// 複製可能なSamplerとしてBoxで包む処理を書く手間を省くだけのヘルパー
+    /// Boxes the sampler as a cloneable trait object.
+    /// Requires the underlying sampler to be `Clone`, `Send`, and `Sync`.
     fn boxed_clonable(self) -> Box<dyn ClonableDurationSampler>
     where
         Self: Clone + Send + Sync,
@@ -147,6 +167,7 @@ pub trait CombinatorExt: DurationSampler + Sized + 'static {
         Box::new(self)
     }
 
+    /// Transforms the output of this sampler using the provided closure `f`.
     fn map<F>(self, f: F) -> MapSampler<Self, F>
     where
         F: FnMut(&mut dyn Rng, SimTime, f64) -> f64,
@@ -154,14 +175,17 @@ pub trait CombinatorExt: DurationSampler + Sized + 'static {
         MapSampler::new(self, f)
     }
 
+    /// Adds a delay to the result of this sampler using another sampler for the duration.
     fn delay(self, delay: Box<dyn DurationSampler>) -> DelaySampler<Self> {
         DelaySampler::new(self, delay)
     }
 
+    /// Adds a jitter (noise) to the result of this sampler using another sampler for the variation.
     fn jitter(self, jitter: Box<dyn DurationSampler>) -> JitterSampler<Self> {
         JitterSampler::new(self, jitter)
     }
 
+    /// Chains this sampler with another, combining their outputs using the provided closure `f`.
     fn chain<F>(self, sampler: Box<dyn DurationSampler>, f: F) -> ChainSampler<Self, F>
     where
         F: FnMut(&mut dyn Rng, SimTime, f64, f64) -> f64,
@@ -169,6 +193,8 @@ pub trait CombinatorExt: DurationSampler + Sized + 'static {
         ChainSampler::new(self, sampler, f)
     }
 
+    /// Aggregates the results of this sampler and a collection of others into a single value
+    /// using the provided closure `f`.
     fn aggregate<F>(
         self,
         others: impl IntoIterator<Item = Box<dyn DurationSampler>>,
@@ -183,14 +209,20 @@ pub trait CombinatorExt: DurationSampler + Sized + 'static {
         AggregateSampler::new(samplers, f)
     }
 
+    /// Returns an `AggregateBuilder` initialized with this sampler, allowing for
+    /// a more flexible construction of aggregate samplers.
     fn aggregate_builder(self) -> AggregateBuilder {
         AggregateBuilder::from_sampler(self)
     }
 
+    /// Clamps the output of this sampler within the range `[min, max]`.
     fn clamp(self, min: f64, max: f64) -> ClampSampler<Self> {
         ClampSampler::new(self, min, max)
     }
 
+    /// Ensures the sampled duration is non-negative.
+    ///
+    /// If the value remains negative after `limit_try_count` attempts, the `fallback` closure is invoked.
     fn ensure_non_negative<F>(
         self,
         limit_try_count: u8,
@@ -202,6 +234,7 @@ pub trait CombinatorExt: DurationSampler + Sized + 'static {
         EnsureNonNegativeSampler::new(self, limit_try_count, fallback)
     }
 }
+
 impl<T: DurationSampler + Sized + 'static> CombinatorExt for T {}
 
 #[cfg(test)]
@@ -280,10 +313,10 @@ mod tests {
     #[test]
     fn test_pending_duration_try_duration() {
         let pd_positive = PendingDuration::new(5.5);
-        assert_eq!(pd_positive.try_duration(), Some(Duration::ticks(6)));
+        assert_eq!(pd_positive.try_to_duration(), Some(Duration::ticks(6)));
 
         let pd_negative = PendingDuration::new(-5.5);
-        assert_eq!(pd_negative.try_duration(), None);
+        assert_eq!(pd_negative.try_to_duration(), None);
     }
 
     #[test]
@@ -323,10 +356,10 @@ mod tests {
         let mut pd = PendingDuration::new(10.0);
         let result = pd.apply(|v| v * 2.0);
         assert_eq!(result.raw_value(), 20.0);
-        assert_eq!(pd.raw_value(), 10.0); // Original should not change
+        assert_eq!(pd.raw_value(), 10.0); // Original value remains unchanged
     }
 
-    // Mock Sampler for testing CombinatorExt
+    /// Mock sampler for testing `CombinatorExt` functionality.
     struct MockSampler {
         value: f64,
     }
@@ -374,7 +407,7 @@ mod tests {
         let mut jitter_sampler = base_sampler.jitter(jitter_sampler_impl.boxed());
         let mut rng = SmallRng::seed_from_u64(2);
         let current_tick = SimTime::from_ticks(0);
-        // Jitter adds or subtracts, so we expect a range. For a fixed mock, it will be base + jitter
+        // Jitter adds or subtracts; for a fixed mock value, we expect base + jitter.
         assert_eq!(
             jitter_sampler.sample(&mut rng, current_tick).raw_value(),
             12.0
@@ -416,26 +449,29 @@ mod tests {
         let mut clamp_sampler = sampler.clamp(5.0, 8.0);
         let mut rng = SmallRng::seed_from_u64(2);
         let current_tick = SimTime::from_ticks(0);
+        // Clamped to max
         assert_eq!(
             clamp_sampler.sample(&mut rng, current_tick).raw_value(),
             8.0
-        ); // Clamped to max
+        );
 
         let sampler_low = MockSampler { value: 3.0 };
         let mut clamp_sampler_low = sampler_low.clamp(5.0, 8.0);
+        // Clamped to min
         assert_eq!(
             clamp_sampler_low.sample(&mut rng, current_tick).raw_value(),
             5.0
-        ); // Clamped to min
+        );
 
         let sampler_in_range = MockSampler { value: 6.0 };
         let mut clamp_sampler_in_range = sampler_in_range.clamp(5.0, 8.0);
+        // In range
         assert_eq!(
             clamp_sampler_in_range
                 .sample(&mut rng, current_tick)
                 .raw_value(),
             6.0
-        ); // In range
+        );
     }
 
     #[test]

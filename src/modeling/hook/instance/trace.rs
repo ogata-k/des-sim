@@ -6,10 +6,13 @@ use crate::source_handler::{SourceReadyEntry, SourceView};
 use log::{debug, info, trace};
 use std::fmt;
 
+/// A trait for providing a concise summary representation of a model.
 pub trait ModelSummary {
+    /// Formats the model's summary for display.
     fn summary(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result;
 }
 
+/// An adapter that bridges the `ModelSummary` trait with `fmt::Display`.
 struct ModelLogAdapter<'a, M>(&'a M);
 
 impl<'a, M: ModelSummary> fmt::Display for ModelLogAdapter<'a, M> {
@@ -18,8 +21,9 @@ impl<'a, M: ModelSummary> fmt::Display for ModelLogAdapter<'a, M> {
     }
 }
 
-/// シミュレーション実行中の状態をトレースする[Hook]。
-/// verbose_debug featureフラグがたっていれば、[Debug]トレイトを使ってモデルの詳細な状態も出力する。
+/// A [Hook] that traces the simulation state.
+/// If the `verbose_debug` feature is enabled, it also outputs the model's detailed state
+/// using the [Debug] trait.
 pub struct TraceHook;
 
 impl<E, M> Hook<E, M> for TraceHook

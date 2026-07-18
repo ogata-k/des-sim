@@ -2,6 +2,11 @@ use crate::modeling::sampler::{DurationSampler, PendingDuration};
 use crate::primitive::time::{Duration, SimTime};
 use rand::Rng;
 
+/// A sampler that ensures the sampled duration is non-negative.
+///
+/// It attempts to sample from the base `sampler` up to `limit_try_count` times.
+/// If all attempts return a negative value, it falls back to the result of the
+/// `fallback` closure.
 #[derive(Debug, Clone)]
 pub struct EnsureNonNegativeSampler<S, F>
 where
@@ -23,11 +28,9 @@ where
             let sampled = self.sampler.sample(rng, current_tick);
             let raw_value = sampled.raw_value();
 
-            if raw_value < 0.0 {
-                continue;
+            if raw_value >= 0.0 {
+                return PendingDuration::new(raw_value);
             }
-
-            return PendingDuration::new(raw_value);
         }
 
         PendingDuration::from_duration((self.fallback)(rng, current_tick))
@@ -39,6 +42,7 @@ where
     S: DurationSampler,
     F: FnMut(&mut dyn Rng, SimTime) -> Duration,
 {
+    /// Creates a new `EnsureNonNegativeSampler`.
     pub fn new(sampler: S, limit_try_count: u8, fallback: F) -> Self {
         Self {
             sampler,
