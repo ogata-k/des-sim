@@ -6,6 +6,7 @@ use crate::source_handler::{SourceReadyEntry, SourceView};
 use std::marker::PhantomData;
 use std::sync::Arc;
 
+/// A wrapper that allows a hook to be shared across multiple components via `Arc`.
 pub struct SharedHook<E, M: Model<E>, H: Hook<E, M>> {
     inner: Arc<H>,
     _event: PhantomData<E>,
@@ -26,7 +27,7 @@ impl<E, M: Model<E>, H> Hook<E, M> for SharedHook<E, M, H>
 where
     H: Hook<E, M>,
 {
-    // Simulation lifecycle
+    // --- Simulation lifecycle ---
 
     fn before_simulation(&self, model: &M) {
         self.inner.as_ref().before_simulation(model)
@@ -36,12 +37,8 @@ where
         self.inner.as_ref().after_simulation(model, end_tick)
     }
 
-    // Tick lifecycle
+    // --- Tick lifecycle ---
 
-    /// skipped_duration は前回Tickから今回Tickまでに
-    /// スキップされた時間。
-    ///
-    /// スキップ無効Runnerの場合は常に Duration::zero()。
     fn before_tick(&self, model: &M, current_tick: SimTime, skipped_duration: Duration) {
         self.inner
             .as_ref()
@@ -83,7 +80,7 @@ where
         )
     }
 
-    // Source lifecycle
+    // --- Source lifecycle ---
 
     fn before_register_source(&self, model: &M, name: &str) {
         self.inner.as_ref().before_register_source(model, name)
@@ -163,7 +160,7 @@ where
             .after_source_phase(model, current_tick, current_micro_step)
     }
 
-    // Event lifecycle
+    // --- Event lifecycle ---
 
     fn before_event_phase(&self, model: &M, current_tick: SimTime, current_micro_step: MicroStep) {
         self.inner
@@ -232,6 +229,7 @@ where
 }
 
 impl<E, M: Model<E>, H: Hook<E, M>> SharedHook<E, M, H> {
+    /// Creates a new `SharedHook` wrapping the provided hook.
     pub fn new(hook: H) -> Self {
         Self {
             inner: Arc::new(hook),
@@ -240,6 +238,7 @@ impl<E, M: Model<E>, H: Hook<E, M>> SharedHook<E, M, H> {
         }
     }
 
+    /// Returns a reference to the underlying hook.
     pub fn get_ref(&self) -> &H {
         &self.inner
     }

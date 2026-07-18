@@ -6,50 +6,45 @@ use crate::source_handler::{SourceReadyEntry, SourceView};
 use std::io;
 use std::io::Write;
 
+/// A hook that pauses the simulation at each tick to allow for interactive inspection.
 pub struct InteractiveStepHook;
 
 impl<E, M: Model<E>> Hook<E, M> for InteractiveStepHook {
     fn before_simulation(&self, _model: &M) {
-        // none
+        // No-op
     }
 
     fn after_simulation(&self, _model: &M, _end_tick: SimTime) {
-        println!("[Interactive Step Hook] シミュレーションが終了条件に達したため、停止しました。");
+        println!("[Interactive Step Hook] Simulation halted: termination condition reached.");
     }
 
     fn before_tick(&self, _model: &M, current_tick: SimTime, skipped_duration: Duration) {
         println!("================ [Interactive Step Hook] ================");
-        println!(
-            "  これから処理する時刻 (current_tick)   : {:?}",
-            current_tick
-        );
-        println!(
-            "  スキップされた時間 (skipped_duration) : {} ticks",
-            skipped_duration
-        );
+        println!("  Current Tick          : {:?}", current_tick);
+        println!("  Skipped Duration      : {} ticks", skipped_duration);
         println!("--------------------------------------------------------");
 
         print!(
-            "[Interactive Step Hook] Enterを押すとこのTickの処理（ソース/イベントフェーズ）を開始します... "
+            "[Interactive Step Hook] Press Enter to process this tick (source/event phases)... "
         );
 
         if cfg!(test) || cfg!(feature = "des_sim_test_mode") {
-            // テスト中は待機すると止まるので待機処理をスキップする
+            // Skip waiting during tests to prevent blocking
             return;
         }
 
-        let _ = io::stdout().flush(); // プロンプトを確実に表示させる
+        let _ = io::stdout().flush(); // Ensure prompt is displayed
 
-        // 2. ユーザーがEnterを押すまでスレッドを完全にブロック（待機）
+        // Block thread until user presses Enter
         let mut input = String::new();
         let _ = io::stdin().read_line(&mut input);
     }
 
     fn after_tick(&self, _model: &M, current_tick: SimTime, last_micro_step: MicroStep) {
         println!(
-            "[Interactive Step Hook] 時刻 {} の処理が完了しました。(総マイクロステップ数: {})",
+            "[Interactive Step Hook] Finished processing tick {}. (Count micro-steps: {})",
             current_tick,
-            // 最後のマイクロステップの情報が渡ってくるが、0-originのためカウントとするために調整
+            // Adjust 0-indexed micro-step to count
             last_micro_step.value() + 1
         );
         println!("========================================================\n");
@@ -61,11 +56,11 @@ impl<E, M: Model<E>> Hook<E, M> for InteractiveStepHook {
         _current_tick: SimTime,
         _current_micro_step: MicroStep,
     ) {
-        // none
+        // No-op
     }
 
     fn after_micro_step(&self, _model: &M, _current_tick: SimTime, _current_micro_step: MicroStep) {
-        // none
+        // No-op
     }
 
     fn on_discard_remain_micro_step(
@@ -76,15 +71,15 @@ impl<E, M: Model<E>> Hook<E, M> for InteractiveStepHook {
         _discarded_sources: &[SourceReadyEntry],
         _discarded_events: &[Event<E>],
     ) {
-        // none
+        // No-op
     }
 
     fn before_register_source(&self, _model: &M, _name: &str) {
-        // none
+        // No-op
     }
 
     fn after_register_source(&self, _model: &M, _name: &str) {
-        // none
+        // No-op
     }
 
     fn before_source_phase(
@@ -93,7 +88,7 @@ impl<E, M: Model<E>> Hook<E, M> for InteractiveStepHook {
         _current_tick: SimTime,
         _current_micro_step: MicroStep,
     ) {
-        // none
+        // No-op
     }
 
     fn before_source(
@@ -103,7 +98,7 @@ impl<E, M: Model<E>> Hook<E, M> for InteractiveStepHook {
         _current_micro_step: MicroStep,
         _source_view: &SourceView,
     ) {
-        // none
+        // No-op
     }
 
     fn after_source(
@@ -114,7 +109,7 @@ impl<E, M: Model<E>> Hook<E, M> for InteractiveStepHook {
         _source_view: &SourceView,
         _computed_next_fire: Option<SimTime>,
     ) {
-        // none
+        // No-op
     }
 
     fn cancel_source(
@@ -125,7 +120,7 @@ impl<E, M: Model<E>> Hook<E, M> for InteractiveStepHook {
         _scheduled_at: SimTime,
         _source_view: &SourceView,
     ) {
-        // none
+        // No-op
     }
 
     fn discard_source(
@@ -135,7 +130,7 @@ impl<E, M: Model<E>> Hook<E, M> for InteractiveStepHook {
         _current_micro_step: MicroStep,
         _source_view: &SourceView,
     ) {
-        // none
+        // No-op
     }
 
     fn after_source_phase(
@@ -144,7 +139,7 @@ impl<E, M: Model<E>> Hook<E, M> for InteractiveStepHook {
         _current_tick: SimTime,
         _current_micro_step: MicroStep,
     ) {
-        // none
+        // No-op
     }
 
     fn before_event_phase(
@@ -153,7 +148,7 @@ impl<E, M: Model<E>> Hook<E, M> for InteractiveStepHook {
         _current_tick: SimTime,
         _current_micro_step: MicroStep,
     ) {
-        // none
+        // No-op
     }
 
     fn before_event(
@@ -163,7 +158,7 @@ impl<E, M: Model<E>> Hook<E, M> for InteractiveStepHook {
         _current_micro_step: MicroStep,
         _event: &Event<E>,
     ) {
-        // none
+        // No-op
     }
 
     fn after_event(
@@ -173,7 +168,7 @@ impl<E, M: Model<E>> Hook<E, M> for InteractiveStepHook {
         _current_micro_step: MicroStep,
         _event: &Event<E>,
     ) {
-        // none
+        // No-op
     }
 
     fn cancel_event(
@@ -184,7 +179,7 @@ impl<E, M: Model<E>> Hook<E, M> for InteractiveStepHook {
         _scheduled_at: SimTime,
         _event: &Event<E>,
     ) {
-        // none
+        // No-op
     }
 
     fn discard_event(
@@ -194,7 +189,7 @@ impl<E, M: Model<E>> Hook<E, M> for InteractiveStepHook {
         _current_micro_step: MicroStep,
         _event: &Event<E>,
     ) {
-        // none
+        // No-op
     }
 
     fn after_event_phase(
@@ -203,6 +198,6 @@ impl<E, M: Model<E>> Hook<E, M> for InteractiveStepHook {
         _current_tick: SimTime,
         _current_micro_step: MicroStep,
     ) {
-        // none
+        // No-op
     }
 }

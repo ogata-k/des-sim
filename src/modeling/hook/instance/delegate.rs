@@ -5,6 +5,12 @@ use crate::modeling::model::Model;
 use crate::primitive::time::{Duration, MicroStep, SimTime};
 use crate::source_handler::{SourceReadyEntry, SourceView};
 
+/// An internal orchestrator that manages and broadcasts lifecycle events to multiple registered `Hook`s.
+///
+/// `HookDelegate` implements the `Hook` trait itself, allowing it to act as a single entry point
+/// for the simulation engine. It handles the orderly propagation of lifecycle events by maintaining
+/// the registration order for "before" hooks and reversing it for "after" hooks, ensuring
+/// predictable side effect execution.
 pub(crate) struct HookDelegate<E, M: Model<E>> {
     hooks: Vec<Box<dyn Hook<E, M>>>,
 }
@@ -16,7 +22,7 @@ impl<E, M: Model<E>> Default for HookDelegate<E, M> {
 }
 
 impl<E, M: Model<E>> Hook<E, M> for HookDelegate<E, M> {
-    // Simulation lifecycle
+    // --- Simulation Lifecycle ---
 
     fn before_simulation(&self, model: &M) {
         self.delegate(|hook| hook.before_simulation(model))
@@ -26,12 +32,8 @@ impl<E, M: Model<E>> Hook<E, M> for HookDelegate<E, M> {
         self.reverse_delegate(|hook| hook.after_simulation(model, end_tick))
     }
 
-    // Tick lifecycle
+    // --- Tick Lifecycle ---
 
-    /// skipped_duration は前回Tickから今回Tickまでに
-    /// スキップされた時間。
-    ///
-    /// スキップ無効Runnerの場合は常に Duration::zero()。
     fn before_tick(&self, model: &M, current_tick: SimTime, skipped_duration: Duration) {
         self.delegate(|hook| hook.before_tick(model, current_tick, skipped_duration))
     }
@@ -67,7 +69,7 @@ impl<E, M: Model<E>> Hook<E, M> for HookDelegate<E, M> {
         })
     }
 
-    // Source lifecycle
+    // --- Source Lifecycle ---
 
     fn before_register_source(&self, model: &M, name: &str) {
         self.delegate(|hook| hook.before_register_source(model, name))
@@ -149,7 +151,7 @@ impl<E, M: Model<E>> Hook<E, M> for HookDelegate<E, M> {
         })
     }
 
-    // Event lifecycle
+    // --- Event Lifecycle ---
 
     fn before_event_phase(&self, model: &M, current_tick: SimTime, current_micro_step: MicroStep) {
         self.delegate(|hook| hook.before_event_phase(model, current_tick, current_micro_step))
@@ -208,10 +210,12 @@ impl<E, M: Model<E>> Hook<E, M> for HookDelegate<E, M> {
 }
 
 impl<E, M: Model<E>> HookDelegate<E, M> {
+    /// Create `HookDelegate` instance.
     pub(crate) fn new() -> Self {
         Self { hooks: Vec::new() }
     }
 
+    /// Adds a new `Hook` to the delegate collection.
     pub(crate) fn add_hook<H>(&mut self, hook: H)
     where
         H: Hook<E, M> + 'static,
@@ -219,6 +223,7 @@ impl<E, M: Model<E>> HookDelegate<E, M> {
         self.hooks.push(Box::new(hook));
     }
 
+    /// Adds a shared `Hook` to the delegate collection.
     pub(crate) fn add_shared_hook<H>(&mut self, shared_hook: SharedHook<E, M, H>)
     where
         E: 'static,
@@ -228,6 +233,7 @@ impl<E, M: Model<E>> HookDelegate<E, M> {
         self.hooks.push(Box::new(shared_hook));
     }
 
+    /// Helper to iterate through all hooks.
     fn delegate<F, R>(&self, f: F)
     where
         F: Fn(&dyn Hook<E, M>) -> R,
@@ -237,6 +243,7 @@ impl<E, M: Model<E>> HookDelegate<E, M> {
         }
     }
 
+    /// Helper to iterate through all hooks in reverse order.
     fn reverse_delegate<F, R>(&self, f: F)
     where
         F: Fn(&dyn Hook<E, M>) -> R,
@@ -270,7 +277,7 @@ mod tests {
     struct MockModel;
     impl Model<()> for MockModel {
         fn handle_event(&mut self, _context: &mut EventContext<(), Self>, _event: &Event<()>) {
-            // none
+            // No-op
         }
     }
 
