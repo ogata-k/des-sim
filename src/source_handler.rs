@@ -12,26 +12,34 @@ use std::cmp::Reverse;
 use std::collections::{BinaryHeap, VecDeque};
 use std::sync::Arc;
 
+/// Represents a simulation source scheduled for execution at a specific simulation time.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
 pub(crate) struct ScheduledSource {
+    /// The simulation time at which the source is scheduled to execute.
     pub(crate) scheduled_at: SimTime,
+    /// The unique identifier of the source to be executed.
     pub(crate) source_id: SourceId,
 }
 
+/// An entry in the source registry, containing the source's name and its implementation.
 pub(crate) struct SourceEntry<E, M: Model<E>> {
+    /// The human-readable name of the source.
     pub(crate) name: Arc<str>,
+    /// The boxed source implementation.
     pub(crate) source: Box<dyn Source<E, M>>,
 }
 
+/// Manages the scheduling and lifecycle of simulation sources.
 pub(crate) struct SourceHandler<E, M: Model<E>> {
     source_registry: Vec<SourceEntry<E, M>>,
     next_source_id: usize,
-    // Rustは最大ヒープなので、time->source_idの順のソートの小さい順にする
+    // Rust is a max-heap; Reverse allows ordering by time ascending.
     ready_queue: BinaryHeap<Reverse<ScheduledSource>>,
     pending_queue: BinaryHeap<Reverse<ScheduledSource>>,
 }
 
 impl<E, M: Model<E>> SourceHandler<E, M> {
+    /// Creates a new, empty `SourceHandler`.
     pub fn new() -> SourceHandler<E, M> {
         SourceHandler {
             source_registry: vec![],
@@ -41,6 +49,7 @@ impl<E, M: Model<E>> SourceHandler<E, M> {
         }
     }
 
+    /// Converts a [ScheduledSource] into a [SourceReadyEntry] by retrieving its associated name from the registry.
     fn to_ready_entry(&self, scheduled: ScheduledSource) -> SourceReadyEntry {
         SourceReadyEntry::new(
             scheduled.source_id,
@@ -48,6 +57,9 @@ impl<E, M: Model<E>> SourceHandler<E, M> {
         )
     }
 
+    /// Iterates through all registered sources and executes the provided `initializer` function.
+    /// If an initializer returns [Some(Duration)], the source is scheduled for initial firing
+    /// at `SimTime::zero() + duration`.
     pub(crate) fn initialize_sources<F>(&mut self, mut initializer: F)
     where
         F: FnMut(&mut SourceEntry<E, M>) -> Option<Duration>,
@@ -64,22 +76,18 @@ impl<E, M: Model<E>> SourceHandler<E, M> {
         });
     }
 
-    /// [Source]を初回起動日時で実行するように登録する。
-    /// 使用用途は、初回登録用途。
+    /// Registers a [Source] to be initialized before the simulation starts.
     pub fn add_source_for_before_simulation<S>(&mut self, name: &'static str, source: S)
     where
         S: Source<E, M> + 'static,
     {
-        // レジストリに登録だけは行う。
-        // 実際の初期化処理はシミュレーションを始めたときにsourceの初期化メソッドで対応する。
         self.source_registry.push(SourceEntry {
             name: Arc::from(name),
             source: Box::new(source),
         });
     }
 
-    /// [Source]を現在時刻から時間がたった後の時間で実行するように登録する。
-    /// 使用用途は、シミュレーション中での使用。
+    /// Registers a [Source] to be executed after a specified delay.
     pub fn add_source_after_registered_action<S>(
         &mut self,
         name: &'static str,
@@ -89,13 +97,11 @@ impl<E, M: Model<E>> SourceHandler<E, M> {
     ) where
         S: Source<E, M> + 'static,
     {
-        // レジストリに登録だけは必須で行う。
         self.source_registry.push(SourceEntry {
             name: Arc::from(name),
             source: Box::new(source),
         });
         if let Some(delay) = delay {
-            // 初回発火遅延が指定されているときのみ次のスケジュールを登録する
             self.pending_queue.push(Reverse(ScheduledSource {
                 scheduled_at: current_tick + delay,
                 source_id: SourceId::new(self.next_source_id),
@@ -104,11 +110,13 @@ impl<E, M: Model<E>> SourceHandler<E, M> {
         }
     }
 
-    /// now時点で発火しているべきソースをpopしてVecに詰めて返す。
+    /// Pops sources that should fire at the current tick.
     ///
-    /// 実行時に[Duration::zero()]でイベントをスケジュールした場合に、同一時間内でも再度とれる。
-    /// なので、同一時間内でさらにループして[self::drain_ready()]した結果が空になるまで取得し続けること。
-    /// ※再取得漏れが発生するとpanicするので注意。
+    /// # Note
+    ///
+    /// If a source is scheduled with [Duration::zero()], it may fire within the same
+    /// time step. Repeated calls to `drain_ready` are required until the queue is
+    /// empty to ensure all zero-delay sources are processed.
     pub fn drain_ready(&mut self, current_tick: SimTime) -> VecDeque<SourceReadyEntry> {
         let mut fired_source_indexes: VecDeque<SourceReadyEntry> = VecDeque::new();
         while let Some(Reverse(scheduled)) = self.ready_queue.peek() {
@@ -122,7 +130,8 @@ impl<E, M: Model<E>> SourceHandler<E, M> {
                 break;
             }
 
-            // 各Sourceで処理されてnowの次のマイクロステップに登録されても処理されないように、先に集めておく。
+            // Collect them first so that they will not be processed even if they are processed
+            // by each source and registered in the next microstep of now.
             let scheduled = self.ready_queue.pop().unwrap().0;
             fired_source_indexes.push_back(self.to_ready_entry(scheduled));
         }
@@ -130,6 +139,7 @@ impl<E, M: Model<E>> SourceHandler<E, M> {
         fired_source_indexes
     }
 
+    /// Removes and returns scheduled sources that match the provided predicate from both queues.
     pub(crate) fn drain_cancel_scheduled<F>(
         &mut self,
         mut pred: F,
@@ -139,15 +149,14 @@ impl<E, M: Model<E>> SourceHandler<E, M> {
     {
         let mut cancelled = Vec::new();
 
-        // 対象がある場合だけ対応する
         if self.pending_queue.iter().any(|Reverse(scheduled)| {
             pred(scheduled.scheduled_at, &self.to_ready_entry(*scheduled))
         }) {
-            // ヒープを分解して Vec として取り出す
+            // Decompose the heap and extract it as a Vec
             let items = std::mem::take(&mut self.pending_queue).into_vec();
             let mut to_keep = Vec::with_capacity(items.len());
 
-            // 振り分け
+            // Sort by whether it meets the conditions
             for Reverse(scheduled) in items {
                 if pred(scheduled.scheduled_at, &self.to_ready_entry(scheduled)) {
                     cancelled.push(scheduled);
@@ -156,18 +165,18 @@ impl<E, M: Model<E>> SourceHandler<E, M> {
                 }
             }
 
-            // 残った要素でヒープを再構築
+            // Rebuild heap with remaining elements
             self.pending_queue = BinaryHeap::from(to_keep);
         }
 
         if self.ready_queue.iter().any(|Reverse(scheduled)| {
             pred(scheduled.scheduled_at, &self.to_ready_entry(*scheduled))
         }) {
-            // ヒープを分解して Vec として取り出す
+            // Decompose the heap and extract it as a Vec
             let items = std::mem::take(&mut self.ready_queue).into_vec();
             let mut to_keep = Vec::with_capacity(items.len());
 
-            // 振り分け
+            // Sort by whether it meets the conditions
             for Reverse(scheduled) in items {
                 if pred(scheduled.scheduled_at, &self.to_ready_entry(scheduled)) {
                     cancelled.push(scheduled);
@@ -176,11 +185,11 @@ impl<E, M: Model<E>> SourceHandler<E, M> {
                 }
             }
 
-            // 残った要素でヒープを再構築
+            // Rebuild heap with remaining elements
             self.ready_queue = BinaryHeap::from(to_keep);
         }
 
-        // 扱いやすいように発火順にしておく
+        // Arrange them in firing order for ease of handling
         cancelled.sort();
         cancelled
             .into_iter()
@@ -188,10 +197,12 @@ impl<E, M: Model<E>> SourceHandler<E, M> {
             .collect()
     }
 
+    /// Returns a mutable reference to the `SourceEntry` identified by the given `source_id`.
     pub(crate) fn get_by_source_id(&mut self, source_id: SourceId) -> &mut SourceEntry<E, M> {
         &mut self.source_registry[source_id.value()]
     }
 
+    /// Schedules a source for its next execution after a specific delay.
     pub(crate) fn schedule_next(
         &mut self,
         current_tick: SimTime,
@@ -204,22 +215,25 @@ impl<E, M: Model<E>> SourceHandler<E, M> {
         }));
     }
 
+    /// Returns the scheduled time of the next source in the ready queue.
     pub fn peek_next_time(&self) -> Option<SimTime> {
         self.ready_queue.peek().map(|i| i.0.scheduled_at)
     }
 
+    /// Peeks at the next scheduled source in the ready queue.
     #[cfg(test)]
     #[allow(dead_code)]
     pub fn peek(&self) -> Option<(SimTime, &ScheduledSource)> {
         self.ready_queue.peek().map(|i| (i.0.scheduled_at, &i.0))
     }
 
+    /// Returns the number of sources in the ready queue.
     #[cfg(test)]
     pub fn ready_queue_len(&self) -> usize {
         self.ready_queue.len()
     }
 
-    /// スケジュールされたSourceを反映させる
+    /// Transfers all pending sources into the ready queue.
     pub fn flush_pending(&mut self) {
         self.ready_queue.append(&mut self.pending_queue)
     }
@@ -247,7 +261,7 @@ mod tests {
             _context: &mut EventContext<TestEvent, TestModel>,
             _event: &Event<TestEvent>,
         ) {
-            // none
+            // No-op for testing
         }
     }
 
@@ -269,7 +283,7 @@ mod tests {
             _priority: EventPriority,
             _event_payload: E,
         ) {
-            // none
+            // No-op for testing
         }
     }
 
@@ -286,7 +300,6 @@ mod tests {
             _context: &mut dyn UserContext<TestEvent, TestModel>,
             _model: &TestModel,
         ) -> Option<Duration> {
-            // none
             Some(self.initial_delay)
         }
 
@@ -324,7 +337,7 @@ mod tests {
 
         assert_eq!(handler.source_registry.len(), 2);
         assert!(handler.ready_queue.is_empty());
-        assert!(handler.pending_queue.is_empty()); // add_source_for_before_simulation does not schedule
+        assert!(handler.pending_queue.is_empty());
     }
 
     #[test]
@@ -356,13 +369,13 @@ mod tests {
 
         let mut pending_sources: Vec<ScheduledSource> =
             handler.pending_queue.iter().map(|s| s.0).collect();
-        pending_sources.sort_by_key(|s| s.scheduled_at); // Sort for consistent assertion order
+        pending_sources.sort_by_key(|s| s.scheduled_at);
 
         assert_eq!(pending_sources.len(), 2);
         assert_eq!(pending_sources[0].scheduled_at, SimTime::from(5));
-        assert_eq!(pending_sources[0].source_id, SourceId::new(1)); // Source 's2' (index 1) has initial_delay 5
+        assert_eq!(pending_sources[0].source_id, SourceId::new(1));
         assert_eq!(pending_sources[1].scheduled_at, SimTime::from(10));
-        assert_eq!(pending_sources[1].source_id, SourceId::new(0)); // Source 's1' (index 0) has initial_delay 10
+        assert_eq!(pending_sources[1].source_id, SourceId::new(0));
     }
 
     #[test]
@@ -385,9 +398,13 @@ mod tests {
         assert_eq!(handler.source_registry.len(), 1);
         assert_eq!(handler.pending_queue.len(), 1);
 
-        let scheduled = handler.pending_queue.peek().unwrap().0;
+        let scheduled = handler
+            .pending_queue
+            .peek()
+            .expect("Queue should not be empty")
+            .0;
         assert_eq!(scheduled.scheduled_at, current_tick + delay);
-        assert_eq!(scheduled.source_id, SourceId::new(0)); // First source added, so SourceId 0
+        assert_eq!(scheduled.source_id, SourceId::new(0));
     }
 
     #[test]
@@ -402,7 +419,7 @@ mod tests {
         handler.add_source_after_registered_action("s_no_delay", current_tick, None, source);
 
         assert_eq!(handler.source_registry.len(), 1);
-        assert_eq!(handler.pending_queue.len(), 0); // No delay, so not scheduled
+        assert_eq!(handler.pending_queue.len(), 0);
     }
 
     #[test]
@@ -410,6 +427,7 @@ mod tests {
         let mut handler: SourceHandler<TestEvent, TestModel> = SourceHandler::new();
         let current_tick = SimTime::from(100);
 
+        // SourceId 0, scheduled at 120
         handler.add_source_after_registered_action(
             "s_delay_1",
             current_tick,
@@ -418,18 +436,20 @@ mod tests {
                 id: 1,
                 initial_delay: Duration::ticks(0),
             },
-        ); // SourceId 0, scheduled at 120
+        );
 
+        // SourceId 1, not scheduled
         handler.add_source_after_registered_action(
             "s_no_delay_2",
             current_tick,
-            None, // not increment source_id
+            None,
             TestSource {
                 id: 2,
                 initial_delay: Duration::ticks(0),
             },
-        ); // SourceId 1, not scheduled
+        );
 
+        // SourceId 2, scheduled at 110
         handler.add_source_after_registered_action(
             "s_delay_3",
             current_tick,
@@ -438,7 +458,7 @@ mod tests {
                 id: 3,
                 initial_delay: Duration::ticks(0),
             },
-        ); // SourceId 2, scheduled at 110
+        );
 
         assert_eq!(handler.source_registry.len(), 3);
         assert_eq!(handler.pending_queue.len(), 2);
@@ -448,10 +468,10 @@ mod tests {
         pending_sources.sort_by_key(|s| s.scheduled_at);
 
         assert_eq!(pending_sources[0].scheduled_at, SimTime::from(110));
-        assert_eq!(pending_sources[0].source_id, SourceId::new(1)); // s_delay_3
+        assert_eq!(pending_sources[0].source_id, SourceId::new(1)); // Corresponds to s_delay_3
 
         assert_eq!(pending_sources[1].scheduled_at, SimTime::from(120));
-        assert_eq!(pending_sources[1].source_id, SourceId::new(0)); // s_delay_1
+        assert_eq!(pending_sources[1].source_id, SourceId::new(0)); // Corresponds to s_delay_1
     }
 
     #[test]
@@ -476,7 +496,11 @@ mod tests {
         assert!(handler.ready_queue.is_empty());
         assert_eq!(handler.pending_queue.len(), 1);
 
-        let scheduled = handler.pending_queue.peek().unwrap().0;
+        let scheduled = handler
+            .pending_queue
+            .peek()
+            .expect("Queue should not be empty")
+            .0;
         assert_eq!(scheduled.scheduled_at, current_tick + delay);
         assert_eq!(scheduled.source_id, SourceId::new(0));
     }
@@ -514,8 +538,16 @@ mod tests {
         assert!(handler.pending_queue.is_empty());
 
         // Check order in ready_queue (smallest scheduled_at first)
-        let s1 = handler.ready_queue.pop().unwrap().0;
-        let s2 = handler.ready_queue.pop().unwrap().0;
+        let s1 = handler
+            .ready_queue
+            .pop()
+            .expect("Queue should not be empty")
+            .0;
+        let s2 = handler
+            .ready_queue
+            .pop()
+            .expect("Queue should not be empty")
+            .0;
 
         assert_eq!(s1.scheduled_at, SimTime::from(5));
         assert_eq!(s1.source_id, SourceId::new(1));
@@ -716,7 +748,7 @@ mod tests {
         handler.initialize_sources(|entry| {
             entry.source.on_registered(&mut dummy_context, &dummy_model)
         });
-        handler.flush_pending(); // Move to ready_queue
+        handler.flush_pending();
 
         let source_id = SourceId::new(0);
         let current_tick = SimTime::from(10);
@@ -725,7 +757,11 @@ mod tests {
         handler.schedule_next(current_tick, next_delay, source_id);
 
         assert_eq!(handler.pending_queue.len(), 1);
-        let scheduled = handler.pending_queue.peek().unwrap().0;
+        let scheduled = handler
+            .pending_queue
+            .peek()
+            .expect("Queue should not be empty")
+            .0;
         assert_eq!(scheduled.scheduled_at, current_tick + next_delay);
         assert_eq!(scheduled.source_id, source_id);
     }
@@ -756,7 +792,7 @@ mod tests {
             entry.source.on_registered(&mut dummy_context, &dummy_model)
         });
 
-        assert_eq!(handler.peek(), None); // Should be None before flush_pending
+        assert_eq!(handler.peek(), None);
 
         handler.flush_pending();
 
@@ -772,7 +808,7 @@ mod tests {
     #[test]
     fn test_peek() {
         let mut handler: SourceHandler<TestEvent, TestModel> = SourceHandler::new();
-        assert_eq!(handler.peek(), None);
+        assert!(handler.peek().is_none());
 
         handler.add_source_for_before_simulation(
             "s1",
@@ -795,17 +831,17 @@ mod tests {
             entry.source.on_registered(&mut dummy_context, &dummy_model)
         });
 
-        assert_eq!(handler.peek(), None); // Should be None before flush_pending
+        assert_eq!(handler.peek(), None);
 
         handler.flush_pending();
 
-        let (time, scheduled_source) = handler.peek().unwrap();
+        let (time, scheduled_source) = handler.peek().expect("Peek should return value");
         assert_eq!(time, SimTime::from(5));
         assert_eq!(scheduled_source.scheduled_at, SimTime::from(5));
         assert_eq!(scheduled_source.source_id, SourceId::new(1));
 
         handler.drain_ready(SimTime::from(5));
-        let (time, scheduled_source) = handler.peek().unwrap();
+        let (time, scheduled_source) = handler.peek().expect("Peek should return value");
         assert_eq!(time, SimTime::from(10));
         assert_eq!(scheduled_source.scheduled_at, SimTime::from(10));
         assert_eq!(scheduled_source.source_id, SourceId::new(0));
@@ -846,16 +882,15 @@ mod tests {
         handler.initialize_sources(|entry| {
             entry.source.on_registered(&mut dummy_context, &dummy_model)
         });
-        handler.flush_pending();
+        // Note: flush_pending not called here to test pending queue cancellation
 
         let cancelled_sources =
             handler.drain_cancel_scheduled(|_, entry| entry.name() == "source_to_cancel");
-
         assert_eq!(cancelled_sources.len(), 1);
         assert_eq!(cancelled_sources[0].1.name(), "source_to_cancel");
         assert_eq!(cancelled_sources[0].1.source_id(), SourceId::new(0));
 
-        // Verify remaining sources in pending queue
+        // Verify remaining sources in pending queue after flush
         handler.flush_pending();
         let ready_at_20 = handler.drain_ready(now + Duration::ticks(20));
         assert_eq!(ready_at_20.len(), 1);
@@ -903,7 +938,6 @@ mod tests {
 
         let cancelled_sources =
             handler.drain_cancel_scheduled(|_, entry| entry.name() == "source_to_cancel");
-
         assert_eq!(cancelled_sources.len(), 1);
         assert_eq!(cancelled_sources[0].1.name(), "source_to_cancel");
         assert_eq!(cancelled_sources[0].1.source_id(), SourceId::new(1));
@@ -962,7 +996,6 @@ mod tests {
 
         let cancelled_sources =
             handler.drain_cancel_scheduled(|_, entry| entry.name().contains("cancel_me"));
-
         assert_eq!(cancelled_sources.len(), 3);
         let names: Vec<_> = cancelled_sources
             .into_iter()
@@ -1007,7 +1040,6 @@ mod tests {
 
         let cancelled_sources =
             handler.drain_cancel_scheduled(|_, entry| entry.name() == "non_existent_source");
-
         assert!(cancelled_sources.is_empty());
 
         // Verify all sources are still present
@@ -1050,7 +1082,6 @@ mod tests {
         handler.flush_pending();
 
         let cancelled_sources = handler.drain_cancel_scheduled(|_, _| true); // Cancel all
-
         assert_eq!(cancelled_sources.len(), 2);
         let names: Vec<_> = cancelled_sources
             .into_iter()
@@ -1070,8 +1101,6 @@ mod tests {
     fn cancel_source_with_mixed_queues() {
         let mut handler: SourceHandler<TestEvent, TestModel> = SourceHandler::new();
         let now = SimTime::from_ticks(0);
-
-        // Events in pending_queue initially
 
         handler.add_source_for_before_simulation(
             "pending_keep_1",
@@ -1117,7 +1146,6 @@ mod tests {
 
         let cancelled_sources =
             handler.drain_cancel_scheduled(|_, entry| entry.name().contains("cancel"));
-
         assert_eq!(cancelled_sources.len(), 2);
         let names: Vec<_> = cancelled_sources
             .into_iter()
@@ -1127,7 +1155,7 @@ mod tests {
         assert!(names.contains(&"pending_cancel_2".to_string()));
 
         // Verify remaining sources
-        handler.flush_pending(); // Flush the remaining pending sources
+        handler.flush_pending();
 
         let ready_at_10 = handler.drain_ready(now + Duration::ticks(10));
         assert_eq!(ready_at_10.len(), 1);
@@ -1178,7 +1206,6 @@ mod tests {
 
         let cancelled_sources =
             handler.drain_cancel_scheduled(|_, entry| entry.source_id() == source_to_cancel_id);
-
         assert_eq!(cancelled_sources.len(), 1);
         assert_eq!(cancelled_sources[0].1.name(), "source_2");
         assert_eq!(cancelled_sources[0].1.source_id(), source_to_cancel_id);
@@ -1199,7 +1226,8 @@ mod tests {
     fn test_deterministic_ordering_for_same_sim_time() {
         let mut handler: SourceHandler<TestEvent, TestModel> = SourceHandler::new();
 
-        // 異なる登録順、異なる SourceId で同一時刻（SimTime: 10）にスケジュールされるソースを登録
+        // Register sources scheduled at the same time (SimTime: 10)
+        // with different registration orders and different SourceIds
         handler.add_source_for_before_simulation(
             "source_0",
             TestSource {
@@ -1221,17 +1249,21 @@ mod tests {
             entry.source.on_registered(&mut dummy_context, &dummy_model)
         });
 
-        // pending_queue から ready_queue へフラッシュ
+        // Flush from pending_queue to ready_queue
         handler.flush_pending();
 
-        // 同一時刻の要素を取得
+        // Get elements at the same time
         let mut ready_sources = handler.drain_ready(SimTime::from_ticks(10));
         assert_eq!(ready_sources.len(), 2);
 
-        // BinaryHeap と Reverse(ScheduledSource) の実装により、
-        // 時刻が同じ場合は `SourceId` が小さい方が必ず先に Pop される（決定論性の担保）
-        let first = ready_sources.pop_front().unwrap();
-        let second = ready_sources.pop_front().unwrap();
+        // By implementing BinaryHeap and Reverse(ScheduledSource), if the times are the same,
+        // the one with the smaller `SourceId` will always be popped first (guaranteeing determinism)
+        let first = ready_sources
+            .pop_front()
+            .expect("Should have first element");
+        let second = ready_sources
+            .pop_front()
+            .expect("Should have second element");
 
         assert_eq!(first.source_id(), SourceId::new(0));
         assert_eq!(first.name(), "source_0");
@@ -1245,7 +1277,6 @@ mod tests {
         let mut handler: SourceHandler<TestEvent, TestModel> = SourceHandler::new();
         let now = SimTime::from_ticks(0);
 
-        // 1. 最初のソース（トリガー役）を登録
         handler.add_source_for_before_simulation(
             "trigger_source",
             TestSource {
@@ -1261,16 +1292,17 @@ mod tests {
         });
         handler.flush_pending();
 
-        // 2. 「現在時刻 10」のイベントを処理している最中に、新しく動的にソースが連鎖登録されるケースをシミュレート
+        // Simulating a case where a new source is dynamically registered in a chain
+        // while processing the event "current time 10"
         let ready_at_10 = handler.drain_ready(now + Duration::ticks(10));
         assert_eq!(ready_at_10.len(), 1);
 
-        // 動的な追加処理 (add_source_after_registered_action)
-        // この時点では pending_queue にのみ蓄積され、ready_queue の処理順を汚染しない（バッファリング）
+        // Dynamic addition processing (add_source_after_registered_action)
+        // At this point, it is accumulated only in pending_queue and does not pollute the processing order of ready_queue (buffering)
         handler.add_source_after_registered_action(
             "cascaded_source_immediate",
             now + Duration::ticks(10),
-            Some(Duration::zero()), // 遅延ゼロで同等時刻に差し込み
+            Some(Duration::zero()),
             TestSource {
                 id: 1,
                 initial_delay: Duration::zero(),
@@ -1279,33 +1311,36 @@ mod tests {
         handler.add_source_after_registered_action(
             "cascaded_source_delayed",
             now + Duration::ticks(10),
-            Some(Duration::ticks(5)), // 未来の時刻に差し込み
+            Some(Duration::ticks(5)),
             TestSource {
                 id: 2,
                 initial_delay: Duration::zero(),
             },
         );
 
-        // まだ flush していないので、同一時刻(10)で再度 drain しても、動的追加されたものは取れない
+        // Since it has not been flushed yet, even if you drain it again at the same time (10),
+        // the dynamically added items cannot be removed.
         let ready_at_10_retry = handler.drain_ready(now + Duration::ticks(10));
         assert!(ready_at_10_retry.is_empty());
 
-        // 3. 処理サイクルの隙間で flush_pending が呼ばれることで、初めて次のマイクロステップ/処理フェーズとして反映される
         handler.flush_pending();
 
-        // 同一時刻(10)にスケジュールした即時連鎖ソースがここで取得できる
+        // You can get the instant chain source scheduled at the same time (10) here
         let mut ready_at_10_post_flush = handler.drain_ready(now + Duration::ticks(10));
         assert_eq!(ready_at_10_post_flush.len(), 1);
         assert_eq!(
-            ready_at_10_post_flush.pop_front().unwrap().name(),
+            ready_at_10_post_flush
+                .pop_front()
+                .expect("Should exist")
+                .name(),
             "cascaded_source_immediate"
         );
 
-        // 遅延させたものは時刻 15 で正しく取得できる
+        // The delayed version can be retrieved correctly at time 15.
         let mut ready_at_15 = handler.drain_ready(now + Duration::ticks(15));
         assert_eq!(ready_at_15.len(), 1);
         assert_eq!(
-            ready_at_15.pop_front().unwrap().name(),
+            ready_at_15.pop_front().expect("Should exist").name(),
             "cascaded_source_delayed"
         );
     }

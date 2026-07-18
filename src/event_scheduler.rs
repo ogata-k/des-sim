@@ -5,9 +5,12 @@ use std::cmp::Ordering;
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, VecDeque};
 
+/// Represents an event that has been scheduled for execution at a specific simulation time.
 #[derive(Clone)]
 pub(crate) struct ScheduledEvent<E> {
+    /// The simulation time at which the event is scheduled to occur.
     pub scheduled_at: SimTime,
+    /// The event payload and associated metadata.
     pub event: Event<E>,
 }
 
@@ -29,13 +32,14 @@ impl<E> Ord for ScheduledEvent<E> {
     fn cmp(&self, other: &Self) -> Ordering {
         self.scheduled_at
             .cmp(&other.scheduled_at)
-            // priorityは同一時間の範囲でしか効かない
-            // Runner次第では同一時間内でも順番に実行されるわけではないので、priorityで指定した順に実行できるかはRunner次第
+            // Priority is only effective within the same time tick.
+            // Execution order within the same tick depends on the runner.
             .then_with(|| other.event.priority.cmp(&self.event.priority))
             .then_with(|| self.event.event_id.cmp(&other.event.event_id))
     }
 }
 
+/// Manages the scheduling and retrieval of simulation events.
 #[derive(Clone)]
 pub(crate) struct EventScheduler<E> {
     ready_queue: BinaryHeap<Reverse<ScheduledEvent<E>>>,
@@ -44,6 +48,7 @@ pub(crate) struct EventScheduler<E> {
 }
 
 impl<E> EventScheduler<E> {
+    /// Creates a new `EventScheduler`.
     pub fn new() -> Self {
         Self {
             ready_queue: BinaryHeap::new(),
@@ -52,6 +57,7 @@ impl<E> EventScheduler<E> {
         }
     }
 
+    /// Schedules a new event to be fired after a specified delay.
     pub fn schedule(
         &mut self,
         current_tick: SimTime,
@@ -69,11 +75,13 @@ impl<E> EventScheduler<E> {
         }));
     }
 
-    /// now時点で発火しているべきイベントをpopしてVecに詰めて返す。
+    /// Pops events ready to fire at the current tick.
     ///
-    /// 実行時に[Duration::zero()]でイベントをスケジュールした場合に、同一時間内でも再度とれる。
-    /// なので、同一時間内でさらにループして[self::drain_ready()]した結果が空になるまで取得し続けること。
-    /// ※再取得漏れが発生するとpanicするので注意。
+    /// # Note
+    ///
+    /// If an event is scheduled with [Duration::zero()], it may become available
+    /// within the same time step. Repeated calls to `drain_ready` are required until
+    /// the queue is empty to ensure all zero-delay events are processed.
     pub fn drain_ready(&mut self, current_tick: SimTime) -> VecDeque<Event<E>> {
         let mut events = VecDeque::new();
         while let Some(Reverse(event)) = self.ready_queue.peek() {
@@ -93,23 +101,24 @@ impl<E> EventScheduler<E> {
         events
     }
 
+    /// Removes and returns scheduled events that match the provided predicate.
     pub fn drain_cancel_scheduled<F>(&mut self, mut pred: F) -> VecDeque<(SimTime, Event<E>)>
     where
         F: FnMut(SimTime, &Event<E>) -> bool,
     {
         let mut cancelled = Vec::new();
 
-        // 対象がある場合だけ対応する
+        // Check and drain from pending_queue
         if self
             .pending_queue
             .iter()
             .any(|Reverse(scheduled)| pred(scheduled.scheduled_at, &scheduled.event))
         {
-            // ヒープを分解して Vec として取り出す
+            // Decompose the heap and extract it as a Vec
             let items = std::mem::take(&mut self.pending_queue).into_vec();
             let mut to_keep = Vec::with_capacity(items.len());
 
-            // 振り分け
+            // Sort by whether it meets the conditions
             for Reverse(scheduled) in items {
                 if pred(scheduled.scheduled_at, &scheduled.event) {
                     cancelled.push(scheduled);
@@ -118,20 +127,21 @@ impl<E> EventScheduler<E> {
                 }
             }
 
-            // 残った要素でヒープを再構築
+            // Rebuild heap with remaining elements
             self.pending_queue = BinaryHeap::from(to_keep);
         }
 
+        // Check and drain from ready_queue
         if self
             .ready_queue
             .iter()
             .any(|Reverse(scheduled)| pred(scheduled.scheduled_at, &scheduled.event))
         {
-            // ヒープを分解して Vec として取り出す
+            // Decompose the heap and extract it as a Vec
             let items = std::mem::take(&mut self.ready_queue).into_vec();
             let mut to_keep = Vec::with_capacity(items.len());
 
-            // 振り分け
+            // Sort by whether it meets the conditions
             for Reverse(scheduled) in items {
                 if pred(scheduled.scheduled_at, &scheduled.event) {
                     cancelled.push(scheduled);
@@ -140,11 +150,11 @@ impl<E> EventScheduler<E> {
                 }
             }
 
-            // 残った要素でヒープを再構築
+            // Rebuild heap with remaining elements
             self.ready_queue = BinaryHeap::from(to_keep);
         }
 
-        // 扱いやすいように発火順にしておく
+        // Return canceled events in sorted order
         cancelled.sort();
         cancelled
             .into_iter()
@@ -152,6 +162,7 @@ impl<E> EventScheduler<E> {
             .collect()
     }
 
+    /// Peeks at the scheduled time of the next ready event.
     pub fn peek_next_time(&self) -> Option<SimTime> {
         self.ready_queue.peek().map(|i| i.0.scheduled_at)
     }
@@ -168,7 +179,7 @@ impl<E> EventScheduler<E> {
         self.ready_queue.len()
     }
 
-    /// スケジュールされたEventを反映させる
+    /// Moves pending events into the ready queue.
     pub fn flush_pending(&mut self) {
         self.ready_queue.append(&mut self.pending_queue)
     }
@@ -196,7 +207,7 @@ mod tests {
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].payload, "t10");
 
-        let (time, event) = scheduler.peek().unwrap();
+        let (time, event) = scheduler.peek().expect("Event should exist");
         assert_eq!(time, SimTime::from_ticks(20));
         assert_eq!(event.payload, "t20");
     }
@@ -216,6 +227,8 @@ mod tests {
 
         let payloads: Vec<_> = events.into_iter().map(|e| e.payload).collect();
 
+        // BinaryHeap is a max-heap. Reverse wraps items.
+        // Higher priority (30) appears first.
         assert_eq!(payloads, vec![30, 20, 10]);
     }
 
@@ -229,14 +242,13 @@ mod tests {
         scheduler.schedule(now, duration, EventPriority::new(20), 20);
         scheduler.schedule(now, duration, EventPriority::new(30), 30);
 
-        // flush前は取得できない
+        // Cannot be obtained before flush
         let events = scheduler.drain_ready(now + duration);
         assert!(events.is_empty());
 
         scheduler.flush_pending();
 
         let events = scheduler.drain_ready(now + duration);
-
         let payloads: Vec<_> = events.into_iter().map(|e| e.payload).collect();
 
         assert_eq!(payloads, vec![30, 20, 10]);
@@ -255,26 +267,19 @@ mod tests {
         scheduler.flush_pending();
 
         let events_10 = scheduler.drain_ready(now + duration);
-
         let payloads_10: Vec<_> = events_10.into_iter().map(|e| e.payload).collect();
-
         assert_eq!(payloads_10, vec![1, 2]);
 
         let events_20 = scheduler.drain_ready(now + duration + duration);
-
         let payloads_20: Vec<_> = events_20.into_iter().map(|e| e.payload).collect();
-
         assert_eq!(payloads_20, vec![4, 3]);
     }
 
     #[test]
     fn collect_from_empty_scheduler_returns_empty_vec() {
         let mut scheduler = EventScheduler::<()>::new();
-
         let events = scheduler.drain_ready(SimTime::from_ticks(0));
-
         assert!(events.is_empty());
-
         assert_eq!(scheduler.peek_next_time(), None);
     }
 
@@ -290,10 +295,9 @@ mod tests {
         scheduler.flush_pending();
 
         let events = scheduler.drain_ready(SimTime::from_ticks(30));
-
         assert!(events.is_empty());
 
-        let time = scheduler.peek_next_time().unwrap();
+        let time = scheduler.peek_next_time().expect("Event should exist");
         assert_eq!(time, SimTime::from_ticks(40));
     }
 
@@ -310,7 +314,6 @@ mod tests {
         scheduler.flush_pending();
 
         let events = scheduler.drain_ready(SimTime::from_ticks(10));
-
         let payloads: Vec<_> = events.into_iter().map(|e| e.payload).collect();
 
         assert_eq!(payloads, vec![1, 2, 3]);
@@ -328,13 +331,11 @@ mod tests {
         scheduler.flush_pending();
 
         let events = scheduler.drain_ready(SimTime::from_ticks(10));
-
         assert_eq!(events.len(), 2);
         assert_eq!(events[0].payload, 1);
         assert_eq!(events[1].payload, 1);
 
-        let (time, event) = scheduler.peek().unwrap();
-
+        let (time, event) = scheduler.peek().expect("Future event should exist");
         assert_eq!(time, SimTime::from_ticks(20));
         assert_eq!(event.payload, 3);
     }
@@ -356,8 +357,7 @@ mod tests {
         assert_eq!(events[0].payload, 2);
         assert_eq!(events[1].payload, 1);
 
-        let (time, event) = scheduler.peek().unwrap();
-
+        let (time, event) = scheduler.peek().expect("Future event should exist");
         assert_eq!(time, SimTime::from_ticks(20));
         assert_eq!(event.payload, 3);
     }
@@ -374,11 +374,9 @@ mod tests {
         scheduler.flush_pending();
 
         let events = scheduler.drain_ready(SimTime::from_ticks(10));
-
         assert_eq!(events.len(), 2);
 
-        let (time, event) = scheduler.peek().unwrap();
-
+        let (time, event) = scheduler.peek().expect("Future event should exist");
         assert_eq!(time, SimTime::from_ticks(20));
         assert_eq!(event.payload, 3);
     }
@@ -417,7 +415,6 @@ mod tests {
 
         let cancelled_events =
             scheduler.drain_cancel_scheduled(|_, event| event.payload == "event_to_cancel");
-
         assert_eq!(cancelled_events.len(), 1);
         assert_eq!(cancelled_events[0].1.payload, "event_to_cancel");
 
@@ -445,7 +442,6 @@ mod tests {
 
         let cancelled_events =
             scheduler.drain_cancel_scheduled(|_, event| event.payload == "event_to_cancel");
-
         assert_eq!(cancelled_events.len(), 1);
         assert_eq!(cancelled_events[0].1.payload, "event_to_cancel");
 
@@ -473,8 +469,8 @@ mod tests {
 
         let cancelled_events =
             scheduler.drain_cancel_scheduled(|_, event| event.payload.contains("cancel_me"));
-
         assert_eq!(cancelled_events.len(), 3);
+
         let payloads: Vec<_> = cancelled_events
             .into_iter()
             .map(|(_, event)| event.payload)
@@ -500,7 +496,6 @@ mod tests {
 
         let cancelled_events =
             scheduler.drain_cancel_scheduled(|_, event| event.payload == "non_existent_event");
-
         assert!(cancelled_events.is_empty());
 
         // Verify all events are still present
@@ -524,8 +519,8 @@ mod tests {
         scheduler.flush_pending();
 
         let cancelled_events = scheduler.drain_cancel_scheduled(|_, _| true); // Cancel all
-
         assert_eq!(cancelled_events.len(), 2);
+
         let payloads: Vec<_> = cancelled_events
             .into_iter()
             .map(|(_, event)| event.payload)
@@ -557,8 +552,8 @@ mod tests {
 
         let cancelled_events =
             scheduler.drain_cancel_scheduled(|_, event| event.payload.contains("cancel"));
-
         assert_eq!(cancelled_events.len(), 2);
+
         let payloads: Vec<_> = cancelled_events
             .into_iter()
             .map(|(_, event)| event.payload)
@@ -589,11 +584,9 @@ mod tests {
         scheduler.schedule(now, Duration::ticks(30), priority, "event_3"); // id 2
         scheduler.flush_pending();
 
-        let event_to_cancel_id = EventId::new(1); // Cancel event_2
-
+        let event_to_cancel_id = EventId::new(1);
         let cancelled_events =
             scheduler.drain_cancel_scheduled(|_, event| event.event_id == event_to_cancel_id);
-
         assert_eq!(cancelled_events.len(), 1);
         assert_eq!(cancelled_events[0].1.payload, "event_2");
         assert_eq!(cancelled_events[0].1.event_id, event_to_cancel_id);
@@ -617,7 +610,6 @@ mod tests {
         // Events in pending_queue initially
         scheduler.schedule(now, Duration::ticks(10), priority, "pending_keep_1");
         scheduler.schedule(now, Duration::ticks(20), priority, "pending_cancel_1");
-
         scheduler.flush_pending(); // Move pending_keep_1 and pending_cancel_1 to ready_queue
 
         // Events now in pending_queue
@@ -626,8 +618,8 @@ mod tests {
 
         let cancelled_events =
             scheduler.drain_cancel_scheduled(|_, event| event.payload.contains("cancel"));
-
         assert_eq!(cancelled_events.len(), 2);
+
         let payloads: Vec<_> = cancelled_events
             .into_iter()
             .map(|(_, event)| event.payload)
