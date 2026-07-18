@@ -35,11 +35,9 @@ impl ChoiceSampler {
         // The first boundary is 0
         cdf.push(0);
         for (duration, weight) in histogram.into_iter() {
-            if weight > 0 {
-                current_sum += weight;
-                cdf.push(current_sum);
-                values.push(duration);
-            }
+            current_sum += weight;
+            cdf.push(current_sum);
+            values.push(duration);
         }
 
         assert!(
@@ -137,7 +135,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "ChoiceSampler must have at least one sampler with positive weight")]
+    #[should_panic(expected = "Total weight must be greater than 0")]
     fn test_choice_sampler_zero_total_weight() {
         let s1 = ConstantSampler::new(10.0);
         let _sampler = ChoiceSampler::new(vec![(s1.boxed(), 0)]);

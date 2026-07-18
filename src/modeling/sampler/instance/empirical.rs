@@ -29,7 +29,6 @@ impl DurationSampler for EmpiricalSampler {
 
 impl EmpiricalSampler {
     /// Constructs an `EmpiricalSampler` from a collection of `(Duration, Weight)` pairs.
-    /// When specify histogram item with weight 0, it will be ignored.
     pub fn new(histogram: impl IntoIterator<Item = (Duration, u64)>) -> Self {
         // Converted in advance so that it can be sampled using Inverse Transform Sampling
         // from the empirical distribution
@@ -40,11 +39,9 @@ impl EmpiricalSampler {
         // The first boundary is 0
         cdf.push(0);
         for (duration, weight) in histogram.into_iter() {
-            if weight > 0 {
-                current_sum += weight;
-                cdf.push(current_sum);
-                values.push(duration);
-            }
+            current_sum += weight;
+            cdf.push(current_sum);
+            values.push(duration);
         }
 
         assert!(
@@ -141,7 +138,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "EmpiricalSampler must have at least one sampler")]
+    #[should_panic(expected = "Total weight must be greater than 0")]
     fn test_empirical_sampler_zero_total_weight() {
         let d1 = Duration::ticks(10);
         let _sampler = EmpiricalSampler::new(vec![(d1, 0)]);
