@@ -141,7 +141,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Total weight must be greater than 0")]
+    #[should_panic(expected = "EmpiricalSampler must have at least one sampler")]
     fn test_empirical_sampler_zero_total_weight() {
         let d1 = Duration::ticks(10);
         let _sampler = EmpiricalSampler::new(vec![(d1, 0)]);

@@ -137,7 +137,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Total weight must be greater than 0")]
+    #[should_panic(expected = "ChoiceSampler must have at least one sampler with positive weight")]
     fn test_choice_sampler_zero_total_weight() {
         let s1 = ConstantSampler::new(10.0);
         let _sampler = ChoiceSampler::new(vec![(s1.boxed(), 0)]);

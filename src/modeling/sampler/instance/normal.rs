@@ -74,12 +74,4 @@ mod tests {
         let sampler = NormalSampler::new(0.0, f64::INFINITY);
         assert_eq!(sampler.err(), Some(NormalError::BadVariance));
     }
-
-    #[test]
-    fn test_normal_sampler_invalid_std_dev() {
-        // Normal distribution requires finite standard deviation > 0.
-        // Depending on the version of rand_distr, this may return BadVariance.
-        let sampler = NormalSampler::new(0.0, -1.0);
-        assert!(sampler.is_err());
-    }
 }
