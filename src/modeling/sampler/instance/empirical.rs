@@ -2,20 +2,25 @@ use crate::modeling::sampler::{DurationSampler, PendingDuration};
 use crate::primitive::time::{Duration, SimTime};
 use rand::{Rng, RngExt};
 
+/// A sampler that draws from a discrete empirical distribution.
+///
+/// Samples are generated using inverse transform sampling, where values are selected
+/// based on their relative weights.
 #[derive(Debug, Clone)]
 pub struct EmpiricalSampler {
-    cdf: Vec<u64>,         // 累積重みの境界値
-    values: Vec<Duration>, // 対応する値
-    total_weight: u64,     // 合計重み
+    cdf: Vec<u64>,         // Cumulative distribution function (boundary values)
+    values: Vec<Duration>, // Corresponding values
+    total_weight: u64,     // Sum of all weights
 }
 
 impl DurationSampler for EmpiricalSampler {
     fn sample(&mut self, rng: &mut dyn Rng, _current_tick: SimTime) -> PendingDuration {
-        // [0, total_weight) の範囲で乱数を生成
+        // Generate a random number in the range [0, total_weight)
         let r = rng.random_range(0..self.total_weight);
 
-        // 二分探索でrが属する区間のインデックスを探す
-        // partition_point は x <= r となる最後のインデックスを返すので調整が必要
+        // Find the index of the interval to which r belongs using binary search.
+        // `partition_point` returns the index of the first element that satisfies `!predicate`.
+        // Since we want the last index where `x <= r`, we search for `x <= r` and subtract 1.
         let idx = self.cdf.partition_point(|&x| x <= r) - 1;
 
         self.values[idx].into()
@@ -23,19 +28,23 @@ impl DurationSampler for EmpiricalSampler {
 }
 
 impl EmpiricalSampler {
-    /// ヒストグラムの形式 [(Duration, Weight)] からサンプラーを構築
+    /// Constructs an `EmpiricalSampler` from a collection of `(Duration, Weight)` pairs.
+    /// When specify histogram item with weight 0, it will be ignored.
     pub fn new(histogram: impl IntoIterator<Item = (Duration, u64)>) -> Self {
-        // 経験分布からの逆変換サンプリング（Inverse Transform Sampling）でサンプリングできるようにあらかじめ変換
+        // Converted in advance so that it can be sampled using Inverse Transform Sampling
+        // from the empirical distribution
         let mut cdf = Vec::new();
         let mut values = Vec::new();
         let mut current_sum = 0;
 
-        // 最初の境界は 0
+        // The first boundary is 0
         cdf.push(0);
         for (duration, weight) in histogram.into_iter() {
-            current_sum += weight;
-            cdf.push(current_sum);
-            values.push(duration);
+            if weight > 0 {
+                current_sum += weight;
+                cdf.push(current_sum);
+                values.push(duration);
+            }
         }
 
         assert!(
@@ -51,7 +60,7 @@ impl EmpiricalSampler {
         }
     }
 
-    /// ヒストグラムの形式 [Duration] からサンプラーを構築
+    /// Constructs an `EmpiricalSampler` with uniform weight (1) for all provided durations.
     pub fn new_as_uniform(histogram: impl IntoIterator<Item = Duration>) -> Self {
         EmpiricalSampler::new(histogram.into_iter().map(|d| (d, 1)))
     }
@@ -73,12 +82,7 @@ mod tests {
         let d2 = Duration::ticks(20);
         let d3 = Duration::ticks(30);
 
-        // Since the weights are 1, 2, 1, the total weight is 4.
-        // The CDF will be [0, 1, 3, 4].
-        // If random_range(0..4) returns:
-        // 0 => d1 (10.0)
-        // 1, 2 => d2 (20.0)
-        // 3 => d3 (30.0)
+        // Weights: 1, 2, 1. Total: 4.
         let mut sampler = EmpiricalSampler::new(vec![(d1, 1), (d2, 2), (d3, 1)]);
 
         let mut results: HashMap<String, usize> = HashMap::new();

@@ -2,6 +2,7 @@ use crate::modeling::sampler::{DurationSampler, PendingDuration};
 use crate::primitive::time::SimTime;
 use rand::Rng;
 
+/// A sampler that maps the output of a base sampler to a new value using a closure.
 #[derive(Debug, Clone)]
 pub struct MapSampler<S, F>
 where
@@ -29,6 +30,7 @@ where
     S: DurationSampler,
     F: FnMut(&mut dyn Rng, SimTime, f64) -> f64,
 {
+    /// Creates a new `MapSampler`.
     pub fn new(sampler: S, f: F) -> Self {
         MapSampler { sampler, f }
     }

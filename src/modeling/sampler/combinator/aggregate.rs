@@ -2,22 +2,26 @@ use crate::modeling::sampler::{DurationSampler, PendingDuration};
 use crate::primitive::time::SimTime;
 use rand::Rng;
 
+/// A builder for constructing an `AggregateSampler` in a fluent manner.
 pub struct AggregateBuilder {
     samplers: Vec<Box<dyn DurationSampler>>,
 }
 
 impl AggregateBuilder {
+    /// Initializes the builder with the first sampler.
     pub fn from_sampler(sampler: impl DurationSampler + 'static) -> Self {
         AggregateBuilder {
             samplers: vec![Box::new(sampler)],
         }
     }
 
+    /// Adds another sampler to the aggregation list.
     pub fn add_sampler(mut self, sampler: Box<dyn DurationSampler>) -> Self {
         self.samplers.push(sampler);
         self
     }
 
+    /// Consumes the builder to produce an `AggregateSampler` using the provided function `f`.
     pub fn build<F>(self, f: F) -> AggregateSampler<F>
     where
         F: FnMut(&mut dyn Rng, SimTime, Vec<f64>) -> f64,
@@ -29,6 +33,7 @@ impl AggregateBuilder {
     }
 }
 
+/// A sampler that aggregates results from multiple sub-samplers using a closure.
 pub struct AggregateSampler<F>
 where
     F: FnMut(&mut dyn Rng, SimTime, Vec<f64>) -> f64,
@@ -42,7 +47,7 @@ where
     F: FnMut(&mut dyn Rng, SimTime, Vec<f64>) -> f64,
 {
     fn sample(&mut self, rng: &mut dyn Rng, current_tick: SimTime) -> PendingDuration {
-        let mut sampled_list = Vec::new();
+        let mut sampled_list = Vec::with_capacity(self.samplers.len());
         for sampler in &mut self.samplers {
             let sampled = sampler.sample(rng, current_tick);
             sampled_list.push(sampled.raw_value());
@@ -56,10 +61,14 @@ impl<F> AggregateSampler<F>
 where
     F: FnMut(&mut dyn Rng, SimTime, Vec<f64>) -> f64,
 {
+    /// Creates a new `AggregateSampler`. Panics if `samplers` is empty.
     pub fn new(samplers: impl IntoIterator<Item = Box<dyn DurationSampler>>, f: F) -> Self {
         let samplers: Vec<_> = samplers.into_iter().collect();
 
-        assert!(!samplers.is_empty());
+        assert!(
+            !samplers.is_empty(),
+            "AggregateSampler requires at least one sampler."
+        );
 
         AggregateSampler { samplers, f }
     }

@@ -2,7 +2,7 @@ use crate::modeling::sampler::{DurationSampler, PendingDuration};
 use crate::primitive::time::SimTime;
 use rand::Rng;
 
-/// 定数値をサンプリングするサンプラー。
+/// A sampler that consistently returns a constant value.
 #[derive(Debug, Clone)]
 pub struct ConstantSampler {
     value: f64,
@@ -10,21 +10,23 @@ pub struct ConstantSampler {
 
 impl DurationSampler for ConstantSampler {
     fn sample(&mut self, _rng: &mut dyn Rng, _current_tick: SimTime) -> PendingDuration {
-        // 乱数生成器を使わずに常に固定値を返す
+        // Returns the fixed constant value regardless of RNG or simulation time.
         PendingDuration::new(self.value)
     }
 }
 
 impl ConstantSampler {
+    /// Creates a new `ConstantSampler` with the given `value`.
     pub fn new(value: f64) -> Self {
         Self { value }
     }
 
+    /// Returns the constant value held by this sampler.
     pub fn value(&self) -> f64 {
         self.value
     }
 
-    /// [Rng]や[SimTime]を用意するのは面倒だけど[PendingDuration]は欲しいというときは[sample()](DurationSampler::sample)の代わりにこちらを利用する。
+    /// A convenience method to retrieve the `PendingDuration` without needing an RNG or `SimTime`.
     pub fn constant_sample(&self) -> PendingDuration {
         PendingDuration::new(self.value)
     }

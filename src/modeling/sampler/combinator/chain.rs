@@ -2,6 +2,8 @@ use crate::modeling::sampler::{DurationSampler, PendingDuration};
 use crate::primitive::time::SimTime;
 use rand::Rng;
 
+/// A sampler that chains two sub-samplers together, combining their results
+/// using a closure.
 pub struct ChainSampler<S1, F>
 where
     S1: DurationSampler,
@@ -20,7 +22,14 @@ where
     fn sample(&mut self, rng: &mut dyn Rng, current_tick: SimTime) -> PendingDuration {
         let sampled_1 = self.sampler_1.sample(rng, current_tick);
         let sampled_2 = self.sampler_2.sample(rng, current_tick);
-        PendingDuration::new((self.f)(rng, current_tick, sampled_1.0, sampled_2.0))
+
+        // Pass the raw f64 values to the closure
+        PendingDuration::new((self.f)(
+            rng,
+            current_tick,
+            sampled_1.raw_value(),
+            sampled_2.raw_value(),
+        ))
     }
 }
 
@@ -29,6 +38,7 @@ where
     S1: DurationSampler,
     F: FnMut(&mut dyn Rng, SimTime, f64, f64) -> f64,
 {
+    /// Creates a new `ChainSampler`.
     pub fn new(sampler_1: S1, sampler_2: Box<dyn DurationSampler>, f: F) -> Self {
         ChainSampler {
             sampler_1,

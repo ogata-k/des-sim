@@ -3,7 +3,7 @@ use crate::primitive::time::SimTime;
 use rand::Rng;
 use rand::distr::{Distribution, Uniform, uniform};
 
-/// 指定された最大値と最小値をもとに一様分布からサンプリングを行う。
+/// A sampler that draws from a continuous uniform distribution within [lower_bound, higher_bound).
 #[derive(Debug, Clone)]
 pub struct UniformSampler {
     dist: Uniform<f64>,
@@ -16,6 +16,8 @@ impl DurationSampler for UniformSampler {
 }
 
 impl UniformSampler {
+    /// Creates a new `UniformSampler` with the given range.
+    /// Returns an error if the range is empty or if values are non-finite.
     pub fn new(lower_bound: f64, higher_bound: f64) -> Result<UniformSampler, uniform::Error> {
         let uniform = Uniform::new(lower_bound, higher_bound)?;
 
@@ -41,7 +43,7 @@ mod tests {
             samples.push(sampler.sample(&mut rng, SimTime::from_ticks(0)).raw_value());
         }
 
-        // Check if all samples are within the bounds
+        // Check if all samples are within the specified range
         assert!(
             samples
                 .iter()
@@ -62,12 +64,14 @@ mod tests {
 
     #[test]
     fn test_uniform_sampler_invalid_bounds() {
+        // Lower bound must be less than higher bound
         let sampler_empty_range = UniformSampler::new(10.0, 5.0);
         assert_eq!(sampler_empty_range.err(), Some(uniform::Error::EmptyRange));
     }
 
     #[test]
     fn test_uniform_sampler_invalid_infinite_bounds() {
+        // Bounds must be finite
         let sampler_infinite_range = UniformSampler::new(10.0, f64::INFINITY);
         assert_eq!(
             sampler_infinite_range.err(),

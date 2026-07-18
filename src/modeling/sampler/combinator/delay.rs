@@ -2,9 +2,11 @@ use crate::modeling::sampler::{DurationSampler, PendingDuration};
 use crate::primitive::time::SimTime;
 use rand::Rng;
 
-/// ベースとなったサンプラーで得られた値に対して、遅延用のサンプラーで得られた値だけ増加させて遅らせる。
-/// ただし、遅延用のサンプラーが負の値を返したときは加算されない。
-/// 加算してほしいときは[WithJitterSampler](crate::modeling::sampler::JitterSampler)を使うこと。
+/// A sampler that delays the output of a base sampler by adding the value from a delay sampler.
+///
+/// If the delay sampler returns a negative value, it is treated as zero, meaning the delay
+/// is not applied. If you need to support negative values (e.g., to accelerate the schedule),
+/// use [JitterSampler](crate::modeling::sampler::JitterSampler) instead.
 pub struct DelaySampler<S>
 where
     S: DurationSampler,
@@ -21,7 +23,7 @@ where
         let sampled = self.sampler.sample(rng, current_tick);
         let delay = self.delay_sampler.sample(rng, current_tick);
 
-        // 遅延が負になっているということをできるだけ早く発火させろということで解釈する。
+        // If the delay is negative, it is interpreted as no delay (max(0.0)).
         PendingDuration::new(sampled.raw_value() + delay.raw_value().max(0.0))
     }
 }
@@ -30,6 +32,7 @@ impl<S> DelaySampler<S>
 where
     S: DurationSampler,
 {
+    /// Creates a new `DelaySampler`.
     pub fn new(sampler: S, delay_sampler: Box<dyn DurationSampler>) -> Self {
         DelaySampler {
             sampler,
