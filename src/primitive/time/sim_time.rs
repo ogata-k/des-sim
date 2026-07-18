@@ -1,8 +1,10 @@
 use std::fmt::{Display, Formatter};
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 
+/// Represents a duration or point in time measured in simulation ticks.
 pub type TimeTick = usize;
 
+/// Represents a specific point in simulation time.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct SimTime(TimeTick);
 
@@ -49,47 +51,58 @@ impl Sub<Duration> for SimTime {
 }
 
 impl SimTime {
+    /// Creates a new `SimTime` from the given number of ticks.
     pub const fn from_ticks(ticks: TimeTick) -> SimTime {
         SimTime(ticks)
     }
 
+    /// Returns a `SimTime` representing the beginning of the simulation (time zero).
     pub const fn zero() -> SimTime {
         SimTime(0)
     }
 
+    /// Returns the underlying tick count.
     pub const fn as_time_tick(self) -> TimeTick {
         self.0
     }
 
+    /// Returns `true` if this `SimTime` is at the beginning of the simulation.
     pub const fn is_zero(self) -> bool {
         self.0 == 0
     }
 
+    /// Checked addition of a `Duration`.
     pub fn checked_add(self, rhs: Duration) -> Option<SimTime> {
         self.0.checked_add(rhs.0).map(SimTime)
     }
 
+    /// Saturating addition of a `Duration`.
     pub fn saturating_add(self, rhs: Duration) -> SimTime {
         SimTime(self.0.saturating_add(rhs.0))
     }
 
+    /// Checked subtraction of another `SimTime`, resulting in a `Duration`.
     pub fn checked_sub(self, rhs: SimTime) -> Option<Duration> {
         self.0.checked_sub(rhs.0).map(Duration)
     }
 
+    /// Saturating subtraction of another `SimTime`, resulting in a `Duration`.
     pub fn saturating_sub(self, rhs: SimTime) -> Duration {
         Duration(self.0.saturating_sub(rhs.0))
     }
 
+    /// Checked subtraction of a `Duration`.
     pub fn checked_sub_duration(self, rhs: Duration) -> Option<SimTime> {
         self.0.checked_sub(rhs.0).map(SimTime)
     }
 
+    /// Saturating subtraction of a `Duration`.
     pub fn saturating_sub_duration(self, rhs: Duration) -> SimTime {
         SimTime(self.0.saturating_sub(rhs.0))
     }
 }
 
+/// Represents a duration of simulation time.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct Duration(TimeTick);
 
@@ -136,49 +149,61 @@ impl SubAssign<Duration> for Duration {
 }
 
 impl Duration {
+    /// Creates a new `Duration` from a tick count.
     pub const fn ticks(ticks: TimeTick) -> Duration {
         Duration(ticks)
     }
 
+    /// A duration of zero.
     pub const fn zero() -> Duration {
         Duration(0)
     }
 
+    /// A duration of one tick.
     pub const fn one() -> Duration {
         Duration(1)
     }
 
+    /// Returns the underlying tick count.
     pub const fn as_time_tick(self) -> TimeTick {
         self.0
     }
 
+    /// Returns `true` if the duration is zero.
     pub const fn is_zero(self) -> bool {
         self.0 == 0
     }
 
+    /// Checked addition of another `Duration`.
     pub fn checked_add(self, rhs: Duration) -> Option<Duration> {
         self.0.checked_add(rhs.0).map(Duration)
     }
 
+    /// Saturating addition of another `Duration`.
     pub fn saturating_add(self, rhs: Duration) -> Duration {
         Duration(self.0.saturating_add(rhs.0))
     }
 
+    /// Checked subtraction of another `Duration`.
     pub fn checked_sub(self, rhs: Duration) -> Option<Duration> {
         self.0.checked_sub(rhs.0).map(Duration)
     }
 
+    /// Saturating subtraction of another `Duration`.
     pub fn saturating_sub(self, rhs: Duration) -> Duration {
         Duration(self.0.saturating_sub(rhs.0))
     }
 }
 
+/// Tracks the simulation's progress through time ticks, including handled skips.
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub struct TickStatus {
     current_tick: SimTime,
     skipped: Duration,
 }
+
 impl TickStatus {
+    /// Creates a new `TickStatus` with the specified current tick and skipped duration.
     pub(crate) fn new(current_tick: SimTime, skipped: Duration) -> Self {
         TickStatus {
             current_tick,
@@ -186,6 +211,7 @@ impl TickStatus {
         }
     }
 
+    /// Initializes `TickStatus` to the starting state (time zero, no time skipped).
     pub(crate) fn initialize() -> Self {
         TickStatus {
             current_tick: SimTime::zero(),
@@ -193,14 +219,17 @@ impl TickStatus {
         }
     }
 
+    /// Returns the current simulation time.
     pub fn current(&self) -> SimTime {
         self.current_tick
     }
 
+    /// Returns the total duration of time that has been skipped from previous tick.
     pub fn skipped(&self) -> Duration {
         self.skipped
     }
 
+    /// Calculates the "previous" tick, accounting for skipped time.
     pub fn previous(&self) -> SimTime {
         if self.current_tick == SimTime::zero() {
             self.current_tick
@@ -209,19 +238,16 @@ impl TickStatus {
         }
     }
 
-    /// 時間スキップを考慮し「実際に処理を終えている時間（`previous()`）」をベースに判定。
-    /// 連続してTickが進む場合（例: tick_count=2 のとき）：
-    ///   0 tick開始時: previous=0 (0+1>=2 => false) -> 0 tick処理実行
-    ///   1 tick開始時: previous=0 (0+1>=2 => false) -> 1 tick処理実行
-    ///   2 tick開始時: previous=1 (1+1>=2 => true)  -> ここで処理開始前に停止！
+    /// Determines if the simulation has processed the required number of ticks.
     ///
-    /// 時間が大きくスキップする場合（例: tick_count=2 で 0 tick → 5 tick へジャンプ）：
-    ///   0 tick開始時: previous=0 (0+1>=2 => false) -> 0 tick処理実行（ここで5へジャンプ）
-    ///   5 tick開始時: previous=0 (0+1>=2 => false) -> 5 tick処理を実行（ジャンプ直後の実処理）
-    ///   6 tick開始時: previous=5 (5+1>=2 => true)  -> ここで停止！
+    /// This uses the `previous()` time as a baseline to handle cases where time
+    /// is skipped. Even if a large jump occurs, it ensures the simulation processes
+    /// up to the threshold before stopping safely.
     ///
-    /// これにより、スキップが発生しても「最低限、閾値をまたぐ直前の処理（5 tick）」までは
-    /// 確実に実行を完了させてから安全にシミュレーションを止めることができます。
+    /// # Arguments
+    ///
+    /// * `include_zero_tick` - If `true`, the zero-th tick is included in the count.
+    /// * `tick_count` - The target tick threshold to reach.
     pub fn is_done_ticks(&self, include_zero_tick: bool, tick_count: TimeTick) -> bool {
         self.previous().as_time_tick() + if include_zero_tick { 1 } else { 0 } >= tick_count
     }
@@ -683,7 +709,6 @@ mod tests {
 
     #[test]
     fn sim_time_saturating_add_boundary() {
-        // SimTime::MAX に対する saturating_add の挙動
         let max_sim_time = SimTime::from_ticks(TimeTick::MAX);
         let d_one = Duration::one();
         assert_eq!(max_sim_time.saturating_add(d_one), max_sim_time);
@@ -694,7 +719,6 @@ mod tests {
 
     #[test]
     fn sim_time_saturating_sub_boundary() {
-        // SimTime::zero() に対する saturating_sub / saturating_sub_duration の挙動（ゼロで止まるか）
         let t_zero = SimTime::zero();
         let t_five = SimTime::from_ticks(5);
         let d_five = Duration::ticks(5);
@@ -702,7 +726,6 @@ mod tests {
         assert_eq!(t_zero.saturating_sub(t_five), Duration::zero());
         assert_eq!(t_zero.saturating_sub_duration(d_five), SimTime::zero());
 
-        // 小さい値から大きい値を引いたとき、しっかり下限でサチュレートするか
         let t_three = SimTime::from_ticks(3);
         assert_eq!(t_three.saturating_sub(t_five), Duration::zero());
         assert_eq!(t_three.saturating_sub_duration(d_five), SimTime::zero());
@@ -710,7 +733,6 @@ mod tests {
 
     #[test]
     fn sim_time_checked_sub_duration_underflow() {
-        // checked_sub_duration のアンダーフロー: 減算結果が負になる際、正しく None が返るか
         let t_three = SimTime::from_ticks(3);
         let d_five = Duration::ticks(5);
         assert_eq!(t_three.checked_sub_duration(d_five), None);
@@ -723,9 +745,6 @@ mod tests {
     #[test]
     #[should_panic(expected = "attempt to subtract with overflow")]
     fn sim_time_sub_operator_underflow_panic() {
-        // SimTime の Sub 特性の実装 (self.0 - rhs.0) は checked/saturating になっていないため、
-        // アンダーフロー時にパニック（debug時は確実、release時も overflow-checks=true なら）する。。
-        // この挙動を明確化するためのテスト。
         let t_three = SimTime::from_ticks(3);
         let d_five = Duration::ticks(5);
         let _ = t_three - d_five;
