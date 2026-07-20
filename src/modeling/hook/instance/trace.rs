@@ -1,3 +1,10 @@
+//! The `trace` module provides the `TraceHook`, a built-in `Hook` implementation
+//! for logging and tracing simulation events and state changes.
+//!
+//! This hook outputs detailed information about the simulation's progression,
+//! including tick and micro-step transitions, source firings, event processing,
+//! and model summaries. It is highly configurable via feature flags for verbosity.
+
 use crate::modeling::event::Event;
 use crate::modeling::hook::Hook;
 use crate::modeling::model::Model;
@@ -6,10 +13,13 @@ use crate::source_handler::{SourceReadyEntry, SourceView};
 use log::{debug, info, trace};
 use std::fmt;
 
+/// A trait for providing a concise summary representation of a model.
 pub trait ModelSummary {
+    /// Formats the model's summary for display.
     fn summary(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result;
 }
 
+/// An adapter that bridges the `ModelSummary` trait with `fmt::Display`.
 struct ModelLogAdapter<'a, M>(&'a M);
 
 impl<'a, M: ModelSummary> fmt::Display for ModelLogAdapter<'a, M> {
@@ -18,8 +28,9 @@ impl<'a, M: ModelSummary> fmt::Display for ModelLogAdapter<'a, M> {
     }
 }
 
-/// シミュレーション実行中の状態をトレースする[Hook]。
-/// verbose_debug featureフラグがたっていれば、[Debug]トレイトを使ってモデルの詳細な状態も出力する。
+/// A [Hook] that traces the simulation state.
+/// If the `verbose_debug` feature is enabled, it also outputs the model's detailed state
+/// using the [Debug] trait.
 pub struct TraceHook;
 
 impl<E, M> Hook<E, M> for TraceHook
@@ -84,13 +95,13 @@ where
         self.debug_log_model(model, "  ");
     }
 
-    fn before_initialize_source(&self, model: &M, name: &str) {
-        debug!("> Initialize Source: {}", name);
+    fn before_register_source(&self, model: &M, name: &str) {
+        debug!("> Start Register Source: {}", name);
         self.debug_log_model(model, "");
     }
 
-    fn after_initialize_source(&self, model: &M, name: &str) {
-        debug!("< Initialize Source: {}", name);
+    fn after_register_source(&self, model: &M, name: &str) {
+        debug!("< After Register Source: {}", name);
         self.debug_log_model(model, "");
     }
 
@@ -126,6 +137,21 @@ where
             computed_next_fire, source_view
         );
         self.trace_log_model(model, "      ");
+    }
+
+    fn cancel_source(
+        &self,
+        model: &M,
+        current_tick: SimTime,
+        current_micro_step: MicroStep,
+        scheduled_at: SimTime,
+        source_view: &SourceView,
+    ) {
+        debug!(
+            "    ! Source canceled at {:?} (current μStep: {}) | Source: {:?} at scheduled: {}",
+            current_tick, current_micro_step, source_view, scheduled_at
+        );
+        self.debug_log_model(model, "    ");
     }
 
     fn discard_source(

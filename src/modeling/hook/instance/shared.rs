@@ -1,13 +1,21 @@
+//! The `shared` module provides the `SharedHook` wrapper, enabling thread-safe
+//! sharing of `Hook` implementations across different parts of the simulation.
+//!
+//! By leveraging `Arc`, `SharedHook` allows multiple components to register
+//! and receive lifecycle events from the same hook instance, facilitating
+//! centralized logging, metrics collection, or debugging in concurrent scenarios.
+
 use crate::modeling::event::Event;
 use crate::modeling::hook::Hook;
 use crate::modeling::model::Model;
 use crate::primitive::time::{Duration, MicroStep, SimTime};
 use crate::source_handler::{SourceReadyEntry, SourceView};
 use std::marker::PhantomData;
-use std::rc::Rc;
+use std::sync::Arc;
 
+/// A wrapper that allows a hook to be shared across multiple components via `Arc`.
 pub struct SharedHook<E, M: Model<E>, H: Hook<E, M>> {
-    inner: Rc<H>,
+    inner: Arc<H>,
     _event: PhantomData<E>,
     _model: PhantomData<M>,
 }
@@ -15,7 +23,7 @@ pub struct SharedHook<E, M: Model<E>, H: Hook<E, M>> {
 impl<E, M: Model<E>, H: Hook<E, M>> Clone for SharedHook<E, M, H> {
     fn clone(&self) -> Self {
         SharedHook {
-            inner: Rc::clone(&self.inner),
+            inner: Arc::clone(&self.inner),
             _event: PhantomData,
             _model: PhantomData,
         }
@@ -26,7 +34,7 @@ impl<E, M: Model<E>, H> Hook<E, M> for SharedHook<E, M, H>
 where
     H: Hook<E, M>,
 {
-    // Simulation lifecycle
+    // --- Simulation lifecycle ---
 
     fn before_simulation(&self, model: &M) {
         self.inner.as_ref().before_simulation(model)
@@ -36,12 +44,8 @@ where
         self.inner.as_ref().after_simulation(model, end_tick)
     }
 
-    // Tick lifecycle
+    // --- Tick lifecycle ---
 
-    /// skipped_duration は前回Tickから今回Tickまでに
-    /// スキップされた時間。
-    ///
-    /// スキップ無効Runnerの場合は常に Duration::zero()。
     fn before_tick(&self, model: &M, current_tick: SimTime, skipped_duration: Duration) {
         self.inner
             .as_ref()
@@ -83,14 +87,14 @@ where
         )
     }
 
-    // Source lifecycle
+    // --- Source lifecycle ---
 
-    fn before_initialize_source(&self, model: &M, name: &str) {
-        self.inner.as_ref().before_initialize_source(model, name)
+    fn before_register_source(&self, model: &M, name: &str) {
+        self.inner.as_ref().before_register_source(model, name)
     }
 
-    fn after_initialize_source(&self, model: &M, name: &str) {
-        self.inner.as_ref().after_initialize_source(model, name)
+    fn after_register_source(&self, model: &M, name: &str) {
+        self.inner.as_ref().after_register_source(model, name)
     }
 
     fn before_source_phase(&self, model: &M, current_tick: SimTime, current_micro_step: MicroStep) {
@@ -128,6 +132,23 @@ where
         )
     }
 
+    fn cancel_source(
+        &self,
+        model: &M,
+        current_tick: SimTime,
+        current_micro_step: MicroStep,
+        scheduled_at: SimTime,
+        source_view: &SourceView,
+    ) {
+        self.inner.as_ref().cancel_source(
+            model,
+            current_tick,
+            current_micro_step,
+            scheduled_at,
+            source_view,
+        )
+    }
+
     fn discard_source(
         &self,
         model: &M,
@@ -146,7 +167,7 @@ where
             .after_source_phase(model, current_tick, current_micro_step)
     }
 
-    // Event lifecycle
+    // --- Event lifecycle ---
 
     fn before_event_phase(&self, model: &M, current_tick: SimTime, current_micro_step: MicroStep) {
         self.inner
@@ -215,14 +236,16 @@ where
 }
 
 impl<E, M: Model<E>, H: Hook<E, M>> SharedHook<E, M, H> {
+    /// Creates a new `SharedHook` wrapping the provided hook.
     pub fn new(hook: H) -> Self {
         Self {
-            inner: Rc::new(hook),
+            inner: Arc::new(hook),
             _event: PhantomData,
             _model: PhantomData,
         }
     }
 
+    /// Returns a reference to the underlying hook.
     pub fn get_ref(&self) -> &H {
         &self.inner
     }
