@@ -29,7 +29,12 @@ impl Add<Duration> for PendingDuration {
     type Output = PendingDuration;
 
     fn add(self, rhs: Duration) -> Self::Output {
-        PendingDuration::new(self.0 + rhs.as_time_tick() as f64)
+        let result = self.0 + rhs.as_time_tick() as f64;
+        if result.is_finite() {
+            PendingDuration::new(result)
+        } else {
+            panic!("attempt to add with overflow")
+        }
     }
 }
 
@@ -37,7 +42,12 @@ impl Add<PendingDuration> for PendingDuration {
     type Output = PendingDuration;
 
     fn add(self, rhs: PendingDuration) -> Self::Output {
-        PendingDuration::new(self.0 + rhs.0)
+        let result = self.0 + rhs.0;
+        if result.is_finite() {
+            PendingDuration::new(result)
+        } else {
+            panic!("attempt to add with overflow")
+        }
     }
 }
 
@@ -45,7 +55,12 @@ impl Sub<Duration> for PendingDuration {
     type Output = PendingDuration;
 
     fn sub(self, rhs: Duration) -> Self::Output {
-        PendingDuration::new(self.0 - rhs.as_time_tick() as f64)
+        let result = self.0 - rhs.as_time_tick() as f64;
+        if result.is_finite() {
+            PendingDuration::new(result)
+        } else {
+            panic!("attempt to subtract with overflow")
+        }
     }
 }
 
@@ -53,7 +68,12 @@ impl Sub<PendingDuration> for PendingDuration {
     type Output = PendingDuration;
 
     fn sub(self, rhs: PendingDuration) -> Self::Output {
-        PendingDuration::new(self.0 - rhs.0)
+        let result = self.0 - rhs.0;
+        if result.is_finite() {
+            PendingDuration::new(result)
+        } else {
+            panic!("attempt to subtract with overflow")
+        }
     }
 }
 

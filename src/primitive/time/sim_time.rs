@@ -31,13 +31,19 @@ impl Add<Duration> for SimTime {
     type Output = SimTime;
 
     fn add(self, rhs: Duration) -> Self::Output {
-        SimTime(self.0 + rhs.0)
+        match self.0.checked_add(rhs.0) {
+            Some(val) => SimTime(val),
+            None => panic!("attempt to add with overflow"),
+        }
     }
 }
 
 impl AddAssign<Duration> for SimTime {
     fn add_assign(&mut self, rhs: Duration) {
-        self.0 += rhs.0
+        match self.0.checked_add(rhs.0) {
+            Some(val) => self.0 = val,
+            None => panic!("attempt to add with overflow"),
+        }
     }
 }
 
@@ -45,7 +51,10 @@ impl Sub<SimTime> for SimTime {
     type Output = Duration;
 
     fn sub(self, rhs: SimTime) -> Self::Output {
-        Duration(self.0 - rhs.0)
+        match self.0.checked_sub(rhs.0) {
+            Some(val) => Duration(val),
+            None => panic!("attempt to subtract with overflow"),
+        }
     }
 }
 
@@ -53,7 +62,10 @@ impl Sub<Duration> for SimTime {
     type Output = SimTime;
 
     fn sub(self, rhs: Duration) -> Self::Output {
-        SimTime(self.0 - rhs.0)
+        match self.0.checked_sub(rhs.0) {
+            Some(val) => SimTime(val),
+            None => panic!("attempt to subtract with overflow"),
+        }
     }
 }
 
@@ -129,13 +141,19 @@ impl Add<Duration> for Duration {
     type Output = Duration;
 
     fn add(self, rhs: Duration) -> Self::Output {
-        Duration(self.0 + rhs.0)
+        match self.0.checked_add(rhs.0) {
+            Some(val) => Duration(val),
+            None => panic!("attempt to add with overflow"),
+        }
     }
 }
 
 impl AddAssign<Duration> for Duration {
     fn add_assign(&mut self, rhs: Duration) {
-        self.0 += rhs.0;
+        match self.0.checked_add(rhs.0) {
+            Some(val) => self.0 = val,
+            None => panic!("attempt to add with overflow"),
+        }
     }
 }
 
@@ -143,15 +161,19 @@ impl Sub<Duration> for Duration {
     type Output = Duration;
 
     fn sub(self, rhs: Duration) -> Self::Output {
-        debug_assert!(self.0 >= rhs.0);
-        Duration(self.0 - rhs.0)
+        match self.0.checked_sub(rhs.0) {
+            Some(val) => Duration(val),
+            None => panic!("attempt to subtract with overflow"),
+        }
     }
 }
 
 impl SubAssign<Duration> for Duration {
     fn sub_assign(&mut self, rhs: Duration) {
-        debug_assert!(self.0 >= rhs.0);
-        self.0 -= rhs.0;
+        match self.0.checked_sub(rhs.0) {
+            Some(val) => self.0 = val,
+            None => panic!("attempt to subtract with overflow"),
+        }
     }
 }
 
