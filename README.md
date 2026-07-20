@@ -21,8 +21,8 @@ des-sim = "0.1.0" # *Please specify the latest version
 
 Below is an image of the basic flow of a simulation using `des-sim`.
 For more detailed implementation methods and working code, please refer to
-the [GitHub repository examples](https://github.com/ogata-k/des-sim/tree/master/examples). [
-`standard_runner.rs`](https://github.com/ogata-k/des-sim/blob/master/examples/standard_runner.rs) is especially
+the [GitHub repository examples](https://github.com/ogata-k/des-sim/tree/master/examples).
+[`standard_runner.rs`](https://github.com/ogata-k/des-sim/blob/master/examples/standard_runner.rs) is especially
 recommended as a first step.
 
 ### Example
