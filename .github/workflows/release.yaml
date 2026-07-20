@@ -46,21 +46,28 @@ jobs:
       - name: Verify version (dry-run)
         run: cargo publish --dry-run
 
-      # CHANGELOGファイルチェック
+      # check CHANGELOG file
       - name: Get and CHECK changelog path
         id: meta
         run: |
           VERSION=$(grep '^version =' Cargo.toml \
             | head -1 \
             | sed 's/version = "\(.*\)"/\1/')
-
-          FILE="changelog/v${VERSION}.md"
-
+          
+          # ルートの CHANGELOG.md を確認
+          FILE="CHANGELOG.md"
+          
           if [ ! -f "$FILE" ]; then
             echo "❌ Missing changelog: $FILE"
             exit 1
           fi
-
+          
+          # CHANGELOG.md 内に現在のバージョンが存在するか確認
+          if ! grep -q "## \[$VERSION\]" "$FILE"; then
+            echo "❌ Version $VERSION not found in $FILE"
+            exit 1
+          fi
+          
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "file=$FILE" >> $GITHUB_OUTPUT
 

@@ -1,5 +1,21 @@
 [package]
 name = "des-sim"
+description = "Classical Event-Driven Simple Simulator Crate for Discrete Event System."
+authors = ["ogata-k"]
+license = "MIT"
+license-file = "LICENSE"
+keywords = ["simulation", "discrete-event", "event-driven", "deterministic", "framework"]
+categories = ["simulation", "science"]
+readme = "README.md"
+documentation = "https://docs.rs/des-sim"
+homepage = "https://ogata-k.github.io/des-sim/"
+repository = "https://github.com/ogata-k/des-sim"
+exclude = [
+    ".github/",
+    ".idea/",
+    "target/",
+    "Makefile",
+]
 version = "0.1.0"
 edition = "2024"
 
