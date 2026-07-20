@@ -1,3 +1,10 @@
+//! The `always_continue` module provides the `AlwaysContinueStrategy`, a simple implementation
+//! of the `ContinueStrategy` trait.
+//!
+//! This strategy unconditionally allows the simulation to proceed to the next micro-step,
+//! effectively delegating termination control to the main simulation loop's `should_stop`
+//! condition or the natural exhaustion of events.
+
 use crate::execution::phase::UncheckedActiveExecutor;
 use crate::execution::strategy::{ContinueStrategy, ContinuousStrategyResult};
 use crate::modeling::model::Model;

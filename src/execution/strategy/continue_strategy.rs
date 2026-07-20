@@ -1,3 +1,9 @@
+//! The `continue_strategy` module defines the `ContinueStrategy` trait and its associated types.
+//!
+//! This trait allows for custom logic to determine whether the simulation should continue
+//! after each micro-step, providing a flexible way to implement termination conditions
+//! or error handling.
+
 mod always_continue;
 mod limit_abort;
 mod limit_discard;

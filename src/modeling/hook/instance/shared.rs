@@ -1,3 +1,10 @@
+//! The `shared` module provides the `SharedHook` wrapper, enabling thread-safe
+//! sharing of `Hook` implementations across different parts of the simulation.
+//!
+//! By leveraging `Arc`, `SharedHook` allows multiple components to register
+//! and receive lifecycle events from the same hook instance, facilitating
+//! centralized logging, metrics collection, or debugging in concurrent scenarios.
+
 use crate::modeling::event::Event;
 use crate::modeling::hook::Hook;
 use crate::modeling::model::Model;

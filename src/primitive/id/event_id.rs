@@ -1,3 +1,9 @@
+//! The `event_id` module defines the `EventId` type, a unique identifier
+//! for each event within the simulation.
+//!
+//! This ID is crucial for tracking, referencing, and managing individual
+//! events throughout their lifecycle.
+
 /// Represents a unique identifier for an event within the simulation.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct EventId(u64);

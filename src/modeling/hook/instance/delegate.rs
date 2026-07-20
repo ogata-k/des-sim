@@ -1,3 +1,11 @@
+//! The `delegate` module provides the `HookDelegate` struct, an internal component
+//! responsible for managing and dispatching simulation lifecycle events to multiple
+//! registered `Hook` implementations.
+//!
+//! It acts as a central hub for hooks, ensuring that "before" hooks are called
+//! in registration order and "after" hooks in reverse order, maintaining predictable
+//! execution flow.
+
 use crate::modeling::event::Event;
 use crate::modeling::hook::Hook;
 use crate::modeling::hook::instance::SharedHook;

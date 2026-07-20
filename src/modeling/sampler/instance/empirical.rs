@@ -1,3 +1,10 @@
+//! The `empirical` module provides the `EmpiricalSampler`, a `DurationSampler`
+//! that draws samples from a discrete empirical distribution.
+//!
+//! This sampler allows users to define a set of durations, each with an associated
+//! weight, and then samples from this distribution using inverse transform sampling.
+//! It supports both custom weighted distributions and uniform selection.
+
 use crate::modeling::sampler::{DurationSampler, PendingDuration};
 use crate::primitive::time::{Duration, SimTime};
 use rand::{Rng, RngExt};

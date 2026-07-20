@@ -1,3 +1,10 @@
+//! The `micro_step` module defines `MicroStep` and `MicroStepStatus` for
+//! managing sub-tick ordering in the simulation.
+//!
+//! `MicroStep` represents an ordered step within a single simulation tick,
+//! allowing for deterministic execution of events and sources that occur
+//! at the same `SimTime`. `MicroStepStatus` tracks the current micro-step.
+
 use std::fmt::{Display, Formatter};
 
 /// Represents the sequence of micro-steps within a single simulation tick.

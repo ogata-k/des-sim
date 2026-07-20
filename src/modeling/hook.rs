@@ -1,3 +1,11 @@
+//! The `hook` module defines the `Hook` trait, which provides a powerful mechanism
+//! for observing and interacting with the simulation's lifecycle.
+//!
+//! By implementing this trait, users can inject custom logic at various points
+//! during the simulation, such as before/after ticks, micro-steps, source firings,
+//! and event processing. This is invaluable for logging, debugging, data collection,
+//! and dynamic control of the simulation.
+
 pub mod instance;
 
 use crate::modeling::event::Event;

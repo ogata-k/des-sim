@@ -1,3 +1,10 @@
+//! The `jitter` module provides the `JitterSampler`, a combinator that adds
+//! a random or pseudo-random offset (jitter) to the output of a base
+//! `DurationSampler`.
+//!
+//! Unlike `DelaySampler`, `JitterSampler` allows for both positive and negative
+//! offsets, enabling the sampled duration to be either increased or decreased.
+
 use crate::modeling::sampler::{DurationSampler, PendingDuration};
 use crate::primitive::time::SimTime;
 use rand::Rng;

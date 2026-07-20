@@ -1,3 +1,8 @@
+//! The `event` module provides the `EventContext`, which is used by models to interact with the simulation environment
+//! during event processing.
+//!
+//! It allows models to schedule new events, add new sources, and cancel existing scheduled events or sources.
+
 use crate::context::UserContext;
 use crate::event_scheduler::EventScheduler;
 use crate::modeling::event::{Event, EventPriority};

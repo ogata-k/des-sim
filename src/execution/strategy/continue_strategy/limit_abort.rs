@@ -1,3 +1,10 @@
+//! The `limit_abort` module provides the `LimitAbortStrategy`, an implementation
+//! of the `ContinueStrategy` trait that enforces limits on micro-step execution.
+//!
+//! This strategy allows for a configurable maximum number of micro-steps per tick
+//! and a grace period for exceeding this limit. If the limit is continuously
+//! surpassed, the simulation is aborted with a `LimitAbortStrategyError`.
+
 use crate::execution::phase::UncheckedActiveExecutor;
 use crate::execution::strategy::{ContinueStrategy, ContinuousStrategyResult};
 use crate::modeling::model::Model;

@@ -1,3 +1,10 @@
+//! The `agent` module provides structures for defining and managing autonomous agents
+//! within a discrete event simulation.
+//!
+//! It introduces `AgentStep` for individual actions and `AgentContinuation` for
+//! chaining these actions into complex workflows, enabling agents to dynamically
+//! interact with the simulation environment.
+
 use crate::context::{EventContext, UserContext};
 use crate::modeling::event::EventPriority;
 use crate::modeling::model::Model;

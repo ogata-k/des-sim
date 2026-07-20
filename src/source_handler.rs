@@ -1,3 +1,12 @@
+//! The `source_handler` module manages the registration, scheduling, and
+//! execution of simulation sources.
+//!
+//! It maintains a registry of `SourceEntry` instances and uses priority queues
+//! (`ready_queue` and `pending_queue`) to efficiently manage sources scheduled
+//! for future execution. This module ensures that sources are fired at the
+//! correct simulation time and provides mechanisms for dynamic scheduling
+//! and cancellation.
+
 mod fired;
 mod view;
 

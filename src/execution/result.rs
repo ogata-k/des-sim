@@ -1,3 +1,10 @@
+//! The `result` module defines the outcome types for a simulation run:
+//! `SimulationResult`, `SimulationOutput`, and `SimulationError`.
+//!
+//! These types encapsulate the final state of the simulation, whether it completed
+//! successfully or terminated due to an error, providing access to the final
+//! simulation time and model state.
+
 use crate::primitive::time::SimTime;
 
 /// A type alias representing the final outcome of a simulation run.

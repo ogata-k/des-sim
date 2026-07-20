@@ -1,3 +1,11 @@
+//! The `source` module defines the `Source` trait, which is used to create
+//! event generators within the simulation.
+//!
+//! Sources are responsible for scheduling events, either periodically or based
+//! on specific conditions, and can be configured to fire once or repeatedly.
+//! This module also re-exports `SourceReadyEntry` and `SourceView` for
+//! interacting with sources.
+
 use crate::context::{SourceContext, UserContext};
 use crate::modeling::model::Model;
 use crate::primitive::time::Duration;

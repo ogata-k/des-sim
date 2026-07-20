@@ -1,3 +1,10 @@
+//! The `sim_time` module defines `SimTime` and `Duration` for representing
+//! simulation time and intervals, respectively.
+//!
+//! It also includes `TickStatus` for tracking the simulation's progression
+//! through discrete time steps, handling skipped durations for efficiency.
+//! These types provide arithmetic operations and utility methods for time management.
+
 use std::fmt::{Display, Formatter};
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 

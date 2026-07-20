@@ -1,3 +1,12 @@
+//! The `normal` module provides the `NormalSampler`, a `DurationSampler`
+//! that generates durations following a normal (Gaussian) distribution.
+//!
+//! This sampler is useful for modeling phenomena where values tend to cluster
+//! around a mean, with deviations described by a standard deviation.
+//! Users should be aware that normal distributions can produce negative values,
+//! which might require additional handling (e.g., clamping or re-sampling)
+//! depending on the simulation context.
+
 use crate::modeling::sampler::{DurationSampler, PendingDuration};
 use crate::primitive::time::SimTime;
 use rand::Rng;

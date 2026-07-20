@@ -1,3 +1,9 @@
+//! The `chain` module provides the `ChainSampler`, a combinator that links two
+//! `DurationSampler` instances.
+//!
+//! It takes the output of both samplers and combines them using a user-defined
+//! closure, allowing for sequential or interdependent sampling logic.
+
 use crate::modeling::sampler::{DurationSampler, PendingDuration};
 use crate::primitive::time::SimTime;
 use rand::Rng;

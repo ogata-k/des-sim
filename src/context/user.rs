@@ -1,3 +1,8 @@
+//! The `user` module defines the `UserContext` trait, which provides a common interface
+//! for models and sources to interact with the simulation environment.
+//!
+//! This trait allows scheduling events and querying the current simulation time.
+
 use crate::modeling::event::EventPriority;
 use crate::modeling::model::Model;
 use crate::primitive::time::{Duration, MicroStep, SimTime};

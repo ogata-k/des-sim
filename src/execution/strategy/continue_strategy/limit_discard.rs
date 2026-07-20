@@ -1,3 +1,11 @@
+//! The `limit_discard` module provides the `LimitDiscardStrategy`, an implementation
+//! of the `ContinueStrategy` trait that discards remaining tasks when a micro-step
+//! limit is reached.
+//!
+//! This strategy allows the simulation to continue without error, but with a controlled
+//! loss of precision or completeness within a tick, by purging pending events and
+//! sources once the micro-step count exceeds a defined threshold.
+
 use crate::execution::phase::UncheckedActiveExecutor;
 use crate::execution::strategy::{ContinueStrategy, ContinuousStrategyResult};
 use crate::modeling::model::Model;

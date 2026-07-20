@@ -1,3 +1,10 @@
+//! The `interactive_step` module provides the `InteractiveStepHook`, a utility
+//! for debugging and interactive control of a simulation.
+//!
+//! This hook pauses the simulation at the beginning of each tick, prompting the user
+//! to press Enter to proceed. This allows for step-by-step inspection of the simulation
+//! state, making it invaluable for understanding complex simulation dynamics.
+
 use crate::modeling::event::Event;
 use crate::modeling::hook::Hook;
 use crate::modeling::model::Model;

@@ -1,3 +1,11 @@
+//! The `choice` module provides the `ChoiceSampler`, a `DurationSampler`
+//! that selects one of several sub-samplers based on a weighted distribution.
+//!
+//! This allows for modeling scenarios where the next event's duration
+//! can come from different underlying processes, each with a specific
+//! probability or weight. It supports both custom weighted distributions
+//! and uniform selection.
+
 use crate::modeling::sampler::{DurationSampler, PendingDuration};
 use crate::primitive::time::SimTime;
 use rand::{Rng, RngExt};

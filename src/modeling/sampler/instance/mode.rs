@@ -1,3 +1,10 @@
+//! The `mode` module provides the `ModeSampler`, a `DurationSampler` that
+//! dynamically switches between different sub-samplers based on a `TimeTrigger`.
+//!
+//! This allows for modeling systems whose behavior changes over time, such as
+//! different operating modes or time-of-day effects. The `TimeTrigger` determines
+//! which sampler is active at any given simulation time.
+
 use crate::modeling::sampler::{DurationSampler, PendingDuration};
 use crate::primitive::time::SimTime;
 use rand::Rng;
