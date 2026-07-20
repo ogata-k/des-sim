@@ -38,7 +38,10 @@ impl MicroStep {
     /// Panics if incrementing would cause an overflow.
     #[must_use]
     pub const fn next(self) -> Self {
-        Self(self.0 + 1)
+        match self.0.checked_add(1) {
+            Some(val) => Self(val),
+            None => panic!("attempt to add with overflow"),
+        }
     }
 
     /// Returns the raw numerical value of the micro-step.
