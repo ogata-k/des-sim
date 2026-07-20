@@ -1,3 +1,11 @@
+//! The `rotate` module provides the `RotateSampler`, a `DurationSampler`
+//! that cycles through a predefined list of durations.
+//!
+//! This sampler is useful for scenarios requiring a fixed, repeating sequence
+//! of delays or intervals, such as periodic maintenance schedules or
+//! round-robin processing. It maintains internal state to track the current
+//! position in the sequence.
+
 use crate::modeling::sampler::{DurationSampler, PendingDuration};
 use crate::primitive::time::SimTime;
 use rand::Rng;

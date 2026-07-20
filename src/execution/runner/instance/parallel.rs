@@ -1,3 +1,10 @@
+//! The `parallel` module provides the `ParallelRunner`, an implementation of the `Runner` trait
+//! that enables parallel execution of events.
+//!
+//! This runner processes events concurrently, with an option to synchronize high-priority
+//! events on the main thread to prevent data races. It requires models to implement
+//! the `ParallelModel` trait for safe state management across threads.
+
 use crate::context::{EventContext, ExecutorStatus};
 use crate::execution::SimulationResult;
 use crate::execution::engine::Engine;

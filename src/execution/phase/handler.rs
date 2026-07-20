@@ -1,3 +1,9 @@
+//! The `handler` module defines `MicroStepHandler`, a central component for managing
+//! the execution flow within a simulation tick.
+//!
+//! It orchestrates the transitions between different micro-step phases (source and event processing)
+//! and ensures type-safe progression of the simulation state.
+
 use crate::context::{ActiveExecutorContext, EventContext, SourceContext};
 use crate::execution::phase::{EventPhase, MicroStepResult, SourcePhase, UncheckedActiveExecutor};
 use crate::modeling::hook::Hook;

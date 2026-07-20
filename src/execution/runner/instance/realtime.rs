@@ -1,3 +1,10 @@
+//! The `realtime` module provides the `RealtimeRunner`, an implementation of the `Runner` trait
+//! that synchronizes simulation progression with real-world time.
+//!
+//! This runner is suitable for scenarios where the simulation needs to interact with external
+//! systems or be visualized at a human-perceptible pace. It skips idle periods to maintain
+//! efficiency while adhering to real-time constraints.
+
 use crate::context::ExecutorStatus;
 use crate::execution::SimulationResult;
 use crate::execution::engine::Engine;

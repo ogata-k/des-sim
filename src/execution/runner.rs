@@ -1,3 +1,11 @@
+//! The `runner` module defines the `Runner` trait, which specifies how a simulation
+//! should be executed.
+//!
+//! Different implementations of this trait provide various strategies for advancing
+//! the simulation, such as running for a fixed number of ticks, until idle,
+//! or with a delay for visualization. It also includes functionality for
+//! parallel batch execution.
+
 pub mod instance;
 
 use crate::context::ExecutorStatus;

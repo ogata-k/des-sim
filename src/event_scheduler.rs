@@ -1,3 +1,10 @@
+//! The `event_scheduler` module provides the `EventScheduler` struct, which is
+//! responsible for managing the scheduling and retrieval of events within the simulation.
+//!
+//! It uses a binary heap to efficiently store and prioritize `ScheduledEvent` instances,
+//! ensuring that events are processed in the correct order based on their scheduled time
+//! and priority. It also offers functionality for canceling scheduled events.
+
 use crate::modeling::event::{Event, EventPriority};
 use crate::primitive::id::EventId;
 use crate::primitive::time::{Duration, SimTime};

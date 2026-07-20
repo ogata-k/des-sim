@@ -1,3 +1,9 @@
+//! The `map` module provides the `MapSampler`, a combinator that transforms
+//! the output of a base `DurationSampler` using a user-defined closure.
+//!
+//! This allows for arbitrary mathematical or logical operations to be applied
+//! to the sampled duration, enabling flexible customization of sampling behavior.
+
 use crate::modeling::sampler::{DurationSampler, PendingDuration};
 use crate::primitive::time::SimTime;
 use rand::Rng;

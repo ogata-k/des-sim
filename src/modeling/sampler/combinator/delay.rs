@@ -1,3 +1,10 @@
+//! The `delay` module provides the `DelaySampler`, a combinator that introduces
+//! a positive delay to the output of a base `DurationSampler`.
+//!
+//! This sampler adds a value from a separate delay sampler to the base sample.
+//! Negative delays are treated as zero, ensuring that the resulting duration
+//! is never reduced by the delay component.
+
 use crate::modeling::sampler::{DurationSampler, PendingDuration};
 use crate::primitive::time::SimTime;
 use rand::Rng;

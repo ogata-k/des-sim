@@ -1,3 +1,10 @@
+//! The `exponential` module provides the `ExponentialSampler`, a `DurationSampler`
+//! that generates durations following an exponential distribution.
+//!
+//! This is commonly used to model the time between events in a Poisson process,
+//! such as arrival times in queuing systems, where events occur continuously
+//! and independently at a constant average rate.
+
 use crate::modeling::sampler::{DurationSampler, PendingDuration};
 use crate::primitive::time::SimTime;
 use rand::Rng;

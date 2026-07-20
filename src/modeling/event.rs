@@ -1,3 +1,8 @@
+//! The `event` module defines the core components for representing events in the simulation.
+//!
+//! It includes `EventPriority` for ordering events and the `Event` struct itself,
+//! which encapsulates a unique ID, priority, and a generic payload for application-specific data.
+
 use crate::primitive::id::EventId;
 
 /// Represents the priority of an event.

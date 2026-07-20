@@ -1,3 +1,9 @@
+//! The `phase` module defines the different phases within a simulation tick,
+//! including micro-steps for event and source processing.
+//!
+//! It provides structures like `MicroStepHandler` to manage the execution flow
+//! within a tick and `MicroStepResult` to determine the next action.
+
 mod event;
 mod handler;
 mod source;

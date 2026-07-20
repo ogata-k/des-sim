@@ -1,3 +1,10 @@
+//! The `uniform` module provides the `UniformSampler`, a `DurationSampler`
+//! that generates durations following a continuous uniform distribution.
+//!
+//! This sampler is useful for modeling scenarios where any value within a given
+//! range is equally likely, such as random delays or resource allocation times
+//! with no particular bias.
+
 use crate::modeling::sampler::{DurationSampler, PendingDuration};
 use crate::primitive::time::SimTime;
 use rand::Rng;

@@ -1,3 +1,9 @@
+//! The `source` module defines the `SourcePhase` struct, which manages the execution
+//! of sources within a micro-step.
+//!
+//! It handles the firing of sources, their rescheduling, and discarding,
+//! interacting with the simulation model and hooks.
+
 use crate::context::{SourceContext, UserContext};
 use crate::execution::phase::MicroStepHandler;
 use crate::modeling::hook::Hook;

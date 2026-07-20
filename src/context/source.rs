@@ -1,3 +1,8 @@
+//! The `source` module provides the `SourceContext`, which is used by sources to interact with the simulation environment
+//! when they are fired.
+//!
+//! It allows sources to schedule new events and access the current simulation time.
+
 use crate::context::UserContext;
 use crate::event_scheduler::EventScheduler;
 use crate::modeling::event::EventPriority;

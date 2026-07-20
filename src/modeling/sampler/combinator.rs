@@ -1,3 +1,10 @@
+//! The `combinator` module provides a set of combinators for building complex
+//! `DurationSampler` instances from simpler ones.
+//!
+//! These combinators allow for fluent, declarative construction of sampling logic,
+//! including mapping, delaying, jittering, chaining, aggregating, clamping,
+//! and ensuring non-negative durations.
+
 mod aggregate;
 mod chain;
 mod clamp;

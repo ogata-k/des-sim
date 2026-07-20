@@ -1,3 +1,9 @@
+//! The `constant` module provides the `ConstantSampler`, a simple `DurationSampler`
+//! that always returns a fixed, predefined duration.
+//!
+//! This is useful for modeling deterministic delays or intervals in a simulation,
+//! where no randomness or variability is required.
+
 use crate::modeling::sampler::{DurationSampler, PendingDuration};
 use crate::primitive::time::SimTime;
 use rand::Rng;

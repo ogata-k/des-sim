@@ -1,3 +1,9 @@
+//! The `engine` module defines the `Engine` struct, which is responsible for setting up
+//! and initializing a discrete event simulation.
+//!
+//! The `Engine` allows for the registration of simulation hooks, sources, and initial events.
+//! It transitions into an `ExecutorContext` to prepare for the main simulation loop.
+
 use crate::context::{ExecutorContext, SourceContext};
 use crate::event_scheduler::EventScheduler;
 use crate::modeling::event::EventPriority;

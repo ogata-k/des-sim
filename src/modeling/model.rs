@@ -1,3 +1,9 @@
+//! The `model` module defines the `Model` trait, which is the fundamental interface
+//! for any simulation model in `des-sim`.
+//!
+//! Any custom simulation logic must implement this trait to process events
+//! and interact with the simulation environment via the provided `EventContext`.
+
 use crate::context::EventContext;
 use crate::modeling::event::Event;
 

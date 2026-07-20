@@ -1,3 +1,10 @@
+//! The `poisson` module provides the `PoissonSampler`, a `DurationSampler`
+//! that generates durations following a Poisson distribution.
+//!
+//! This is typically used to model the number of events occurring within a fixed
+//! interval of time, given a known average rate of occurrence. The sampled values
+//! are discrete (integer-valued) and non-negative.
+
 use crate::modeling::sampler::{DurationSampler, PendingDuration};
 use crate::primitive::time::SimTime;
 use rand::Rng;

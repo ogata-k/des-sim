@@ -1,3 +1,9 @@
+//! The `executor` module provides `ExecutorContext` and `ActiveExecutorContext`, which are internal
+//! contexts used by the simulation runner to manage the simulation's state and progression.
+//!
+//! These contexts offer low-level control over ticks and micro-steps, and interact with hooks
+//! and schedulers to advance the simulation.
+
 use crate::event_scheduler::EventScheduler;
 use crate::execution::phase::MicroStepHandler;
 use crate::execution::{SimulationError, SimulationOutput, SimulationResult};

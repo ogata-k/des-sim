@@ -1,3 +1,9 @@
+//! The `fired` module defines `SourceReadyEntry`, a structure representing
+//! a source that is ready to be processed by the simulation engine.
+//!
+//! This entry contains the source's unique ID and its name, providing essential
+//! information for handling and tracking active sources.
+
 use crate::primitive::id::SourceId;
 use std::sync::Arc;
 

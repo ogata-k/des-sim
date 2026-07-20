@@ -1,3 +1,9 @@
+//! The `aggregate` module provides the `AggregateSampler` and `AggregateBuilder`.
+//!
+//! `AggregateSampler` combines the outputs of multiple `DurationSampler` instances
+//! using a custom aggregation function, allowing for complex statistical modeling.
+//! `AggregateBuilder` offers a fluent API for constructing these aggregated samplers.
+
 use crate::modeling::sampler::{DurationSampler, PendingDuration};
 use crate::primitive::time::SimTime;
 use rand::Rng;

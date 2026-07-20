@@ -1,3 +1,10 @@
+//! The `instance` module provides concrete implementations of the `DurationSampler` trait.
+//!
+//! These include various statistical distributions (e.g., `ConstantSampler`, `UniformSampler`,
+//! `ExponentialSampler`, `NormalSampler`, `PoissonSampler`), as well as samplers for
+//! empirical data (`EmpiricalSampler`), rotational patterns (`RotateSampler`),
+//! and conditional choices (`ChoiceSampler`).
+
 mod choice;
 mod constant;
 mod empirical;

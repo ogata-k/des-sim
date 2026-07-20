@@ -1,3 +1,10 @@
+//! The `sampler` module provides traits and implementations for generating random
+//! or pseudo-random durations within the simulation.
+//!
+//! It includes `DurationSampler` for basic sampling, `PendingDuration` for handling
+//! floating-point durations with rounding, and `CombinatorExt` for building complex
+//! sampling logic through method chaining.
+
 pub mod combinator;
 pub mod instance;
 

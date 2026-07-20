@@ -1,3 +1,10 @@
+//! The `clamp` module provides the `ClampSampler`, a combinator that constrains
+//! the output of another `DurationSampler` within a specified numerical range.
+//!
+//! This ensures that sampled durations do not fall below a minimum value or
+//! exceed a maximum value, which can be useful for maintaining realistic
+//! or valid simulation parameters.
+
 use crate::modeling::sampler::{DurationSampler, PendingDuration};
 use crate::primitive::time::SimTime;
 use rand::Rng;

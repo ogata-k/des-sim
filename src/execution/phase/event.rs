@@ -1,3 +1,9 @@
+//! The `event` module defines the `EventPhase` struct, which manages the execution
+//! of events within a micro-step.
+//!
+//! It provides mechanisms for processing events, taking them from the queue,
+//! and interacting with the simulation model and hooks.
+
 use crate::context::{EventContext, UserContext};
 use crate::execution::phase::MicroStepHandler;
 use crate::modeling::event::Event;

@@ -1,3 +1,10 @@
+//! The `standard` module provides the `StandardRunner`, a basic implementation of the `Runner` trait
+//! that executes simulations sequentially.
+//!
+//! This runner is designed for deterministic, step-by-step simulation, with an option to
+//! skip idle time for efficiency. It processes sources and events in a defined order
+//! within each micro-step.
+
 use crate::context::ExecutorStatus;
 use crate::execution::SimulationResult;
 use crate::execution::engine::Engine;
@@ -663,7 +670,7 @@ mod tests {
 
         // Stopping condition: Ends when processing for 2 ticks is completed.
         let should_stop = |_m: &TestModel, _status: ExecutorStatus, tick: TickStatus| {
-            // include_zero_tick=trueなので0tick 1tickの二つで終了
+            // Since include_zero_tick=true, it ends with 0tick and 1tick.
             tick.is_done_ticks(true, 2)
         };
 
@@ -758,7 +765,7 @@ mod tests {
         let model = TestModel { event_count: 0 };
         let mut engine = Engine::new();
 
-        // Register a Hook to record with MockHook。
+        // Register a Hook to record with MockHook.
         engine.add_shared_hook(shared_hook.clone());
 
         // Schedule only one dummy event at tick 1

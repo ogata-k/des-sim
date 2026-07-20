@@ -1,3 +1,10 @@
+//! The `trace` module provides the `TraceHook`, a built-in `Hook` implementation
+//! for logging and tracing simulation events and state changes.
+//!
+//! This hook outputs detailed information about the simulation's progression,
+//! including tick and micro-step transitions, source firings, event processing,
+//! and model summaries. It is highly configurable via feature flags for verbosity.
+
 use crate::modeling::event::Event;
 use crate::modeling::hook::Hook;
 use crate::modeling::model::Model;

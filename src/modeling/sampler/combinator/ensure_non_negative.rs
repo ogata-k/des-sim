@@ -1,3 +1,11 @@
+//! The `ensure_non_negative` module provides the `EnsureNonNegativeSampler`,
+//! a combinator that guarantees a non-negative sampled duration.
+//!
+//! This sampler attempts to draw samples from a base sampler. If a negative
+//! duration is sampled, it retries a specified number of times. If all retries
+//! yield negative results, it falls back to a user-defined default duration,
+//! preventing invalid time values in the simulation.
+
 use crate::modeling::sampler::{DurationSampler, PendingDuration};
 use crate::primitive::time::{Duration, SimTime};
 use rand::Rng;
